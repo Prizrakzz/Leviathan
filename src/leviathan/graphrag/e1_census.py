@@ -459,7 +459,31 @@ def population_drops(baseline: dict, current: dict) -> list[dict]:
     return sorted(out, key=lambda d: (-d["lost"], d["slice"]))
 
 
-def diff_census(baseline: dict, current: dict) -> dict:
+def _split_declared_drops(drops: list[dict], declared) -> tuple[list[dict], list[dict]]:
+    """(undeclared drops, declared-and-admitted drops). A census slice is a DRIVER slice, so its declaration
+    key is 'drivers/<slice>'; the admission rule is write_guard.admitted_declaration's, unmodified. The
+    census's before-side is its BASELINE, not the store: on the first fold after the russia narrowing that is
+    the frozen 2026-08-02 baseline (363), a different pre-change reading from the store's 584 -- the entry
+    records both, and each admitted drop names the reading it matched, so the log shows what the declaration
+    was measured against."""
+    if declared is None:
+        return list(drops), []
+    from leviathan.graphrag import write_guard as wg
+    kept: list[dict] = []
+    admitted: list[dict] = []
+    for d in drops:
+        entry = wg.admitted_declaration(declared, f"drivers/{d['slice']}", d["before"], d["after"])
+        if entry is None:
+            kept.append(d)
+        else:
+            label, reading = wg.pre_change_reading(entry, d["before"]) or ("-", "-")
+            admitted.append({**d, "expected_population": entry["expected_population"],
+                             "prior_reading": f"{label} {reading}",
+                             "declared_on": entry["declared_on"], "expires": entry["expires"]})
+    return kept, admitted
+
+
+def diff_census(baseline: dict, current: dict, declared=None) -> dict:
     """Delta between two census artifacts (current - baseline) for the regression gate. Pure function of two
     census dicts (the shape `census()` returns) — no config/IO — so both the CLI and the wrappers share one
     verdict. Reports the headline deltas and the TWO stranding-regression signals the doctrine watches:
@@ -470,8 +494,18 @@ def diff_census(baseline: dict, current: dict) -> dict:
                                         still present (a slice reachable-and-fed that lost its evidence/route)
       population_drops               -- G3b: slices whose n_routed_props fell >= POP_DROP_REFUSE and
                                         >= POP_DROP_MIN_ABS props (the leg that makes the gate see a wipe)
+      population_drops_declared      -- the drops a per-slice DECLARATION admits (configs/graphrag/
+                                        declared_churn.json, via write_guard.admitted_declaration -- the
+                                        write guard's own rule, so the two gates agree: the baseline must
+                                        still read as a pre-change reading the entry records and the current
+                                        census must read as none). Reported, never silent, and they do NOT
+                                        set `regressed`
       regressed                      -- True iff consumed_to_orphan is non-empty OR the retire count grew OR
-                                        any slice's population dropped past the trip lines
+                                        any UNDECLARED slice's population dropped past the trip lines
+
+    `declared` (a write_guard.DeclaredChurn) is optional so this stays a pure function of its inputs: None
+    means "no declarations" and every drop regresses exactly as before. run_diff -- the gate's CLI seam --
+    loads the file from the image's configs by default.
 
     A slice that vanished entirely from `current` is NOT a consumed->orphan transition (rename/retire is a
     curation act, not a silent stranding); the gate only fires on a slice that is still declared but slipped."""
@@ -487,10 +521,12 @@ def diff_census(baseline: dict, current: dict) -> dict:
     reasons = set(bi.get("by_reason", {})) | set(ci.get("by_reason", {}))
     by_reason_delta = {r: ci.get("by_reason", {}).get(r, 0) - bi.get("by_reason", {}).get(r, 0)
                        for r in sorted(reasons)}
-    drops = population_drops(baseline, current)
+    drops, declared_drops = _split_declared_drops(population_drops(baseline, current), declared)
     regressed = bool(consumed_to_orphan) or c_retire > b_retire or bool(drops)
     return {
         "population_drops": drops,
+        "population_drops_declared": declared_drops,
+        "declared_churn": declared.record() if declared is not None else None,
         "d_dark": ci["n_dark"] - bi["n_dark"],
         "d_consumed": cs["n_consumed"] - bs["n_consumed"],
         "d_retire": c_retire - b_retire,
@@ -656,14 +692,35 @@ def _diff_lines(d: dict) -> list[str]:
     for drop in d.get("population_drops") or []:
         lines.append(f"REGRESSION population {drop['slice']}: {drop['before']} -> {drop['after']} props "
                      f"(-{drop['lost']}, {drop['frac'] * 100:.1f}%)")
+    for drop in d.get("population_drops_declared") or []:
+        lines.append(f"ADMITTED population {drop['slice']}: {drop['before']} -> {drop['after']} props "
+                     f"(-{drop['lost']}, {drop['frac'] * 100:.1f}%) -- declared churn: pre-change "
+                     f"{drop.get('prior_reading', '-')} -> expected population "
+                     f"{drop['expected_population']}, declared_on {drop['declared_on']}, expires "
+                     f"{drop['expires']} (configs/graphrag/declared_churn.json)")
+    dc = d.get("declared_churn") or {}
+    if dc.get("state") == "invalid":
+        lines.append("DECLARED-CHURN manifest INVALID -- no declaration honoured (fail closed): "
+                     + "; ".join(dc.get("errors") or [])[:400])
     lines.append("VERDICT " + ("REGRESSED (exit 1)" if d["regressed"] else "ok (exit 0)"))
     return lines
 
 
-def run_diff(current: dict, baseline: dict) -> tuple[int, list[str]]:
+_LOAD_DECLARED = object()      # run_diff's default: read configs/graphrag/declared_churn.json
+
+
+def run_diff(current: dict, baseline: dict, declared=_LOAD_DECLARED) -> tuple[int, list[str]]:
     """Compute the diff + render its ASCII lines + decide the exit code (1 on regression, else 0). The
-    wrappers read the exit code to fail a rebuild/load on a stranding regression; the lines are for stdout."""
-    d = diff_census(baseline, current)
+    wrappers read the exit code to fail a rebuild/load on a stranding regression; the lines are for stdout.
+
+    The per-slice churn declarations are read HERE by default -- the same file, through the same loader, that
+    the rebuild's write guard read one step earlier in the fold chain -- so a drop the write guard admitted is
+    not refused by this gate after the store has already been rewritten. Pass `declared=None` for the bare
+    gate."""
+    if declared is _LOAD_DECLARED:
+        from leviathan.graphrag import write_guard as wg
+        declared = wg.load_declared_churn()
+    d = diff_census(baseline, current, declared=declared)
     return (1 if d["regressed"] else 0), _diff_lines(d)
 
 

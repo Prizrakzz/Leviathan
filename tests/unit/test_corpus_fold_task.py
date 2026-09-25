@@ -469,3 +469,80 @@ def test_the_task_still_offers_no_allow_churn_and_no_way_to_skip_the_roll(fold) 
 
 def test_the_source_is_ascii(fold) -> None:
     _TASK.read_text(encoding="utf-8").encode("ascii")
+
+
+# ---------------------------------------------------------------------------
+# DECLARED CHURN (2026-09-25) -- GUARD 3 REPORTS, THE CHAIN THREADS NOTHING
+#
+# The 2026-09-23 fire (corpus-fold-h13c) refused on drivers/russia_export_tax_quota 583 -> 133, a
+# drop DECLARED in driver_slices.yaml:859 (the 2026-08-27 co_terms narrowing). The answer is a
+# per-slice entry in configs/graphrag/declared_churn.json that the rebuild's write guard reads from
+# the image itself -- never a flag on this task and never a layer-wide --allow-churn.
+# ---------------------------------------------------------------------------
+
+_DECL = {"manifest": "declared_churn", "version": 1, "entries": [{
+    "slice": "drivers/russia_export_tax_quota", "declared_on": "2026-01-01",
+    "reason": "the 2026-08-27 co_terms narrowing, driver_slices.yaml:859, commit d9af78ce",
+    "prior_population": {"store": 584, "census_baseline": 363},
+    "expected_population": 133, "expires": "2099-12-31"}]}
+
+
+def _declared_cfg(tmp_path, monkeypatch, doc):
+    from leviathan.graphrag import extract as ex
+    cfg = tmp_path / "cfg"
+    cfg.mkdir(exist_ok=True)
+    monkeypatch.setattr(ex, "_CFG", cfg)
+    if doc is not None:
+        (cfg / "declared_churn.json").write_text(json.dumps(doc), encoding="utf-8")
+    return cfg
+
+
+def test_GUARD3_reports_the_declarations_the_rebuild_will_read(fold, tmp_path, monkeypatch) -> None:
+    _declared_cfg(tmp_path, monkeypatch, _DECL)
+    lines: list = []
+    rec = fold.declared_churn_in_force(echo=lines.append)
+    assert rec["state"] == "valid" and rec["active"] == ["drivers/russia_export_tax_quota"]
+    assert any("DECLARED drivers/russia_export_tax_quota -> expected_population 133" in ln
+               for ln in lines)
+    " ".join(lines).encode("ascii")                      # a Batch log line on a cp1252 console
+
+
+def test_GUARD3_names_an_absent_or_invalid_manifest_and_never_raises(fold, tmp_path,
+                                                                      monkeypatch) -> None:
+    cfg = _declared_cfg(tmp_path, monkeypatch, None)
+    lines: list = []
+    assert fold.declared_churn_in_force(echo=lines.append)["state"] == "absent"
+    assert "no per-slice churn declaration in force" in lines[0]
+    (cfg / "declared_churn.json").write_text("{ not json", encoding="utf-8")
+    lines.clear()
+    assert fold.declared_churn_in_force(echo=lines.append)["state"] == "invalid"
+    assert "INVALID" in lines[0] and "EVERY declaration is ignored" in lines[0]
+
+
+def test_the_chain_threads_NOTHING_for_declared_churn(fold) -> None:
+    """The rebuild step is the submitter's bare command, byte for byte; no option on this task
+    names churn or a declaration. The child reads the file from the image on its own."""
+    sm = fold._guards()
+    steps = fold.chain_steps(_args(fold))
+    assert steps[1] == sm.build_command(mode="rebuild-slices") == [
+        "-m", "leviathan.graphrag.evidence_batch", "--rebuild-slices"]
+    flat = " ".join(sum(steps, []))
+    assert "declared" not in flat and "churn" not in flat
+    opts = [s for a in fold.build_parser()._actions for s in a.option_strings]
+    assert not any("churn" in o or "declared" in o for o in opts)
+
+
+def test_a_DRY_RUN_prints_the_declarations_in_force(fold, tmp_path, monkeypatch, capsys) -> None:
+    _declared_cfg(tmp_path, monkeypatch, _DECL)
+    sm = fold._guards()
+    monkeypatch.setattr(sm, "assert_not_live_rebuild", lambda **kw: None)
+    s3 = _FakeS3()
+    import boto3
+    monkeypatch.setattr(boto3, "client", lambda service, **kw: s3)
+    monkeypatch.setattr(fold.cc, "bind_evidence_prefix", lambda p, **kw: p.rstrip("/"))
+    rc = fold.main(["--stage", "fold", "--evidence-s3", LIVE, "--census-baseline", BASELINE,
+                    "--dry-run"])
+    out = capsys.readouterr().out
+    assert rc == 0 and s3.puts == [] and s3.copies == []
+    assert "GUARD churn: DECLARED drivers/russia_export_tax_quota" in out
+    assert out.index("GUARD churn: DECLARED") < out.index("chain (")   # before any compute

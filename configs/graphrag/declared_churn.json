@@ -1,0 +1,41 @@
+{
+  "manifest": "declared_churn",
+  "version": 1,
+  "doctrine": "Read by leviathan.graphrag.write_guard at every plan_write, inside the evidence-build container (this file rides the image beside driver_slices.yaml; configs/graphrag/eval/ does not), and by the fold's census gate (e1_census --diff) through the same loader and the same rule. One entry admits ONE slice's refusable population drop, and only while (a) the entry is in force (declared_on <= today <= expires, UTC; past expires it is ignored and the refusal stands), (b) the pass LANDS the declared change: the before-side still reads as one of the PRE-CHANGE readings in prior_population (within SLICE_DROP_REFUSE of the live object's measured pre-change population, or of the fold's older census baseline) and the new population reads as none of them -- once the store has moved off the pre-change readings the entry is SPENT, whatever the slice grows to afterwards, and the plain 10% line judges every later drop -- and (c) the new population sits within SLICE_DROP_REFUSE of expected_population -- the guard's own 10% line re-based onto the declaration, no new threshold. A span contraction on the same slice is admitted endpoint by endpoint, only on a pass that lands the declared change and only as far inward as expected_span declares (zero days past it). Every other slice, the empty guard and the layer line are untouched. Strict schema: prior_population and expected_population are REQUIRED (every prior reading at least SLICE_DROP_REFUSE above expected_population; a span-only entry is refused because it could never be seen to land); unknown keys, relative expected_drop_pct, bad dates or a duplicate slice make the WHOLE file invalid and nothing is admitted (fail closed). Tracked with `git add -f` (configs/graphrag/* is gitignored).",
+  "entries": [
+    {
+      "slice": "drivers/russia_export_tax_quota",
+      "declared_on": "2026-09-25",
+      "reason": "The 2026-08-27 co_terms narrowing at configs/graphrag/driver_slices.yaml:859 (commit d9af78ce, the wheat/policy origin batch -- co_terms conjunctive slice gate): the 583-prop live slice was a WORLD export-policy pool (attributed india 164 / thailand 44 / ukraine 36 / argentina 23 / russia 8) routed by origin-free instrument terms; it now routes an instrument term only when the prop also says russia or russian. The world pool stays in export_ban (1,958 -> 2,973 at the 2026-09-23 fold) and India moved to its own slice (india_export_policy, 0 -> 588). The live object (13,632,657 B, written 2026-08-21T21:21:03Z) predates the narrowing, so the first fold after it judged the declared post-narrowing population (133) against the stale pre-narrowing slice and refused (corpus-fold-h13c, 2026-09-23, 77.2% drop). The narrowing removes the world-pool props that set all four span endpoints, so the measured post-narrowing endpoints are declared as expected_span.",
+      "evidence": {
+        "routing_config": "configs/graphrag/driver_slices.yaml:859",
+        "routing_commit": "d9af78ce",
+        "routing_commit_date": "2026-08-27",
+        "refused_run": "corpus-fold-h13c = Batch job b0af76e7-dff7-4c02-9577-30e8f7fd7103 on leviathan-dev-evidence-build:137 (embedder 5dbf1e1f), exit 2",
+        "measured_run_manifest": "s3://leviathan-dev-shahem-001/graphrag_evidence/eval/write_manifest_rebuild_20260923T170324Z.json",
+        "measured_after_n": 133,
+        "measured_after_span": "date 2010-09-10..2025-03-19, event_date 2010-01-01..2023-02-05",
+        "prior_estimated_n": 583,
+        "prior_exact_n": 584,
+        "prior_exact_manifest": "s3://leviathan-dev-shahem-001/graphrag_evidence/eval/write_manifest_rebuild_20260821T212319Z.json (after_bytes 13632657 == the live object)",
+        "prior_exact_span": "date 1996-05-01..2026-05-20, event_date 1998-01-01..2026-04-07",
+        "admitted_population_floor": 120,
+        "config_note_predicted": "~10-40 props (the driver_slices.yaml note on d9af78ce); the declaration uses the MEASURED 133 from the 09-23 run manifest, which is less loss than the note predicted",
+        "prior_store_object": "s3://leviathan-dev-shahem-001/graphrag_evidence/drivers/russia_export_tax_quota.jsonl 13632657 B, LastModified 2026-08-21T21:21:03Z (head-object 2026-09-25) == the 08-21 rebuild manifest's after_bytes; after_n 584 there is prior_population.store",
+        "prior_census_baseline": "s3://leviathan-dev-shahem-001/graphrag_evidence/eval/e1_census.json 98734 B, LastModified 2026-08-02T00:36:09Z, sha256 88a4bb6189a33275523dec0871e06861b099380c02adbf0319cce7eebed2206b (GET 2026-09-25; the fold schedule's frozen --census-baseline): russia_export_tax_quota n_routed_props 363 = prior_population.census_baseline"
+      },
+      "prior_population": {
+        "store": 584,
+        "census_baseline": 363
+      },
+      "expected_population": 133,
+      "expected_span": {
+        "date_min": "2010-09-10",
+        "date_max": "2025-03-19",
+        "event_date_min": "2010-01-01",
+        "event_date_max": "2023-02-05"
+      },
+      "expires": "2026-12-31"
+    }
+  ]
+}

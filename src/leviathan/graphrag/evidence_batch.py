@@ -1879,9 +1879,12 @@ def main() -> int:
                          "a real --rebuild-slices is a population change and rides the artifact bundle.")
     ap.add_argument("--allow-churn", type=float, default=None, metavar="PCT",
                     help="G1b escape hatch: permit a per-slice population DROP up to PCT percent (e.g. "
-                         "--allow-churn 25). REQUIRES a magnitude on purpose -- 'I expect churn' is not a "
-                         "claim anyone can be wrong about, 'I expect up to 25%%' is. Without it any drop at "
-                         "or over 10%% REFUSES the pass with nothing written.")
+                         "--allow-churn 25) on EVERY slice of the pass (layer-wide). REQUIRES a magnitude "
+                         "on purpose -- 'I expect churn' is not a claim anyone can be wrong about, 'I "
+                         "expect up to 25%%' is. Without it any drop at or over 10%% REFUSES the pass with "
+                         "nothing written. A drop intended for ONE slice is declared in "
+                         "configs/graphrag/declared_churn.json instead (write_guard reads it at every "
+                         "plan; see write_guard.load_declared_churn).")
     ap.add_argument("--no-retry-lost", dest="retry_lost", action="store_false", default=True,
                     help="X2: do NOT re-submit the windows this batch lost (truncated at max_tokens, or "
                          "unparseable). The per-window tally still counts and REPORTS them -- the pilot "

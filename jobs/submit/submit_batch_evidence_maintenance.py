@@ -47,8 +47,10 @@ def build_command(*, mode: str, nodes: str | None = None, allow_churn: float | N
     (submit_batch_evidence) and must not be reachable through a "maintenance" verb.
 
     `allow_churn` (G1b) threads the write-guard escape hatch into the cloud path, because that is where the
-    writes actually happen: without it a legitimate large re-route would be REFUSED in-job with no way to
-    declare the drop it expects. It is a MAGNITUDE, never a boolean.
+    writes actually happen. It is a MAGNITUDE, never a boolean -- and it is LAYER-WIDE: every slice in the
+    pass may then drop that much. A drop INTENDED for one slice (a routing edit narrowed it) is declared in
+    configs/graphrag/declared_churn.json instead, which the in-job write guard reads from the image itself;
+    nothing is threaded for it here.
     """
     if mode not in ("rebuild-slices", "reroute"):
         raise ValueError(f"unknown maintenance mode: {mode!r} (expected 'rebuild-slices' or 'reroute')")
@@ -197,9 +199,11 @@ def main() -> None:
                          "e1_census leg; --census-baseline is load_pg_evidence's own flag for a different "
                          "gate.")
     ap.add_argument("--allow-churn", type=float, default=None, metavar="PCT",
-                    help="G1b: permit a per-slice population DROP of up to PCT percent in-job. Without it "
-                         "the write guard REFUSES any drop >= 10%% with nothing written. Requires a "
-                         "magnitude -- state the churn you expect.")
+                    help="G1b: permit a per-slice population DROP of up to PCT percent in-job, for EVERY "
+                         "slice (layer-wide). Without it the write guard REFUSES any drop >= 10%% with "
+                         "nothing written. Requires a magnitude -- state the churn you expect. A drop "
+                         "intended for ONE slice belongs in configs/graphrag/declared_churn.json (read "
+                         "in-job from the image), not here.")
     ap.add_argument("--no-manifest-lint", dest="manifest_lint", action="store_false", default=True,
                     help="skip the G2 driver-slice manifest-mirror lint that otherwise runs BEFORE the pass "
                          "(escape hatch for a tree that deliberately has no mirror)")

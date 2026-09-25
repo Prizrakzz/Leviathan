@@ -79,6 +79,14 @@ WHAT THIS FILE DELIBERATELY DOES NOT DO.
 
 * IT NEVER PASSES `--allow-churn`. An add-only lane must never need it, and if the live rebuild
   refuses, THAT REFUSAL IS THE FINDING. There is no flag here to override it.
+* IT THREADS NOTHING FOR DECLARED CHURN EITHER. A slice whose drop is INTENDED (a routing edit in
+  driver_slices.yaml narrowed it) is declared in `configs/graphrag/declared_churn.json`, which the
+  rebuild's own write guard reads from THIS image at every plan -- no flag, no env var, no path is
+  passed. The 2026-09-23 fire (corpus-fold-h13c) refused on exactly that case:
+  drivers/russia_export_tax_quota 583 -> 133 after the 2026-08-27 co_terms narrowing (commit
+  d9af78ce), and the per-slice declaration -- not a layer-wide --allow-churn that would let every
+  slice drop that far -- is the structural answer. GUARD 3 prints the declarations in force before
+  any compute, read-only, so the log states what may pass the 10% line and why.
 * The pg legs (`--with-pg-load`, `--with-pg-swap`) are OFF by default. R3 stays MANUAL for its first
   three cycles, driven from the operator's seat; these switches exist so the chain is expressible
   and rehearsable, not so a schedule can flip pg on its own.
@@ -382,6 +390,42 @@ def _emit_and_record(args, s3, doc: dict, datums: list[dict], *, echo=print) -> 
              % type(exc).__name__)
 
 
+def declared_churn_in_force(*, echo=print) -> dict:
+    """GUARD 3's read-only report: the per-slice churn declarations the rebuild's write guard WILL
+    read, via the very call `write_guard.plan_write` makes (`load_declared_churn()` -> this image's
+    configs/graphrag/declared_churn.json). Printed before the backup and the rebuild so a refusal --
+    or an admission -- is legible from the fold's own log.
+
+    This is a REPORT, not a channel: nothing it returns reaches the chain. The child resolves the same
+    file from the same image on its own. Never raises: an unreadable manifest is reported and, in
+    the guard, admits nothing (fail closed)."""
+    try:
+        from leviathan.graphrag import write_guard as wg
+        dc = wg.load_declared_churn()
+    except Exception as exc:                                    # noqa: BLE001 -- a report never fails a fold
+        echo("  GUARD churn: the declared-churn manifest could not be read (%s) -- the rebuild's write "
+             "guard admits nothing it cannot read (fail closed)." % type(exc).__name__)
+        return {"state": "unreadable"}
+    rec = dc.record()
+    if dc.state == "invalid":
+        echo("  GUARD churn: declared-churn manifest INVALID at %s -- EVERY declaration is ignored and "
+             "the 10%% line applies to every slice: %s"
+             % (dc.path, "; ".join(rec["errors"])[:400]))
+    elif not dc.active:
+        echo("  GUARD churn: no per-slice churn declaration in force (%s: %s) -- the 10%% line applies "
+             "to every slice." % (dc.path, dc.state))
+    for key, e in sorted(dc.active.items()):
+        span = e.get("expected_span") or {}
+        echo("  GUARD churn: DECLARED %s -> expected_population %s, expected_span %s (declared_on %s, "
+             "expires %s) -- admitted only at that population / those endpoints"
+             % (key, e.get("expected_population", "-"),
+                ",".join("%s=%s" % (k, span[k]) for k in sorted(span)) or "-",
+                e["declared_on"], e["expires"]))
+    for key, why in sorted(dc.inactive.items()):
+        echo("  GUARD churn: the declaration for %s is NOT in force: %s" % (key, why))
+    return rec
+
+
 def chain_steps(args) -> list[list[str]]:
     """The gated chain, in order, reusing the submitter's own constants so a change there lands here:
 
@@ -557,7 +601,9 @@ def main(argv=None) -> int:
     # ---- GUARD 3: never --allow-churn ------------------------------------------------------------
     print("  GUARD churn: this task offers NO --allow-churn flag. An add-only fold must never need "
           "one; a refusal on an add-only pass IS the finding. (2026-08-21 ran --allow-churn 50.0 "
-          "and lost barley_yellow_dwarf_virus and wheat_blast to 'unwritten'.)")
+          "and lost barley_yellow_dwarf_virus and wheat_blast to 'unwritten'.) An INTENDED drop is "
+          "declared per slice in configs/graphrag/declared_churn.json, which the rebuild reads itself:")
+    declared_churn_in_force()
 
     import boto3
     s3 = boto3.client("s3", region_name=args.aws_region)

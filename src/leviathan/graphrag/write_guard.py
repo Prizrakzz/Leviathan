@@ -41,6 +41,28 @@ prior row set itself (101 GETs / 1.361 GB with a full json.loads of vector-beari
 evaluates the NET population line, records `layer_row_churn: null` with `layer_row_churn_reason` in every
 manifest, and the swap class is closed by determinism (G5a) instead -- not by this guard. Do not read a clean
 manifest as "no rows moved".
+
+DECLARED CHURN -- THE PER-SLICE, DATED, REVIEWED WAY TO SAY "THIS DROP IS INTENDED" (2026-09-25). The
+2026-09-23 fold (corpus-fold-h13c) refused before its first byte on ONE slice,
+drivers/russia_export_tax_quota 583 -> 133 (77.2%), while every other slice moved 0.1-0.9%. The drop was
+DECLARED in the routing config a month earlier -- driver_slices.yaml:859, the 2026-08-27 co_terms narrowing
+(commit d9af78ce) -- and the guard judged the declared post-narrowing population against the stale
+pre-narrowing slice. The only way out it offered was --allow-churn PCT, which is LAYER-WIDE: an 80% allowance
+lets EVERY slice drop 80% silently, the exact class this module exists to refuse.
+configs/graphrag/declared_churn.json is the structural route: one entry per slice carrying the reason (the
+routing change and its commit), the PRE-CHANGE slice the declaration was measured against (prior_population:
+the live object's population, plus the fold's census baseline when that baseline is older than the object),
+the expected post-change POPULATION, optionally the post-change SPAN ENDPOINTS, and an expiry. The guard
+admits exactly that slice, only on the pass that moves it FROM a pre-change reading TO a population that no
+longer reads pre-change, and only at the declared population -- every comparison is the UNCHANGED
+SLICE_DROP_REFUSE line, so there is no new threshold -- plus a span endpoint only as far inward as the declared
+endpoint on that same pass, each as a WARN naming the declaration. Once the store has moved off the pre-change
+readings the entry is SPENT, whatever the slice grows to afterwards, and the plain 10% line judges every later
+drop. (The first cut tested "pending" as "the prior sits 10% above the declared population" -- a population
+proxy that post-landing GROWTH re-armed: 160 -> 121 admitted, the 2026-09-25 verifier's MAJOR-1.) Every other
+slice keeps the 10% line; an expired, not-yet-in-force or malformed declaration admits nothing; the empty guard
+and the layer line never consult a declaration. See load_declared_churn, pre_change_reading, _declared_lands,
+_declared_admits and _declared_span_admits.
 """
 from __future__ import annotations
 
@@ -58,7 +80,9 @@ import time
 #   WARNS (a shrink is never silent). Receipt: 40 of 101 slices shrank at the promote; the largest single
 #   loser, `metals`, went -263 props against a 975-prop survivor = -21%, and all five slices the backlog
 #   named sit above this line. A slice losing a tenth of its props has no legitimate SILENT path -- the
-#   legitimate path is --allow-churn with a declared magnitude.
+#   legitimate paths are a per-slice DECLARATION in configs/graphrag/declared_churn.json (judged by this
+#   same line re-based onto the declared population and onto the pre-change readings the declaration was
+#   measured against), or, layer-wide, --allow-churn with a magnitude.
 SLICE_DROP_REFUSE = 0.10
 # LAYER_DROP_REFUSE -- the same line applied to the layer's total population. Stated honestly: this would
 #   NOT have fired on 2026-07-20 (net -633 over 59,165 props = -1.07%); the per-slice line is what catches
@@ -85,6 +109,40 @@ _RANGE_SAMPLE_BYTES = 65536
 # than the pass writing over it is a re-chunk, not a fill, and re-chunking re-rolls every driver slice that
 # document feeds. Refuse it unless the caller says --rechunk.
 DOC_CACHE_VINTAGE_REFUSES = True
+
+# ── DECLARED CHURN (configs/graphrag/declared_churn.json) ────────────────────────────────────────────────
+# WHERE THE FILE LIVES, AND WHY NOT eval/. The guard runs INSIDE the evidence-build container, so its
+# declarations must ride the image. configs/graphrag/eval/ does not: .dockerignore names it "never needed
+# inside an image", scripts/ops/make_worker_context_tar.OVERLAY_EXCLUDE_PREFIXES drops it from the gitignored
+# overlay, and the context tar behind the live embedder image (commit 5d90d2c0, digest 5dbf1e1f) was measured
+# on 2026-09-25 to hold ZERO configs/graphrag/eval/ members. A tracked file there would ride the kaniko route
+# only by the accident of `git archive` not reading .dockerignore, and would vanish from a plain
+# `docker build .`. So the file sits at the TOP of configs/graphrag/, beside priority_manifest.json -- which
+# that same tar does carry -- and tests/unit/test_declared_churn.py pins the path against both exclusion
+# lists. A declaration the guard cannot read admits nothing: every failure mode of this file FAILS CLOSED.
+DECLARED_CHURN_FILE = "declared_churn.json"
+DECLARED_CHURN_MANIFEST = "declared_churn"
+DECLARED_CHURN_VERSION = 1
+_DECL_TOP_KEYS = frozenset({"manifest", "version", "doctrine", "entries"})
+# expected_population AND prior_population are REQUIRED: together they are how an entry sees its change LAND
+# (a pre-change reading -> a population that no longer reads pre-change) and is SPENT from then on. A
+# span-only entry has no such identity -- its slice's population need not move -- so it could never be seen
+# to land and would re-admit every outward-then-inward endpoint move until expiry (MAJOR-1 through the span
+# leg). The schema refuses one; see validate_declared_churn.
+_DECL_REQUIRED = ("slice", "declared_on", "reason", "expires", "expected_population", "prior_population")
+_DECL_OPTIONAL = frozenset({"evidence", "expected_span"})
+# The PRE-CHANGE READINGS an entry records -- each a population the slice HELD BEFORE THE CHANGE, measured, with
+# its receipt in the entry's `evidence`:
+#   store            -- REQUIRED. The live object the rebuild overwrites: the write guard's prior (for the
+#                       russia slice, 584 = the exact after_n of the 2026-08-21 rebuild manifest, whose
+#                       after_bytes 13,632,657 == the live object).
+#   census_baseline  -- the fold's census baseline, when that baseline predates the store's last write. The
+#                       fold's step 3 diffs against it, not against the store: the frozen 2026-08-02
+#                       eval/e1_census.json holds 363 for the russia slice. Without this reading the first fold
+#                       passes step 2, REWRITES the store, and fails step 3 on the same slice.
+# BOTH gates test their before-side against EVERY reading (pre_change_reading): one rule, so a declaration can
+# never be honoured by one gate and refused by the other.
+_DECL_PRIOR_READINGS = ("store", "census_baseline")
 
 
 class WriteRefused(RuntimeError):
@@ -297,12 +355,352 @@ def resolve_prior(subprefix: str, names, *, layer: str | None = None) -> dict:
     return out
 
 
+# ── declared churn: the loader, the schema, the admission rule ───────────────────────────────────────────
+def declared_churn_path():
+    """<configs/graphrag>/declared_churn.json, resolved through extract._CFG at CALL time: a hermetic test that
+    points _CFG at a tmp dir sees no declarations, and the container reads /app/configs/graphrag/ (the image
+    runs `pip install -e`, so the package -- and therefore _CFG -- is the image's own /app tree)."""
+    from leviathan.graphrag import extract as ex
+    return ex._CFG / DECLARED_CHURN_FILE
+
+
+def _iso_date(value):
+    """A strict YYYY-MM-DD date, or None. No datetimes, no partial dates: an expiry is a calendar day."""
+    from datetime import date
+    if not isinstance(value, str) or len(value) != 10:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def validate_declared_churn(doc) -> list[str]:
+    """Schema errors for a declared-churn document; [] means valid. STRICT on purpose -- an unknown key is an
+    error, not a comment -- because this file is the ONLY thing that lets a refusable drop through, and a
+    misspelt `expected_populaton` must not silently mean "no bound".
+
+    WHAT AN ENTRY STATES -- every quantity ABSOLUTE and MEASURED:
+      `prior_population` ({store: int >= 1, census_baseline?: int >= 1}) -- REQUIRED. The PRE-CHANGE slice
+        the declaration was measured against (see _DECL_PRIOR_READINGS). Every reading must sit at least
+        SLICE_DROP_REFUSE above expected_population: a reading within the line of the declared population
+        could never be told apart from the post-change store, so its entry could never be seen to land;
+      `expected_population` (an int >= 1) -- REQUIRED. The post-change population: the population leg (see
+        _declared_admits), and the other half of how an entry sees its change land (_declared_lands);
+      `expected_span` (optional; {date_min|date_max|event_date_min|event_date_max: YYYY-MM-DD}) -- the
+        post-change span endpoints, the span leg (see _declared_span_admits). An endpoint that is not declared
+        is not admitted.
+    `expected_drop_pct` is REFUSED by name, and the reason is structural, not taste: a relative declaration is
+    re-applied to EVERY future prior until the entry expires, so once the declared change has landed it would
+    admit the SAME drop again from the new, smaller population -- the --allow-churn defect scoped down to one
+    slice. The same defect reached the first cut a second way (the 2026-09-25 verifier's MAJOR-1): "pending"
+    was read off the declared population alone, so post-landing GROWTH re-armed it. An entry is now bound to
+    the pre-change store it names and is spent once the store has moved off it."""
+    if not isinstance(doc, dict):
+        return ["the document is not a JSON object"]
+    errs: list[str] = []
+    extra = sorted(set(doc) - _DECL_TOP_KEYS)
+    if extra:
+        errs.append(f"unknown top-level key(s) {extra}; allowed: {sorted(_DECL_TOP_KEYS)}")
+    if doc.get("manifest") != DECLARED_CHURN_MANIFEST:
+        errs.append(f"'manifest' must be {DECLARED_CHURN_MANIFEST!r}, got {doc.get('manifest')!r}")
+    if doc.get("version") != DECLARED_CHURN_VERSION:
+        errs.append(f"'version' must be {DECLARED_CHURN_VERSION}, got {doc.get('version')!r}")
+    entries = doc.get("entries")
+    if not isinstance(entries, list):
+        return errs + ["'entries' must be a list"]
+    seen: set[str] = set()
+    for i, e in enumerate(entries):
+        where = f"entries[{i}]"
+        if not isinstance(e, dict):
+            errs.append(f"{where}: not an object")
+            continue
+        if "expected_drop_pct" in e:
+            errs.append(f"{where}: expected_drop_pct is refused -- a RELATIVE declaration re-applies to every "
+                        f"future prior until expiry, so after the declared change lands it admits the same drop "
+                        f"AGAIN. Declare the absolute expected_population.")
+        unknown = sorted(set(e) - set(_DECL_REQUIRED) - _DECL_OPTIONAL - {"expected_drop_pct"})
+        if unknown:
+            errs.append(f"{where}: unknown key(s) {unknown}")
+        missing = [k for k in _DECL_REQUIRED if k not in e]
+        if missing:
+            errs.append(f"{where}: missing required key(s) {missing}")
+        if "expected_population" not in e and "expected_span" in e:
+            errs.append(f"{where}: a span-only declaration is refused -- expected_population is required, "
+                        f"because the population move (a prior_population reading -> the declared population) "
+                        f"is how an entry sees its change land and goes spent; a span-only entry would re-admit "
+                        f"every outward-then-inward endpoint move until it expires")
+        sl = e.get("slice")
+        if isinstance(sl, str) and sl.count("/") == 1 and all(sl.split("/")):
+            layer = sl.split("/")[0]
+            if layer not in SEED_LAYERS:
+                errs.append(f"{where}: slice {sl!r} names layer {layer!r}; known layers: {sorted(SEED_LAYERS)}")
+            if sl in seen:
+                errs.append(f"{where}: slice {sl!r} is declared twice")
+            seen.add(sl)
+        elif "slice" in e:
+            errs.append(f"{where}: slice must be '<layer>/<name>' (e.g. 'drivers/russia_export_tax_quota'), "
+                        f"got {sl!r}")
+        d_on, d_exp = _iso_date(e.get("declared_on")), _iso_date(e.get("expires"))
+        if "declared_on" in e and d_on is None:
+            errs.append(f"{where}: declared_on must be a YYYY-MM-DD date, got {e.get('declared_on')!r}")
+        if "expires" in e and d_exp is None:
+            errs.append(f"{where}: expires must be a YYYY-MM-DD date, got {e.get('expires')!r}")
+        if d_on and d_exp and d_exp < d_on:
+            errs.append(f"{where}: expires {d_exp} is before declared_on {d_on}")
+        if "reason" in e and not (isinstance(e["reason"], str) and e["reason"].strip()):
+            errs.append(f"{where}: reason must be a non-empty string naming the routing change")
+        pop = e.get("expected_population")
+        pop_ok = isinstance(pop, int) and not isinstance(pop, bool) and pop >= 1
+        if "expected_population" in e and not pop_ok:
+            errs.append(f"{where}: expected_population must be an int >= 1 (a declared EMPTY slice is never "
+                        f"admitted -- the empty guard is unconditional), got {pop!r}")
+        prior = e.get("prior_population")
+        if "prior_population" in e:
+            if not (isinstance(prior, dict) and "store" in prior and set(prior) <= set(_DECL_PRIOR_READINGS)):
+                errs.append(f"{where}: prior_population must be an object over {list(_DECL_PRIOR_READINGS)} "
+                            f"holding at least 'store' (the live object's pre-change population), got {prior!r}")
+            else:
+                for label in _DECL_PRIOR_READINGS:
+                    if label not in prior:
+                        continue
+                    r = prior[label]
+                    if not (isinstance(r, int) and not isinstance(r, bool) and r >= 1):
+                        errs.append(f"{where}: prior_population {label} must be an int >= 1, got {r!r}")
+                    elif pop_ok and (r - pop) / r < SLICE_DROP_REFUSE:
+                        errs.append(f"{where}: prior_population {label} {r} is not at least "
+                                    f"{SLICE_DROP_REFUSE * 100:.0f}% above expected_population {pop} -- the "
+                                    f"declared change is no refusable drop from that reading, and a store at the "
+                                    f"declared population would still read as pre-change, so the entry could "
+                                    f"never be seen to land")
+        span = e.get("expected_span")
+        if "expected_span" in e:
+            if not (isinstance(span, dict) and span and set(span) <= set(_SPAN_FIELDS)):
+                errs.append(f"{where}: expected_span must be a non-empty object over {list(_SPAN_FIELDS)}, "
+                            f"got {span!r}")
+            else:
+                bad = sorted(k for k, v in span.items() if _iso_date(v) is None)
+                if bad:
+                    errs.append(f"{where}: expected_span {bad} must be YYYY-MM-DD dates")
+                for lo, hi in (("date_min", "date_max"), ("event_date_min", "event_date_max")):
+                    if (lo in span and hi in span and not bad and span[lo] > span[hi]):
+                        errs.append(f"{where}: expected_span {lo} {span[lo]} is after {hi} {span[hi]}")
+        evid = e.get("evidence")
+        if "evidence" in e and not (isinstance(evid, dict) and all(
+                isinstance(k, str) and isinstance(v, (str, int, float)) and not isinstance(v, bool)
+                for k, v in evid.items())):
+            errs.append(f"{where}: evidence must be an object of string keys to string/number values")
+    return errs
+
+
+class DeclaredChurn:
+    """The declarations in force for ONE pass, exactly as the guard read them.
+
+    `state` is "absent" (no file -- the normal state), "valid", or "invalid" (unreadable or schema-failing:
+    EVERY entry is ignored, fail closed). `active` maps '<layer>/<slice>' to the entry in force today;
+    `inactive` maps an entry that exists but is NOT in force (expired, or not yet declared) to the reason, so a
+    refusal on that slice can say why the declaration did not apply instead of reading as undeclared."""
+
+    __slots__ = ("path", "sha256", "state", "errors", "today", "active", "inactive")
+
+    def __init__(self, *, path: str, state: str = "absent", sha256: str | None = None, errors=(),
+                 today: str | None = None, active: dict | None = None, inactive: dict | None = None):
+        self.path, self.state, self.sha256 = path, state, sha256
+        self.errors, self.today = list(errors), today
+        self.active, self.inactive = dict(active or {}), dict(inactive or {})
+
+    def entry_for(self, key: str) -> dict | None:
+        return self.active.get(key)
+
+    def record(self) -> dict:
+        """What the run manifest carries: enough to re-read the exact declarations a pass was judged by."""
+        return {"path": self.path, "state": self.state, "sha256": self.sha256, "today": self.today,
+                "errors": [_ascii(x) for x in self.errors], "active": sorted(self.active),
+                "inactive": {k: _ascii(v) for k, v in sorted(self.inactive.items())}}
+
+
+def load_declared_churn(path=None, *, today=None) -> DeclaredChurn:
+    """Read configs/graphrag/declared_churn.json (or `path`) and split its entries into in-force / not.
+
+    An entry is IN FORCE on declared_on <= today <= expires (UTC calendar days, `expires` inclusive: it is the
+    last day the entry counts). Past its expiry it is ignored and the refusal it would have admitted STANDS.
+    Never raises: an absent file is no declarations; an unreadable or schema-failing file is state "invalid"
+    with its errors recorded and NOTHING in force."""
+    import hashlib
+    from datetime import datetime, timezone
+    from pathlib import Path
+    p = Path(path) if path is not None else declared_churn_path()
+    day = today or datetime.now(timezone.utc).date()
+    stamp = day.isoformat()
+    try:
+        if not p.exists():
+            return DeclaredChurn(path=str(p), state="absent", today=stamp)
+        raw = p.read_bytes()
+        doc = json.loads(raw.decode("utf-8"))
+    except Exception as exc:                                   # noqa: BLE001 -- unreadable = no declarations
+        return DeclaredChurn(path=str(p), state="invalid", errors=[f"unreadable: {_ascii(exc)}"], today=stamp)
+    sha = hashlib.sha256(raw).hexdigest()
+    errs = validate_declared_churn(doc)
+    if errs:
+        return DeclaredChurn(path=str(p), state="invalid", sha256=sha, errors=errs, today=stamp)
+    active: dict[str, dict] = {}
+    inactive: dict[str, str] = {}
+    for e in doc["entries"]:
+        d_on, d_exp = _iso_date(e["declared_on"]), _iso_date(e["expires"])
+        if day > d_exp:
+            inactive[e["slice"]] = f"EXPIRED on {e['expires']} (today {stamp}) and was ignored"
+        elif day < d_on:
+            inactive[e["slice"]] = f"NOT YET IN FORCE (declared_on {e['declared_on']}, today {stamp})"
+        else:
+            active[e["slice"]] = dict(e)
+    return DeclaredChurn(path=str(p), state="valid", sha256=sha, today=stamp, active=active, inactive=inactive)
+
+
+def pre_change_reading(entry: dict | None, n) -> tuple[str, int] | None:
+    """The pre-change reading `n` still reads as -- (label, population) -- or None when it reads as none.
+
+    "Reads as" is the guard's OWN line: |n - r| / r < SLICE_DROP_REFUSE, the comparison the unchanged guard
+    would make between that reading and n. A population that matches a reading is a slice the declared change
+    has NOT reached; one that matches none has moved off the pre-change store -- by the declared change or by
+    anything else -- and the entry has nothing left to say about it.
+
+    THIS is what binds an entry to the store it was MEASURED against rather than to its declared population
+    (the verifier's MAJOR-1). The russia entry's readings are store 584 and census_baseline 363; a slice that
+    lands at 133 and then grows to 160 is 72.6% off the one and 55.9% off the other, so 160 -> 121 is a NEW
+    drop the plain line refuses (the first cut read 160 as "still pending" because 160 >= 133 / 0.9 = 148).
+    The residual, stated rather than implied: to read pending again a landed slice must RE-GROW into a
+    pre-change window (here 327-399 or 526-642 props) -- regrow the very population the change removed --
+    before the entry expires, and the expiry is the backstop."""
+    if not entry or n is None:
+        return None
+    readings = entry.get("prior_population")
+    if not isinstance(readings, dict):
+        return None
+    for label in _DECL_PRIOR_READINGS:
+        r = readings.get(label)
+        if isinstance(r, int) and not isinstance(r, bool) and r >= 1 and abs(n - r) / r < SLICE_DROP_REFUSE:
+            return label, r
+    return None
+
+
+def _declared_lands(entry: dict | None, bn, an) -> bool:
+    """THE PASS LANDS THE DECLARED CHANGE: its before-side still reads as a pre-change reading AND its
+    after-side reads as none of them. BOTH legs gate on this, so an entry admits only on a pass that moves the
+    slice OFF the pre-change store, and it is SPENT on the pass after -- by construction, not by hope: an
+    admitted after-side matches no pre-change reading, so the next pass's before-side (that population, plus
+    whatever it grew) starts outside every window. A pass whose after-side still reads pre-change (583 -> 380
+    against the census reading 363, say) is not the declared change and is refused, so no landing can leave the
+    entry armed."""
+    return (bool(entry) and an is not None and pre_change_reading(entry, bn) is not None
+            and pre_change_reading(entry, an) is None)
+
+
+def _declared_admits(entry: dict | None, bn, an) -> bool:
+    """THE POPULATION ADMISSION RULE -- two conditions, and every tolerance is the guard's OWN line.
+
+    (a) THE PASS LANDS THE DECLARED CHANGE (_declared_lands): the prior still reads as the pre-change slice the
+        declaration was measured against (prior_population), and the new population no longer does. The
+        2026-09-23 fold's 583 -> 133: 583 reads as the store's 584 (0.2% off), 133 reads as neither 584 nor
+        363. After that pass the store holds ~133, which reads as no pre-change reading, so the entry is SPENT:
+        140 -> 125, and equally 160 -> 121 or 300 -> 120 after post-landing growth, are NEW drops the plain
+        10% line judges. (The first cut's "(bn - P) / bn >= SLICE_DROP_REFUSE" re-armed on any growth past
+        P / 0.9 = 148 -- the verifier's MAJOR-1.)
+    (b) THE NEW POPULATION IS THE DECLARED ONE: it sits within SLICE_DROP_REFUSE of the DECLARED population,
+        (P - an) / P < SLICE_DROP_REFUSE -- exactly the comparison the unchanged guard makes against a prior,
+        re-based onto the declaration. For P = 133 that admits 120 and refuses 119. Above P is admitted: it is
+        less loss than was declared (a corpus that grows between declaration and fold lands there) -- as long
+        as it no longer reads pre-change, per (a)."""
+    if not entry or not bn or "expected_population" not in entry:
+        return False
+    pop = int(entry["expected_population"])
+    return _declared_lands(entry, bn, an) and (pop - an) / pop < SLICE_DROP_REFUSE
+
+
+def admitted_declaration(declared: "DeclaredChurn | None", key: str, before, after) -> dict | None:
+    """The in-force entry that admits a `before -> after` POPULATION drop on `key` ('<layer>/<slice>'), else
+    None. The ONE rule both gates apply -- evaluate() here and e1_census.diff_census's population_drops leg --
+    so a declaration can never be honoured by one gate and refused by the other. Measured, not hypothetical:
+    replayed offline, the 2026-09-23 fold with the declaration read by the write guard ONLY passes step 2 and
+    then fails its own census gate on the same slice (2026-08-02 baseline 363 -> 133), AFTER the rebuild has
+    rewritten the store -- and because the chain never rolls its baseline on red, every later fold fails too.
+    The two gates' before-sides are DIFFERENT readings of the same pre-change slice (the write guard reads the
+    live object, 583-584; the census reads its frozen 2026-08-02 baseline, 363), which is why the entry records
+    both and pre_change_reading tests every before-side against every reading."""
+    entry = declared.entry_for(key) if declared is not None else None
+    return entry if _declared_admits(entry, before, after) else None
+
+
+def _declared_span_admits(entry: dict | None, field: str, new_value) -> bool:
+    """THE SPAN ADMISSION RULE: a contracted endpoint is admitted only when the entry declares THAT endpoint
+    and the new value has not moved PAST it (a *_min no later than the declared date, a *_max no earlier) --
+    AND, checked by evaluate on the same pass, when the pass LANDS the declared change (_declared_lands, the
+    population leg's own test).
+
+    That gate is what retires the span leg. The first cut relied on "a contraction to the declared endpoint
+    implies the prior lay outside it", which post-landing growth broke: a store that gained a 2026-11-15 prop
+    after landing and then lost it again fell back to the declared 2025-03-19 and was ADMITTED (the verifier's
+    P5). Once the store has moved off the pre-change readings every inward move is judged by the plain span
+    line. The tolerance is zero days on purpose: routing is deterministic (G5a) and new documents can only
+    move an endpoint OUTWARD, so the measured post-change endpoint is the declaration, not an estimate of
+    it."""
+    declared = ((entry or {}).get("expected_span") or {}).get(field)
+    if declared is None or new_value is None:
+        return False
+    return new_value <= declared if field.endswith("_min") else new_value >= declared
+
+
+def _declared_note(entry: dict, bn, an) -> str:
+    pop = int(entry["expected_population"])
+    label, r = pre_change_reading(entry, bn) or ("-", "-")
+    return (f" -- ADMITTED by declared churn [{DECLARED_CHURN_FILE}: declared_on {entry['declared_on']}, "
+            f"expires {entry['expires']}]: the prior reads as the pre-change {label} {r} and the pass lands the "
+            f"declared change -- expected population {pop}, and {an} is within the "
+            f"{SLICE_DROP_REFUSE * 100:.0f}% refuse line of it. Reason: {entry['reason'][:240]}")
+
+
+def _declared_off_store(entry: dict, bn, an) -> str:
+    """Why an in-force entry did not see THIS pass land its change -- the two ways _declared_lands fails."""
+    readings = ", ".join(f"{k} {v}" for k, v in sorted((entry.get("prior_population") or {}).items()))
+    if pre_change_reading(entry, bn) is None:
+        return (f" -- the declaration for this slice is SPENT: the prior {bn} no longer reads as the pre-change "
+                f"slice it was measured against ({readings}; each within the {SLICE_DROP_REFUSE * 100:.0f}% "
+                f"line), so the declared change has landed and this move is NEW and undeclared")
+    hit = pre_change_reading(entry, an)
+    if hit is None:
+        return " -- the declaration for this slice cannot judge a pass with no after-side population"
+    return (f" -- the new population {an} still reads as the pre-change {hit[0]} {hit[1]}: this pass does NOT "
+            f"land the declared change (expected population {entry.get('expected_population')}), so the move "
+            f"is undeclared")
+
+
+def _declared_miss(declared: "DeclaredChurn | None", key: str, entry: dict | None, bn, an) -> str:
+    """Why a declaration did NOT admit this refused slice -- so a refusal on a declared slice never reads as
+    an undeclared one, and an invalid file is named at the refusal it failed to prevent."""
+    if declared is None:
+        return ""
+    if entry is None:
+        if key in declared.inactive:
+            return f" -- a declaration for this slice is {declared.inactive[key]}"
+        if declared.state == "invalid":
+            return (f" -- the declared-churn manifest {declared.path} is INVALID, so no declaration was read "
+                    f"(fail closed)")
+        return ""
+    if "expected_population" not in entry:
+        return " -- the declaration for this slice declares no expected_population (the schema refuses that)"
+    pop = int(entry["expected_population"])
+    if not _declared_lands(entry, bn, an):
+        return _declared_off_store(entry, bn, an)
+    return (f" -- BELOW the declared population {pop} by {(pop - an) / pop * 100:.1f}% (at/over the "
+            f"{SLICE_DROP_REFUSE * 100:.0f}% line applied to the declaration; declared {entry['declared_on']})")
+
+
 # ── the guard verdict ────────────────────────────────────────────────────────────────────────────────────
 def evaluate(prior: dict, after: dict, *, layer: str, allow_churn: float | None = None,
-             already_written=()) -> dict:
+             already_written=(), declared: "DeclaredChurn | None" = None) -> dict:
     """Straddle one wholesale write pass. `prior` is resolve_prior's map; `after` is {name: span_tuple} for
     every slice the pass is about to write (span_tuple carries the exact new n). Returns
-    {refusals, warns, layer_before_n, layer_after_n, layer_drop, prior_only, prior_only_n, unmeasured} --
+    {refusals, warns, layer_before_n, layer_after_n, layer_drop, prior_only, prior_only_n, unmeasured,
+    declared_admitted} --
     it never writes and never raises; the caller decides (plan_write + raise_if_refused do, across every
     layer of the pass, before any byte moves).
 
@@ -320,14 +718,27 @@ def evaluate(prior: dict, after: dict, *, layer: str, allow_churn: float | None 
     empty one; and `_commodity_guarded_write`, `_plan_raw_write` and `build_index` all filter empty nodes out
     BEFORE the guard on purpose (an empty node must keep its prior file -- refusing a whole pass over one
     empty node would be a regression, not a guard). It is retained as a floor for future callers and is
-    driven synthetically by test_write_guard.test_empty_over_nonempty_refuses."""
+    driven synthetically by test_write_guard.test_empty_over_nonempty_refuses.
+
+    `declared` (a DeclaredChurn; plan_write loads it) is the PER-SLICE route: a refusable drop on a slice with
+    a declaration IN FORCE is admitted -- as a WARN carrying the declaration, also listed in
+    `declared_admitted` -- when _declared_admits says the pass LANDS the declared change (the prior still reads
+    as a pre-change reading, the new population reads as none) and the new population is the declared one. A
+    span contraction is admitted endpoint by endpoint on such a pass only (_declared_lands), and only as far
+    inward as the entry's `expected_span` declares (_declared_span_admits). Nothing else consults it: the empty
+    guard (1), the layer line (4) and every undeclared slice are judged exactly as before. `allow_churn` keeps
+    its layer-wide meaning and is checked first."""
     refusals: list[str] = []
     warns: list[str] = []
     unmeasured: list[str] = []
+    admitted: list[str] = []
     for name in sorted(after):
         p = prior.get(name) or {"bytes": 0, "n": 0, "exact": True, "span": None, "source": "absent"}
         a = after[name]
         bn, an = p.get("n"), a["n"]
+        key = f"{layer}/{name}"
+        entry = declared.entry_for(key) if declared is not None else None
+        declared_ok = _declared_admits(entry, bn, an)
         # (1) empty guard -- exact, needs no count estimate. Mirrors evidence_batch.py:433's commodity guard,
         #     which write_driver_slices never had.
         if an == 0 and p["bytes"] > 0:
@@ -342,9 +753,14 @@ def evaluate(prior: dict, after: dict, *, layer: str, allow_churn: float | None 
                 line = (f"{layer}/{name}: population {bn} -> {an} ({drop * 100:.1f}% drop){qual} "
                         f"[prior: {p['source']}]")
                 if drop >= SLICE_DROP_REFUSE and (not allow_churn or drop > allow_churn):
-                    refusals.append(line + f" -- at/over the {SLICE_DROP_REFUSE * 100:.0f}% refuse line"
-                                    + ("" if not allow_churn
-                                       else f" and over the declared --allow-churn {allow_churn * 100:.0f}%"))
+                    if declared_ok:
+                        warns.append(line + _declared_note(entry, bn, an))
+                        admitted.append(warns[-1])
+                    else:
+                        refusals.append(line + f" -- at/over the {SLICE_DROP_REFUSE * 100:.0f}% refuse line"
+                                        + ("" if not allow_churn
+                                           else f" and over the declared --allow-churn {allow_churn * 100:.0f}%")
+                                        + _declared_miss(declared, key, entry, bn, an))
                 else:
                     warns.append(line)
         elif bn is None and p.get("bytes"):
@@ -361,7 +777,21 @@ def evaluate(prior: dict, after: dict, *, layer: str, allow_churn: float | None 
         for mv in contracted:
             line = f"{layer}/{name}: span CONTRACTED {mv} [prior: {p['source']}]"
             if SPAN_CONTRACTION_REFUSES and not allow_churn:
-                refusals.append(line)
+                field = mv.split(" ", 1)[0]                    # _span_moves lines are "<field> <b> -> <a>"
+                lands = _declared_lands(entry, bn, an)          # the population leg's own test gates the span
+                if lands and _declared_span_admits(entry, field, a.get(field)):
+                    warns.append(line + f" -- ADMITTED by declared churn [{DECLARED_CHURN_FILE}: declared_on "
+                                        f"{entry['declared_on']}, expires {entry['expires']}]: the pass lands the "
+                                        f"declared change and expected_span {field} "
+                                        f"{entry['expected_span'][field]} is not passed")
+                    admitted.append(warns[-1])
+                elif entry is not None:
+                    d = (entry.get("expected_span") or {}).get(field)
+                    refusals.append(line + (_declared_off_store(entry, bn, an) if not lands else
+                                            f" -- PAST the declared expected_span {field} {d}" if d else
+                                            f" -- the declaration for this slice does not declare {field}"))
+                else:
+                    refusals.append(line + _declared_miss(declared, key, None, bn, an))
             else:
                 warns.append(line)
         for mv in expanded:
@@ -401,7 +831,8 @@ def evaluate(prior: dict, after: dict, *, layer: str, allow_churn: float | None 
                         f"{LAYER_DROP_REFUSE * 100:.0f}% refuse line")
     return {"refusals": refusals, "warns": warns, "layer_before_n": before_total,
             "layer_after_n": after_total_layer, "layer_drop": round(layer_drop, 6),
-            "prior_only": prior_only, "prior_only_n": prior_only_n, "unmeasured": unmeasured}
+            "prior_only": prior_only, "prior_only_n": prior_only_n, "unmeasured": unmeasured,
+            "declared_admitted": admitted}
 
 
 # ── G1c: the run manifest ────────────────────────────────────────────────────────────────────────────────
@@ -425,6 +856,7 @@ class RunManifest:
         self.extraction: dict = {}                             # X2: per-pass window / doc-read / dedup counters
         self.warnings: list[str] = []
         self.guard: dict[str, dict] = {}                       # layer -> evaluate() verdict
+        self.declared_churn: dict | None = None                # the declarations this pass was judged by
 
     # -- slices -------------------------------------------------------------------------------------------
     def record_slice(self, layer: str, name: str, *, prior: dict, after_span: dict,
@@ -452,11 +884,18 @@ class RunManifest:
             self.guard[layer] = {k: v for k, v in verdict.items()} | {"n_plans": 1}
             return
         merged = {k: v for k, v in verdict.items()}
-        for key in ("refusals", "warns", "unmeasured", "prior_only"):
+        for key in ("refusals", "warns", "unmeasured", "prior_only", "declared_admitted"):
             merged[key] = list(prev.get(key) or []) + [x for x in (verdict.get(key) or [])
                                                        if x not in (prev.get(key) or [])]
         merged["n_plans"] = int(prev.get("n_plans") or 1) + 1
         self.guard[layer] = merged
+
+    def record_declared(self, declared: "DeclaredChurn") -> None:
+        """The declared-churn file this pass read (path, sha256, state, what was in force). Recorded ONCE per
+        pass -- every plan_write reads the same file -- so a later reader can tell exactly which declaration
+        admitted which slice, and a pass judged with NO declarations says so rather than omitting the key."""
+        if self.declared_churn is None:
+            self.declared_churn = declared.record()
 
     def record_unwritten(self, layer: str, prior: dict, names) -> None:
         """F9 -- slices the store holds that this pass did NOT write, with their prior population and the
@@ -510,6 +949,7 @@ class RunManifest:
             # means their terms no longer route and the stale object is nobody's to rewrite.
             "unwritten": self.unwritten,
             "guard": self.guard,
+            "declared_churn": self.declared_churn,
             "warnings": [_ascii(w) for w in self.warnings],
             # Stated, not implied: the row-level churn ratio G1b leg 1 asks for is NOT computable from any
             # source this guard reads. See the module docstring.
@@ -604,7 +1044,13 @@ def plan_write(layer: str, subprefix: str, payloads: dict, *, records: dict,
     prior = resolve_prior(subprefix, list(records), layer=layer)
     after = {name: span_tuple(recs) for name, recs in records.items()}
     done = set((manifest.slices.get(layer) or {})) if manifest is not None else set()
-    verdict = evaluate(prior, after, layer=layer, allow_churn=allow_churn, already_written=done)
+    declared = load_declared_churn()                           # read from the image's configs; never raises
+    verdict = evaluate(prior, after, layer=layer, allow_churn=allow_churn, already_written=done,
+                       declared=declared)
+    if declared.state == "invalid":
+        verdict["warns"].insert(0, f"declared-churn manifest INVALID at {declared.path} -- EVERY declaration "
+                                   f"ignored, fail closed (the {SLICE_DROP_REFUSE * 100:.0f}% line applies to "
+                                   f"every slice): {'; '.join(declared.errors)[:600]}")
     for line in verdict["warns"]:
         print(f"  WARN write-guard {_ascii(line)}")
         if manifest is not None:
@@ -612,6 +1058,7 @@ def plan_write(layer: str, subprefix: str, payloads: dict, *, records: dict,
         if warnings is not None:
             warnings.append(f"WARN write-guard {_ascii(line)}")
     if manifest is not None:
+        manifest.record_declared(declared)
         manifest.record_guard(layer, verdict)
         manifest.record_unwritten(layer, prior, verdict.get("prior_only") or [])
         for name, span in after.items():
@@ -639,8 +1086,13 @@ def raise_if_refused(*plans: WritePlan) -> None:
     layers = ", ".join(sorted({p.layer for p in plans}))
     raise WriteRefused(lines + [
         f"nothing was written in ANY layer ({layers}) -- every layer of this pass was evaluated before the "
-        f"first byte moved. Re-run with --allow-churn <pct> naming the drop you EXPECT "
-        f"(e.g. --allow-churn 25) if this population change is intended."])
+        f"first byte moved. If a refused population change is INTENDED, DECLARE it for that one slice in "
+        f"configs/graphrag/{DECLARED_CHURN_FILE} (slice, declared_on, reason naming the routing change and "
+        f"its commit, prior_population = the measured pre-change slice, expected_population, optionally "
+        f"expected_span, expires) -- the guard then admits exactly that slice at exactly that population / "
+        f"those endpoints, on the one pass that moves it off the pre-change slice, and nothing else. "
+        f"--allow-churn <pct> (e.g. "
+        f"--allow-churn 25) is LAYER-WIDE: every slice in the pass may then drop that much."])
 
 
 # ── the bytes contract for write_fn (the 2026-08-02 OOM) ─────────────────────────────────────────────────
