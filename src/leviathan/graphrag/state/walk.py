@@ -1060,8 +1060,75 @@ def _edge_row(contract: str, e: dict, direction: str) -> dict:
 CONVERGENCE_BANNED_WORDS: tuple[str, ...] = ("met", "fires", "regime is")
 
 
+def reading_side(pct, z, *, orient: int = 0) -> int:
+    """WHICH TAIL OF ITS OWN RECORD A READING SITS IN -- ``+1`` the upper, ``-1`` the lower, ``0`` none
+    (the 09-25 fix round, item W-2 / N4).
+
+    ONE MEASURE, THE CHAIN'S OWN: the two signed components :func:`_hop_tail` takes the magnitude of --
+    ``(pct - 50) / 50`` and ``z / 2.5``, each clipped to one -- and the side is the sign of the component
+    that makes the reading loud (the larger magnitude). A reading where the two components tie with
+    opposite signs, or where neither was measured, sits in no tail and returns ``0``.
+
+    ``orient`` (+1 / -1) READS THE SIDE IN THE DRIVER'S OWN SENSE: ONI at the 93rd percentile is the
+    upper tail of the warm pole's own reading and the LOWER tail of the cool pole's. 0 (every row that is
+    not a pole member) is the series' own side, which is the driver's: a driver's series reads HIGH when
+    there is MORE of the driver (the convention every chain agreement on this board already reads -- a
+    dry-day-run z below zero is a SHORTER dry run). A pole member's condition on the BOARD is its phase,
+    judged by the one phase producer (see :func:`row_side`), never by this function."""
+    comps = []
+    if pct is not None:
+        comps.append(max(-1.0, min(1.0, (float(pct) - 50.0) / 50.0)))
+    if z is not None:
+        comps.append(max(-1.0, min(1.0, float(z) / 2.5)))
+    if not comps:
+        return 0
+    top = max(abs(c) for c in comps)
+    signs = {(1 if c > 0 else -1) for c in comps if abs(c) == top and c != 0.0}
+    if len(signs) != 1:
+        return 0
+    side = signs.pop()
+    o = int(orient or 0)
+    return side * o if o else side
+
+
+def row_side(row) -> Optional[int]:
+    """WHICH TAIL OF ITS OWN RECORD ONE BOARD ROW'S SERVED READING SITS IN, AS A CONDITION OF A PATTERN
+    -- ``+1`` more of the driver, ``-1`` less, ``0`` no tail -- or ``None`` where the condition's state is
+    NOT a reading's tail (the 09-25 fix round, W-2). ``None`` keeps HEAD's reading of the condition, and
+    it has exactly three declared causes, each read off the graph or the row, never off a name:
+
+    * NO SERVED READING (no state, or a status other than ``ok``): there is no tail to read.
+    * A MEMBER OF A DECLARED PHASE PAIR (:func:`hop_phase`'s ``phase_driver``, the one phase producer): its
+      condition is the PHASE, and the render's quorum fold already judges it on the page off the same
+      producer -- a member read in the phase opposite the one in force is stated by name and left out of
+      the count (``render._series_fold``'s ``phase_opposed``, review round 2 MAJOR 10). Deciding it a second
+      time here would move the member out of the list that fold reads and silence the sentence that states
+      it (MEASURED on the b40 fixture: "El Nino names the phase opposite the one in force on that reading,
+      so it is not counted here" left the supply-squeeze row).
+    * A NODE OF A REGIME TYPE (:data:`REGIME_NODE_TYPES`, the DAG's declared ``policy_event`` type): its state
+      is its DATED ACTION -- the walk reads it that way everywhere else (:func:`hop_event`'s regime ladder,
+      which reads the SAME declared set) -- and the trade-flow series bound to it measures the policy's
+      EFFECT under a polarity the graph does not declare (``export_ban`` on an export level,
+      ``import_tariff`` on an import level: HIGH exports are NO ban). A tail of that series is not the
+      condition's side. MEASURED: on the b40 fixture the Indonesian export ban read on a low export level
+      would otherwise have been counted AGAINST the policy-shock spike.
+
+    Every other row: :func:`reading_side` of its percentile and z -- the figures the loud set ranked it by."""
+    st = getattr(row, "state", None)
+    if st is None or status_word(getattr(st, "status", "") or "") != "ok":
+        return None
+    # ONE DECLARED SET, READ IN BOTH PLACES (the 09-25 close-out, RW-3 / VERIFY MINOR-7): the regime ladder
+    # and this side test read :data:`REGIME_NODE_TYPES` -- never a second literal copy of the type word.
+    if str(getattr(row, "type", "") or "") in REGIME_NODE_TYPES:
+        return None
+    if hop_phase(getattr(row, "driver_id", ""), st).get("phase_driver"):
+        return None
+    return reading_side(_measure_value(getattr(st, "percentile", None)),
+                        _measure_value(getattr(st, "z", None)))
+
+
 def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=(),
-                     measured_ids=None) -> list:
+                     measured_ids=None, sides=None) -> list:
     """ONE row per DECLARED pattern on a board, as PROXIMITY, plus its amplifier sub-lines (sec 3.5, D24).
 
     EVERY PATTERN, NOT THE FIRED ONES. `graph.regimes` returns only patterns whose matched count clears
@@ -1079,13 +1146,54 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
     (a crossed band, an open event -- doctrine M-3), so `matched` is the true ORDERING count and the
     split is what lets sec 6.2's template keep its promise that every name it lists carries its own
     `[N]` z. `None` -- the default -- means the caller is not making the distinction, and every matched
-    id is then reported as it was before."""
+    id is then reported as it was before.
+
+    **A CONDITION COUNTS ONLY IN THE TAIL THE PATTERN'S CARD DECLARES FOR IT** (the 09-25 fix round, item
+    W-2 / N4, the cocoa FATAL). ``sides`` is ``{driver_id: +1 / -1 / 0}`` -- :func:`row_side` of every
+    loud row on this board whose condition is a reading's tail (a phase-pair member and a policy_event node
+    are not: see :func:`row_side`; absent from ``sides``, they keep HEAD's reading). The tail a pattern asks of each of its drivers
+    is the CARD's own: the pattern's declared ``direction`` times the driver's declared ``sign`` (``+``
+    x ``+`` asks for the upper tail -- more of the driver pushes the price the pattern's way; ``+`` x
+    ``-`` asks for the lower). A loud reading in THAT tail is a condition showing (``matched``); a loud
+    reading in the OTHER tail counts AGAINST the pattern (``against``, stated, never dropped); a loud
+    reading whose side cannot be placed against the card -- the driver declares ``0`` (no committed
+    direction) or the reading sits in no tail -- is ``unsided`` and is not counted either. A loud row
+    with NO served reading (a text-tier rank-cut row, an open event) has no tail to read and keeps HEAD's
+    reading (``matched_unmeasured``), and so does every loud row absent from ``sides`` or mapped to ``None``. MEASURED on the 09-25 cocoa page: "three of its six conditions
+    are counted" for the West African deficit squeeze was a WET dry-day run (-1.49 sigma, 3rd percentile)
+    and a COOL max-temperature anomaly (6th percentile) -- both drivers declared ``+`` in a ``+``
+    pattern -- plus the unread export-pace lag. ``None`` (every caller that does not pass it) is HEAD,
+    byte for byte, and adds no key. The rejected lexical form: pattern-name or driver-name keyword
+    rules."""
     loud, banded = set(loud_ids), set(band_ids)
     measured = None if measured_ids is None else set(measured_ids)
+    side_of = None if sides is None else dict(sides)
     out = []
     contract_obj = (getattr(graph, "contracts", {}) or {}).get(contract)
+    declared = {str(getattr(d, "id", "") or ""): str(getattr(d, "sign", "") or "")
+                for d in (getattr(contract_obj, "drivers", ()) or ())}
     for s in (getattr(contract_obj, "convergence", ()) or ()):
-        matched = [d for d in s.drivers if d in loud]
+        loud_members = [d for d in s.drivers if d in loud]
+        against: list = []
+        unsided: list = []
+        if side_of is None:
+            matched = loud_members
+        else:
+            matched = []
+            pole = _SIGN_INT.get(str(getattr(s, "direction", "") or ""))
+            for d in loud_members:
+                if side_of.get(d) is None:
+                    matched.append(d)              # no reading's tail to read (row_side): HEAD
+                    continue
+                want = _SIGN_INT.get(declared.get(d, ""))
+                need = (pole * want) if (pole is not None and want is not None) else 0
+                got = int(side_of.get(d) or 0)
+                if not need or not got:
+                    unsided.append(d)
+                elif got == need:
+                    matched.append(d)
+                else:
+                    against.append(d)
         seen_state = matched if measured is None else [d for d in matched if d in measured]
         unread = [] if measured is None else [d for d in matched if d not in measured]
         inter = []
@@ -1113,6 +1221,15 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
                     # renders it through `governed_note`, which is where the grading lives.
                     "n_with_band": sum(1 for d in matched if d in banded),
                     "interactions": tuple(inter)})
+        if side_of is not None:
+            # THE TAIL VERDICTS, APPENDED AT THE ROW'S TAIL (W-2): the drivers read loud in the tail
+            # opposite the one the card asks of them, and the loud readings the card cannot place.
+            # Each interaction carries its own opposite-tail members beside HEAD's rank-based
+            # ``rendered`` (the co-occurrence rank claim stays true; which side it sits on is stated).
+            out[-1]["against"] = tuple(against)
+            out[-1]["unsided"] = tuple(unsided)
+            out[-1]["interactions"] = tuple(
+                dict(i, against=tuple(d for d in i["when"] if d in against)) for i in inter)
     out.sort(key=lambda r: (-r["n_matched"], r["name"]))
     return out
 
@@ -1665,6 +1782,44 @@ class ChainHop:
         return ("series", self.series_key) if self.series_key else ("node", self.contract,
                                                                     self.driver_id)
 
+    @property
+    def quantity_key(self) -> tuple:
+        """THE QUANTITY THIS HOP READ -- ``()`` where the hop carries no measured standing (the 09-25 fix
+        round, item W-3 / N7).
+
+        TWO SERIES KEYS CAN NAME ONE QUANTITY. MEASURED on the 09-25 2024-03-01 turn, chain 2: poultry
+        expansion read ``consumption|soybean_meal_cbot|United States`` (the PSD sheet's consumption_mt)
+        and soybean-meal feed demand read ``psd_meal_feed_waste_use|soybean_meal_cbot|United States`` (the
+        attributes sheet's Feed Waste Dom. Cons.) -- two cards, one number: 34.18 MMT for 2020/21 at the
+        97th percentile, z 1.34, because US meal's domestic use IS its feed-and-waste use. The chain walked
+        one quantity into itself and scored the link "aligned" -- an identity, not an agreement.
+
+        THE IDENTITY IS MEASURED, NEVER SPELLED: the card's analyst unit (``narrate_unit`` -- the scale
+        the shown value is in, so a native ``MT`` card and a native ``1000 MT`` card compare), the scope
+        the series key names (commodity and country), the period the reading is for, the shown value,
+        AND the reading's standing in its own record (z and percentile) -- two names of one quantity carry
+        one record, so a coincidence of one print between two different quantities does not fold. The
+        values are compared at nine significant figures (float representation, not a domain threshold).
+        A hop with no standing (no z and no percentile) has no measured identity and returns ``()``. The
+        rejected lexical form: a table of synonym refs ("consumption" == "feed waste")."""
+        if not self.measured or self.level_shown is None or (self.z is None and self.percentile is None):
+            return ()
+        parts = (str(self.series_key or "").split("|") + ["", "", ""])[:3]
+
+        def _g(v):
+            return None if v is None else format(float(v), ".9g")
+        return ("quantity", str(self.narrate_unit or ""), parts[1], parts[2], str(self.level_date or ""),
+                _g(self.level_shown), _g(self.z), _g(self.percentile))
+
+    @property
+    def reading_keys(self) -> frozenset:
+        """EVERY IDENTITY UNDER WHICH THIS HOP IS "THE SAME READING" AS ANOTHER (W-3): its series key
+        (:attr:`fold_key` -- one series, one reading, including a same-series offset alias) and its
+        measured quantity (:attr:`quantity_key` -- two cards, one number). Two hops are one reading when
+        these sets meet."""
+        qk = self.quantity_key
+        return frozenset((self.fold_key, qk)) if qk else frozenset((self.fold_key,))
+
     def to_dict(self) -> dict:
         return {"contract": self.contract, "driver_id": self.driver_id, "sign": self.sign,
                 "lag": self.lag, "confidence": self.confidence, "measured": self.measured,
@@ -1859,6 +2014,16 @@ class Chain:
         rh = self.receipt_hop
         return (self.hops[0].fold_key if self.hops else ("node", self.contract, ""),
                 rh.fold_key if rh is not None else ("node", self.contract, ""))
+
+    def fold_idents(self) -> tuple:
+        """THE TWO IDENTITY SETS THE DIVERSITY RULE FOLDS ON (the 09-25 fix round, W-3): the TOP hop's
+        :attr:`ChainHop.reading_keys` and the RECEIPT hop's -- the series key AND the measured quantity,
+        so two chains whose top readings are one quantity under two series keys share a reading exactly
+        as two chains on one series key do. :meth:`fold_keys` is kept as the series-key pair."""
+        rh = self.receipt_hop
+        top = self.hops[0].reading_keys if self.hops else frozenset((("node", self.contract, ""),))
+        rec = rh.reading_keys if rh is not None else frozenset((("node", self.contract, ""),))
+        return top, rec
 
     def to_dict(self) -> dict:
         """The trace row. NO ARRAYS -- the history stat's own counts, never its inputs (A.7)."""
@@ -3039,6 +3204,23 @@ def chain_score(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = 
         notes["tail"] = _tail_words(rh)
 
     # REACH 25 -- non-obviousness is a POSITIVE weight (ruling R2), never a penalty.
+    # **N8, RESTORED TO THE BANKED ARITHMETIC (2026-09-25, after measurement).** The day's first N8 ruling
+    # split the ten points for an unnamed terminal into five for reaching it and five more only where its
+    # own move is readable. MEASURED on the ten 09-25 traces (`rw2_reach_split_drive`): 0 of the 91 carried
+    # chains ending on an unnamed market had a READ terminal -- the walk reads a far board only for a named
+    # or anchored market, so every one is `undetermined` -- the readable half never fired, and the split was
+    # only a five-point cut on every depth-2 unnamed chain (79 rows) that moved four lead seats onto DEEPER
+    # chains which also end on unread markets. OWNER RULING 2026-09-25: CROSS-MARKET CHAINS AND FAR MARKETS
+    # ARE NEVER DEMOTED OR DROPPED FOR LACK OF DATA -- the reach credit for an unnamed terminal is whole; when
+    # far-market reads land (the curve lane: the terminal price and the far board's same-driver row), a READ
+    # terminal may earn extra credit and an unread one never loses any. So the points are HEAD 21b111c7's
+    # exactly: 10 [depth >= 2] + 5 [depth >= 3] + 10 [unnamed terminal] + 5 [earned cross], capped at
+    # ``CHAIN_TERM_MAX["reach"]``. WHAT STAYS OF THE SPLIT IS WORDS: the reach note says whether this record
+    # reads the far market's own move, through the ONE predicate :func:`terminal_read` that :func:`_agree`
+    # reads for the verdict's child move (over `Chain.terminal_reading`, stamped by `_agree` BEFORE this
+    # score runs in both :func:`_compose` and :func:`_with_cross`) -- it informs the reader and moves no
+    # point, which is why it is read only where the note is built. The rejected lexical form: a list of
+    # foreign boards or exchanges.
     reach = 0
     if ch.depth >= 2:
         reach += 10
@@ -3051,9 +3233,13 @@ def chain_score(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = 
         reach += 5
     terms["reach"] = min(reach, int(CHAIN_TERM_MAX["reach"]))
     if with_notes:
+        far_move_read = bool(ch.unnamed_terminal) and terminal_read(ch.terminal_reading)
         notes["reach"] = ("depth %d, reaching %s" % (
             ch.depth, _market_label(ch.terminal or ch.contract))) + (
-            ", a market this question did not name" if ch.unnamed_terminal else "")
+            ((", a market this question did not name, whose own move this record reads"
+              if far_move_read else
+              ", a market this question did not name, whose own move this record cannot read"))
+            if ch.unnamed_terminal else "")
 
     # EVENT 20 -- the order of choice of DESIGN B.4, at the RECEIPT hop first and then along the chain.
     if ch.receipt_kind == "none" and ch.receipt is None and not ch.receipt_words:
@@ -3698,13 +3884,14 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
                                             and str(c.terminal or c.contract or "") in question_markets)
 
     def _fits(c, ts: set, rs: set) -> bool:
-        tk, rk = c.fold_keys()
-        return tk not in ts and rk not in rs
+        # ONE READING, EVERY NAME OF IT (W-3): the identity SETS meet or they do not.
+        tk, rk = c.fold_idents()
+        return not (tk & ts) and not (rk & rs)
 
     def _seat(c, slot: str) -> None:
-        tk, rk = c.fold_keys()
-        tops.add(tk)
-        receipts.add(rk)
+        tk, rk = c.fold_idents()
+        tops.update(tk)
+        receipts.update(rk)
         c.slot = slot
         picked.append(c)
 
@@ -3768,13 +3955,17 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
             if not cands:
                 slot_state[word] = "no_candidate"
                 continue
-            # THE DIVERSITY FOLD IS A PREFERENCE HERE AND NOT A VETO. The fold is the TOP K's rule --
-            # one series, one reading, one spelling -- and a slot is the QUESTION's own claim on a
-            # seat; so the slot takes the best-ranked qualifying chain that ALSO folds cleanly, and
-            # only where every chain answering the question shares a reading already on the page does
-            # it take the best ranked one anyway. Silence about the subject the turn is anchored on is
-            # the worse failure.
-            _seat(next((c for c in cands if _fits(c, tops, receipts)), cands[0]), word)
+            # THE SEAT TAKES THE BEST-RANKED CHAIN THAT ANSWERS THE QUESTION (the 09-25 fix round, item
+            # W-1 / N2): the graph decides relevance and the question only anchors, so the rank decides
+            # which qualifying chain sits here -- and THE DIVERSITY FOLD ORDERS ONLY WITHIN A RANK TIE
+            # (:func:`_slot_pick`). MEASURED on the 09-25 deep and max soybean turns: the fold preference
+            # skipped the best horizon chain (crude -> crush -> stocks-to-use -> calendar spread -> CBOT
+            # soybeans, 68.5 deep / 62.5 max) because its TOP reading (Brent) was already on the page,
+            # and seated the Thai TRQ chain (59.1, its weakest declared link LOW, its only document a
+            # 2019 note) -- and both TL;DRs then said "the chain from Thai imports answers the horizon".
+            # A slot never moves the rank; it reserves a seat for the chain the rank already prefers.
+            # The rejected lexical forms: excluding TRQ ids, or a confidence floor keyed on driver names.
+            _seat(_slot_pick(cands, lambda c: _fits(c, tops, receipts)), word)
             slot_state[word] = "seated"
     # **THE FULL BOUND IS STAMPED IN SEAT ORDER AND THE SORT IS FOR DISPLAY** (round-3 review MA-R3-1,
     # orchestrator ruling 2026-09-22). `picked` is in the order the seats were TAKEN -- the top K and
@@ -3820,6 +4011,17 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
             "disagreement": chain_disagreement_words(picked)}
 
 
+def _slot_pick(cands, fits):
+    """THE ONE SEAT RULE FOR A QUESTION SLOT (the 09-25 fix round, W-1 / N2): the best-ranked candidate,
+    with the diversity fold ordering ONLY among the candidates that TIE it on the rank's measured term
+    (the score, at the precision :attr:`Chain.rank` reads it). ``cands`` is in rank order; ``fits`` is the
+    fold test. A candidate below the best on score never takes the seat for folding cleanly -- novelty
+    is not relevance."""
+    best = cands[0]
+    tie = round(float(best.score), 4)
+    return next((c for c in cands if round(float(c.score), 4) == tie and fits(c)), best)
+
+
 def _swap_in_other_side(pool, picked, tops: set, receipts: set, *, want: str, k: int, take, fits):
     """THE SIGN-DIVERSITY CLAUSE'S OWN SWAP -- and it TESTS THE REPLACEMENT BEFORE IT DROPS ANYTHING
     (review round 2 M4).
@@ -3851,11 +4053,15 @@ def _swap_in_other_side(pool, picked, tops: set, receipts: set, *, want: str, k:
             ts = set()
             rs = set()
             for c in keep:
-                tk, rk = c.fold_keys()
-                ts.add(tk)
-                rs.add(rk)
+                tk, rk = c.fold_idents()
+                ts.update(tk)
+                rs.update(rk)
             if not fits(other, ts, rs):
                 continue
+            # THE DROPPED CHAIN GIVES UP ITS SEAT WORD (the 09-25 fix round, W-4 / N12): it no longer
+            # renders, so its trace row must not keep reading `slot "top"` beside `rendered false` --
+            # MEASURED on 2024 chain 4, deep 2026 chain 7 and cocoa chain 5.
+            drop.slot = ""
             picked[:] = keep
             tops.clear()
             tops.update(ts)
@@ -4314,7 +4520,9 @@ def fold_series_hops(hops) -> tuple:
     out: list = []
     n = 0
     for h in hops or ():
-        if out and h.fold_key == out[-1].fold_key:
+        # ONE READING UNDER ANY OF ITS NAMES (the 09-25 fix round, W-3 / N7): the series key, or the
+        # measured quantity two cards serve under two keys (:attr:`ChainHop.reading_keys`).
+        if out and (h.fold_key == out[-1].fold_key or (h.reading_keys & out[-1].reading_keys)):
             out[-1] = _fold_into(out[-1], h)
             n += 1
             continue
@@ -4439,7 +4647,15 @@ def _with_cross(bd, base: Chain, cross: dict, *, index, named, hist_cache, ancho
                aged_receipt_hop=base.aged_receipt_hop, aged_receipt_date=base.aged_receipt_date,
                # THE EVENT WORD IS A FACT OF THE SAME HOPS (the 09-23 fix round) and rides with the
                # receipt it names, exactly as the aged-out count does.
-               event_kind=base.event_kind)
+               event_kind=base.event_kind,
+               # AND SO IS THE REPORT THE MECHANISM BOUND REFUSED (the 09-25 fix round, W-4 / N12): the
+               # base chain computed it off these very hops, and the variant's `chain_score` skips
+               # `_chain_receipt` (the receipt is copied), so without this the variant's trace row read
+               # an empty refused pair beside its base's "crude_oil 2005-09-01" (max chain 2 vs 5).
+               # `chain_counts["mechanism_refused"]` folds on the document's own key, so the count is
+               # unchanged.
+               mechanism_refused_hop=base.mechanism_refused_hop,
+               mechanism_refused_date=base.mechanism_refused_date)
     ch.terminal_key = ((ch.terminal, cross.get("far_driver_id") or "")
                        if cross.get("far_driver_id") else None)
     ch.curated = base.curated or _curated_for(index, base.contract, base.hop_ids,
@@ -4500,7 +4716,10 @@ def _agree(bd, ch: Chain, *, cross: Optional[dict], base: Optional[Chain] = None
                 ch.terminal_reading = {k: tr[k] for k in ("source", "series_key", "sign")}
                 es = composed_sign(hops[i].sign, str(cross.get("sign") or ""))
                 vs = str(tr["sign"])
-                child_move = _newest_move(tr["state"]) if tr["state"] is not None else 0.0
+                # THE ONE PREDICATE (09-25 close-out, RW-2 / N8): the far market's own move is read here
+                # exactly where `chain_score`'s reach note says "whose own move this record reads" -- both
+                # read :func:`terminal_read`, over the one reading `_terminal_reading` returned.
+                child_move = _newest_move(tr["state"]) if terminal_read(tr) else 0.0
         else:
             es = hop_edge_sign(hops[i].sign, nxt.sign)
             vs = es
@@ -4531,6 +4750,30 @@ def _premise_off(top) -> bool:
     only whether the chain's PREMISE stands.)"""
     pd = str(getattr(top, "phase_driver", "") or "")
     return bool(pd) and getattr(top, "phase_in_force", None) is False
+
+
+#: THE ONE ``source`` WORD :func:`_terminal_reading` STAMPS WHERE THE LAST LINK READ NO SERIES ON THE FAR
+#: MARKET -- its third rung, and the ONLY rung whose ``state`` is ``None``. Declared once: the producer writes
+#: it and :func:`terminal_read` tests it (the 09-25 close-out, RW-2 / N8).
+TERMINAL_UNREAD: str = "undetermined"
+
+
+def terminal_read(reading) -> bool:
+    """IS THE FAR MARKET'S OWN MOVE READABLE ON THIS TURN? -- does the last link's terminal reading carry a
+    READ SERIES (the 09-25 close-out, RW-2; the owner's N8 ruling of 2026-09-25).
+
+    ONE PREDICATE, TWO READERS: :func:`_agree` reads it to decide whether the verdict's child move is the far
+    reading's newest move, and :func:`chain_score`'s reach NOTE reads it to say whether this record reads the
+    own move of a market the question did not name -- WORDS ONLY: the N8 split that paid five of the reach
+    points on it was restored to the banked arithmetic on 2026-09-25 after measurement (the owner's ruling:
+    an unread far market never loses reach credit; a read one may earn extra once far reads land). It reads
+    the ``source`` the one producer (:func:`_terminal_reading`) stamped: ``tape`` and ``same_driver`` are the
+    two rungs that return a state, :data:`TERMINAL_UNREAD` the one that returns ``None`` -- so on the reading
+    that producer returns this is exactly "the reading's state is not None", and it stays answerable on the
+    reading the chain keeps (``Chain.terminal_reading``, which carries no object -- A.7). An EMPTY reading (a
+    chain with no cross hop, whose terminal verdict is HEAD's never-measured one) reads nothing."""
+    src = str((reading or {}).get("source") or "")
+    return bool(src) and src != TERMINAL_UNREAD
 
 
 def _terminal_reading(bd, last, cross: dict, far_index: Optional[dict] = None) -> dict:
@@ -4576,7 +4819,7 @@ def _terminal_reading(bd, last, cross: dict, far_index: Optional[dict] = None) -
             if got is not None and status_word(got.status) == "ok":
                 st, sk, far_sign = got, k, str(f.get("sign") or "")
     if st is None or (own and sk == own):
-        return {"source": "undetermined", "state": None, "series_key": sk, "sign": ""}
+        return {"source": TERMINAL_UNREAD, "state": None, "series_key": sk, "sign": ""}
     return {"source": "same_driver", "state": st, "series_key": sk,
             "sign": composed_sign(link, far_sign) if link else ""}
 
@@ -6065,8 +6308,13 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
         read_ids = {r.driver_id for r in loud_by_board.get(slug, ())
                     if not r.context_only and r.state is not None
                     and status_word(r.state.status) == "ok"}
+        # WHICH TAIL EACH READ CONDITION SITS IN (the 09-25 fix round, W-2 / N4): the pattern counts a
+        # condition only in the tail its card declares for it. Rides GRAPHRAG_STATE_BOARD (this stage runs
+        # only for the board); zero reads -- every figure is the row's own served standing.
+        sides = {r.driver_id: s for r in loud_by_board.get(slug, ())
+                 if r.driver_id in read_ids for s in (row_side(r),) if s is not None}
         rows = convergence_rows(graph, slug, ids, loud_k=int(kn.loud_k), band_ids=banded,
-                                measured_ids=read_ids)
+                                measured_ids=read_ids, sides=sides)
         bd.convergence.extend(rows)
         n_amp += sum(1 for r in rows for i in r["interactions"] if i["rendered"])
     bd.stamp("interaction", "fired" if n_amp else

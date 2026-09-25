@@ -510,7 +510,7 @@ def test_a_board_with_no_rendered_chain_reads_nothing_and_touches_nothing(graph,
     assert cen == {"outcome": "no_chain", "sentences": 0, "corrected": 0,
                    "chain_hops_unfigured": 0, "chain_hops_skipped": 0,
                    "chain_unranked_narrated": 0, "chain_hops_ambiguous": 0,
-                   "chain_fence_closed": 0}
+                   "chain_fence_closed": 0, "chain_hops_off_question": 0}
     assert st["mechanism"] == T1 + " " + T2
     assert an._chain_lints({"tldr": "x", "mechanism": "y"}, calls, None)["outcome"] == "no_chain"
 
@@ -647,7 +647,10 @@ def test_A2_the_hop_row_carries_its_own_contract_and_driver_id_and_the_join_veri
     bd, calls = cell
     hops = an._chain_hop_rows(bd, calls)
     assert hops
-    chains = [c for c in (getattr(bd, "chains", None) or ()) if getattr(c, "rendered", False)]
+    # 09-25 CLOSE-OUT VERIFIER SEAM: joined in `Chain.rank` order -- the producer's own key (answer._chain_hop_rows,
+    # render_board) -- never the pool's list order, which the N8 reach split made differ on this fixture
+    chains = sorted((c for c in (getattr(bd, "chains", None) or ()) if getattr(c, "rendered", False)),
+                    key=lambda c: c.rank)
     for h in hops:
         assert isinstance(h["id"], tuple) and len(h["id"]) == 3, h
         assert h["id"] == (h["contract"], h["driver_id"] or h["printed"], h["n"])
@@ -971,9 +974,11 @@ def test_the_chain_seam_fields_this_lane_reads_exist_on_the_SHIPPED_TYPES(cell):
     # PRODUCED: the census this lane hands the seat, the trace and the arm -- seven keys, ONE spelling
     # each, and `chain_unranked_narrated` is threat E2's instrument by that name and no other.
     _st, cen = _run("the mechanism runs somewhere and nothing is named.", calls, bd)
-    assert sorted(cen) == ["chain_fence_closed", "chain_hops_ambiguous", "chain_hops_skipped",
-                           "chain_hops_unfigured", "chain_unranked_narrated", "corrected",
-                           "outcome", "sentences"], cen
+    # 09-25 (item A-1): `chain_hops_off_question` joins them -- a reading refused because its row sits on a
+    # board outside the question's distance-0 set.
+    assert sorted(cen) == ["chain_fence_closed", "chain_hops_ambiguous", "chain_hops_off_question",
+                           "chain_hops_skipped", "chain_hops_unfigured", "chain_unranked_narrated",
+                           "corrected", "outcome", "sentences"], cen
     # PRODUCED: the hop row's own twelve keys, which `_chain_hop_rows`' docstring declares -- the
     # twelfth, `series_key`, is the 09-23 lane-A join key (THREAT A-1: L1 binds to the series).
     rows = an._chain_hop_rows(bd, calls)
@@ -1169,7 +1174,10 @@ def test_the_census_reaches_the_per_answer_record_and_an_unstamped_row_is_unchan
     from leviathan.graphrag.state import lint as LINT
     census = {"outcome": "ok", "sentences": 2, "corrected": 2, "chain_hops_unfigured": 0,
               "chain_hops_skipped": 0, "chain_unranked_narrated": 0, "chain_hops_ambiguous": 2,
-              "chain_fence_closed": 0}
+              "chain_fence_closed": 0,
+              # 09-25 FIX ROUND 3 INTEGRATION SEAM: the producer's census (answer._chain_lints) carries lane
+              # A's `chain_hops_off_question` last, and lane RT rostered it in lint.CHAIN_LINT_COUNTERS
+              "chain_hops_off_question": 0}
     on = ev_mod._per_answer_record({"q": {"id": "x"}, "out": {"trace": {"chain_lints": census}}},
                                    "single")
     assert on["chain_lints"] == census                             # VERBATIM, the whole eight
@@ -1561,3 +1569,77 @@ def test_0923_the_backstop_count_rides_the_chain_lints_census_at_the_seat():
     assert "_chain_backstop(structured, _board, extra_number_calls, coverage=_cov" in seg
     assert "_clints[_bk] = int(_bv)" in seg
     assert src.index("_cov = _sbr.board_coverage(") < i          # the WRITER's coverage, counted first
+
+
+# == 09-25 FIX ROUND 3 (lane A, item A-1) -- L1 BINDS A READING ONLY FOR THE QUESTION'S OWN MARKETS ==========
+@pytest.fixture(scope="module")
+def cottoncorn_cell(graph, curated):
+    """cotton + corn_cbot at max -- the served cotton defect's OWN shape: a CORN-board chain rendered beside a
+    cotton chain on one page. RE-BANKED 09-25 (close-out lane AT, VERIFY sec 3 / sec 6.2): the A-1 pin first
+    ran on `cornwheat_cell`, whose premise W-1 retired -- the pair slot now seats the top chain's own 65.6
+    variant ending on SRW wheat, so every figured hop that board renders is corn_cbot's and no wheat hop is
+    left to refuse. This board renders figured, nameable hops on TWO contracts under the post-W-1 seat rule;
+    the pin asserts that premise itself, so a future seat change reds it loudly instead of passing vacuously."""
+    bd, blk = _build(graph, "max", curated, anchors=("cotton", "corn_cbot"))
+    return bd, list(blk.calls)
+
+
+def test_0925_A1_a_foreign_boards_reading_is_never_appended_to_a_sentence_that_names_no_market(cottoncorn_cell):
+    """THE SERVED COTTON DEFECT (09-25, CHAIN_ANALOG_READ N1 / fact M1): a CORN-board chain rendered on a
+    single-market cotton page, the writer's true sentence "the export-pace and tariff readings here are one
+    series under two names" named no market, `_chain_market_fence` returned {} and L1 appended CBOT corn's
+    weekly shipments to it, twice. A sentence that names no market speaks for the QUESTION'S market.
+
+    Driven on the real cotton + corn board with the question's reach set to COTTON ALONE (distance 0) and
+    corn a distance-1 driver board -- the cotton turn's own reach, on the fixture board of the shipped type,
+    and the corn hop is the served one ("weekly export shipments"): (1) a corn hop's figure is NOT appended
+    to a sentence naming no market (counted `chain_hops_off_question`, the sentence unchanged); (2) a cotton
+    hop's figure still is; (3) under a reach whose one distance-0 market carries no rendered hop at all --
+    here the cotton chain's own TERMINAL, a market the page renders but whose series no hop reads -- the
+    question's own series is empty and NOTHING is appended, the corn hop and the cotton hop both refused."""
+    bd, calls = cottoncorn_cell
+    hops = [h for h in an._chain_hop_rows(bd, calls) if h["n"] and h["names"]]
+    corn = next((h for h in hops if h["contract"] == "corn_cbot"
+                 and h["driver_id"] == "export_pace"), None)
+    cotton = next((h for h in hops if h["contract"] == "cotton"), None)
+    assert corn is not None and cotton is not None, sorted({(h["contract"], h["driver_id"]) for h in hops})
+    rendered = [c for c in bd.chains if getattr(c, "rendered", False)]
+    empty_d0 = next((c.terminal for c in rendered if c.contract == "cotton"
+                     and c.terminal not in {h["contract"] for h in hops}), None)
+    assert empty_d0 is not None, [(c.contract, c.terminal) for c in rendered]
+    saved = bd.question_reach
+    try:
+        bd.question_reach = (("cotton", 0), ("corn_cbot", 1))
+        assert an._chain_question_markets(bd) == frozenset({"cotton"})
+        sent = "the balance sheet here runs through %s and out the other side." % (corn["names"][0],)
+        st, cen = _run(sent, calls, bd)
+        assert st["mechanism"] == sent, st["mechanism"]            # NOT ONE CHARACTER MOVES
+        assert cen["corrected"] == 0 and cen["chain_hops_off_question"] >= 1, cen
+        own = "the balance sheet here runs through %s and out the other side." % (cotton["names"][0],)
+        st2, cen2 = _run(own, calls, bd)
+        assert cen2["corrected"] == 1 and "[N%d]" % cotton["n"] in st2["mechanism"], (cen2, st2)
+        assert "[N%d]" % corn["n"] not in st2["mechanism"], st2["mechanism"]
+        # THE QUESTION'S OWN SERIES EMPTY -> NOTHING APPENDED: the same two sentences under a reach whose one
+        # distance-0 market carries no rendered hop at all gain no figure of anybody's
+        bd.question_reach = ((empty_d0, 0), ("cotton", 1), ("corn_cbot", 1))
+        assert an._chain_question_markets(bd) == frozenset({empty_d0})
+        for s in (own, sent):
+            st3, cen3 = _run(s, calls, bd)
+            assert st3["mechanism"] == s and cen3["corrected"] == 0, cen3
+            assert cen3["chain_hops_off_question"] >= 1, cen3
+    finally:
+        bd.question_reach = saved
+
+
+def test_0925_A1_the_distance_zero_set_is_the_boards_reach_then_the_seeds_then_the_anchors():
+    """The set is a FACT OF THE TURN, read in one order: the board's own reach (K9) where the walk computed
+    one, else the routed seeds the seam threads (`page_markets`), else -- a turn the subject resolver did not
+    reach -- the anchors, which ARE the question's seeds then. None (fail closed, counted) when none reads."""
+    import types as _t
+    b = _t.SimpleNamespace(question_reach=(("cotton", 0), ("corn_cbot", 1)), anchor_slugs=("cotton", "corn_cbot"))
+    assert an._chain_question_markets(b, ("x",)) == frozenset({"cotton"})
+    b2 = _t.SimpleNamespace(question_reach=(), anchor_slugs=("corn_cbot", "soft_red_winter_wheat_cbot"))
+    assert an._chain_question_markets(b2, ("corn_cbot",)) == frozenset({"corn_cbot"})
+    assert an._chain_question_markets(b2) == frozenset({"corn_cbot", "soft_red_winter_wheat_cbot"})
+    assert an._chain_question_markets(_t.SimpleNamespace(question_reach=(), anchor_slugs=())) is None
+

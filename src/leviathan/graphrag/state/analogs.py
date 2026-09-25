@@ -61,7 +61,48 @@ CASCADE_ANALOG_IMPORTS: tuple = ("_cw_cell", "_cw_fences", "_cw_verdict_line", "
 #: shorter than the series' own cadence (annual Argentine production read at both ends of a two-quarter
 #: band printed "moved 0.5 MMT by the time the lag opened and 0.5 MMT by the time it closed" under ONE
 #: handle on the tariff page). One print is not two moves; the row declines with the reason.
-OUTCOME_DECLINES: tuple = ("band_inside_one_print",)
+#: ``tape_after_like_date`` (09-25 fix round, RT-1 / chain read N3): the market's own delivery tape is a
+#: MEASURED record whose first session is LATER than the like state's date, so no price move from that date
+#: exists on it -- the 09-25 re-smoke withheld all eight deep/max stanzas on the generic ``no_tape_rows``
+#: because every pick (2020-01 .. 2025-02) predates the one listed delivery's own 2025-06 tape. The word
+#: names the fact (the row carries ``record_from``, the tape's own first date) so the stanza can SAY what
+#: it cannot say instead of printing nothing.
+OUTCOME_DECLINES: tuple = ("band_inside_one_print", "tape_after_like_date")
+
+
+def own_units_outcome(seed_row, t: str, *, asof: str, lag_days: int = 0) -> dict:
+    """THE LIKE STATE'S OUTCOME IN ITS OWN UNITS (09-25 fix round, RT-1): what the SEED'S OWN SERIES --
+    the dimension the stanza was selected on -- did over the seed's declared band from the like date,
+    read at both ends through :func:`outcome_over_band` off the array the selection half already holds
+    (``state.inputs[series key]``, zero reads). It is NOT a price outcome and the row says so: it carries
+    ``own_series`` and ``call_units: False``, and the render prints it only where no outcome in the call's
+    units could be read, under a line that names why.
+
+    The label is the series' own reader words (the row identity's name, ``render.reading_words``), never a
+    driver id -- a stanza seeded on the ONI reads "the tropical Pacific sea-surface temperature anomaly",
+    the reading the page's own SB-1 row names."""
+    st = getattr(seed_row, "state", None)
+    if st is None or status_word(getattr(st, "status", "") or "") != "ok":
+        return {}
+    try:
+        sk = st.key.label()
+    except Exception:                                   # noqa: BLE001 -- an unlabelled series has no array
+        return {}
+    arrays = (getattr(st, "inputs", None) or {}).get(sk) or {}
+    if not arrays:
+        return {}
+    try:
+        from leviathan.graphrag.state.render import reading_words as _rw
+        name = _rw(str(getattr(st, "table", "") or ""), str(getattr(st, "metric", "") or ""))
+    except Exception:                                   # noqa: BLE001 -- a name never costs the row
+        name = ""
+    o = outcome_over_band(
+        label=name or _label(getattr(seed_row, "driver_id", "") or ""),
+        values=arrays.get("values"), dates=arrays.get("dates"), t=t, band=seed_row.lag_band, asof=asof,
+        unit=str(getattr(st, "narrate_unit", "") or getattr(st, "unit", "") or ""),
+        table=str(getattr(st, "table", "") or ""), metric=str(getattr(st, "metric", "") or ""),
+        commodity=st.key.commodity, country=st.key.country, key=sk, lag_days=int(lag_days or 0))
+    return dict(o, own_series=True, call_units=False)
 
 
 def check_cascade_analog_imports() -> list:
@@ -1793,6 +1834,14 @@ def _outcomes_for(bd, seed_row, t: str, *, benchmark_fn=None) -> list:
             country=None, key=_tk)
         # ``tape`` marks the TRADED CONTRACT's own settle -- the call's units at their source -- so it leads
         # even the monthly benchmark, which is this market's price but not the contract the call is on.
+        # 09-25 (RT-1): A TAPE THAT BEGINS AFTER THE LIKE DATE IS A MEASURED FACT, NOT A MISSING ONE. The
+        # one listed delivery's own record starts at its listing; a like state older than that first
+        # session has no price move on it at all, and the decline says so by name and carries the tape's
+        # own first date -- read off the array, never a calendar constant.
+        _tp_dates = [str(d) for d in (_arr.get("dates") or ()) if str(d or "").strip()]
+        if (_o.get("declined") == "no_tape_rows" and _tp_dates
+                and min(_tp_dates)[:10] > str(t or "")[:10]):
+            _o = dict(_o, declined="tape_after_like_date", record_from=min(_tp_dates)[:10])
         out.append(dict(_o, call_units=True, tape=True))
     _clag = 0
     for cid in (seed_row.children or ()):
@@ -1870,6 +1919,17 @@ def _outcomes_for(bd, seed_row, t: str, *, benchmark_fn=None) -> list:
                 asof=bd.asof, unit=st.narrate_unit or st.unit or "", table=st.table,
                 metric=st.metric, commodity=st.key.commodity, country=st.key.country,
                 key=st.key.label()))
+    # 09-25 (RT-1): WHERE NO OUTCOME IN THE CALL'S UNITS COULD BE READ, THE LIKE STATE'S OWN SERIES IS READ
+    # OVER THE SAME BAND -- the outcome in the analog's own units, flagged so the render says it is not a
+    # price move. Only then: a stanza that has a price outcome keeps HEAD's outcome set byte for byte.
+    if not any(o.get("call_units") and not o.get("declined") for o in out):
+        try:
+            _own_lag = int(_lag_days_of(seed_row))
+        except Exception:                               # noqa: BLE001 -- no lag read is a zero lag
+            _own_lag = 0
+        _own = own_units_outcome(seed_row, t, asof=bd.asof, lag_days=_own_lag)
+        if _own:
+            out.append(_own)
     return out
 
 
@@ -2045,8 +2105,13 @@ def _analog_trace_row(a: dict) -> dict:
             "series_key": a.get("series_key"),
             "date": a.get("date"), "dims_seen": a.get("dims_seen"), "dims_declared": a.get("dims_declared"),
             "agree_n": agree, "decline": a.get("declined"),
-            "outcomes": [{"label": o.get("label"), "call_units": bool(o.get("call_units")),
-                          "decline": o.get("declined")} for o in (a.get("outcomes") or ())]}
+            "outcomes": [dict({"label": o.get("label"), "call_units": bool(o.get("call_units")),
+                               "decline": o.get("declined")},
+                              # 09-25 (RT-1): the two new facts ride the trace ONLY where they exist, so
+                              # a row carrying neither keeps HEAD's trace shape byte for byte.
+                              **({"own_series": True} if o.get("own_series") else {}),
+                              **({"record_from": o.get("record_from")} if o.get("record_from") else {}))
+                         for o in (a.get("outcomes") or ())]}
 
 
 def analog_leg(bd, rows) -> dict:

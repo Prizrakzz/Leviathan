@@ -2154,8 +2154,13 @@ def test_S8R4_the_count_line_holds_its_RE_BASELINED_CEILING_and_keeps_both_denom
               "with_document": 432, "distinct_unnamed_markets": 17}
     line = R.sb_chain_count(counts, k=3, anchor_label="CBOT soybeans")
     assert len(line) <= 300, len(line)
-    assert R.words_for_int(77) in line and R.words_for_int(1848) in line
-    assert "ways in all" in line, "both populations, and which sub-count belongs to which"
+    # 09-25 FIX ROUND 3 (RT-8, the chain read's N13): A PLAIN COUNT, NEVER A CENSUS. The pool arithmetic
+    # ("1848 ways in all", "816 read their own series past one link", "432 carry an action") is retired from
+    # the line -- the palm/rape writer printed it as a census -- and rides the trace's chain_counts. ONE
+    # population now: the distinct chains, the ones carried above, the rest counted and not followed.
+    assert R.words_for_int(77) in line and R.words_for_int(1848) not in line
+    assert "ways in all" not in line and "past one link" not in line and "sequence" not in line
+    assert "chains of cause, three of them carried above" in line
     assert R.classify(line) == ("SB-P",) and R.register_hits(line) == []
     bare = _GLUED_RX.sub("", _YEAR_RX.sub("", _ISO_RX.sub("", line)))
     assert not any(c.isdigit() for c in bare), line
@@ -2592,7 +2597,8 @@ def test_S8R3_the_SLOT_LABEL_renders_in_the_chain_rows_own_words_on_a_real_walk_
     assert "for a reason other than rank" not in R.sb_chain_count(counts, k=3, slots=("top", "top"))
     held = R.sb_chain_count(counts, k=3, anchor_label="CBOT soybeans",
                             slots=("sign", "top", "subject"))
-    assert "two of them here for a reason other than rank" in held
+    # 09-25 (RT-8): the plain count says "three of them carried above, two here for a reason other than rank"
+    assert "three of them carried above, two here for a reason other than rank" in held
     assert R.classify(held) == ("SB-P",) and R.register_hits(held) == []
 
 

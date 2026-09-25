@@ -584,6 +584,33 @@ def _desk_cascade_words(text: str) -> str:
     return text
 
 
+# ══ 09-25 CLOSE-OUT (lane AT, VERIFY MINOR-3 / RT-7) -- THE FORK CLAUSE SPEAKS THE REGISTER'S WORDS ═══════
+# MEASURED on the 09-25 cocoa page: "The two readings of the same season's cushion differ by trust tier: the
+# ICCO's published 2024/25 stocks-to-grindings is 29.2%, while the series read here gives 28.52%" -- two
+# RELEASES of one ICCO series (February and May 2026), named in the words of the persona's own fork clause
+# ("sources of different trust tiers that disagree", `response_contracts.FORK_SOURCES_CLAUSE`). Round 3 put
+# "trust tier" on the desk-register table (RT-7), so with GRAPHRAG_DESK_REGISTER lit ONE prompt both TAUGHT
+# the phrase and CHARGED it (VERIFY MINOR-3). THE REMEDY IS THE PRODUCER, the K19 idiom one clause over: under
+# the register the clause is COMPOSED from that table row's own replacement column (`register.desk_phrase`),
+# naming the two forks a reader can actually see -- a different source that disagrees, or a revision by the
+# publisher itself, which is another vintage of the series -- in the ONE vocabulary the desk mandate teaches
+# and the rewrite guard licenses (`_desk_allowed_stems`). A phrase the table changes changes this clause.
+# REJECTED (lexical): a word swap in the always-on literal (with the register off the persona is HEAD's bytes,
+# B1), and a post-writer find-and-replace of "trust tier" (the register lint already charges the word).
+_FORK_OTHER_SOURCE = reg.desk_phrase("trust tier", 2)       # "a different source"
+_FORK_REVISION = reg.desk_phrase("trust tier", 0)           # "a revision by its own publisher"
+_FORK_VINTAGE = reg.desk_phrase("trust tier", 1)            # "another vintage of this series"
+_DESK_FORK_CLAUSE = f"sources that disagree ({_FORK_OTHER_SOURCE}, or {_FORK_REVISION}: {_FORK_VINTAGE})"
+
+
+def _desk_fork_words(text: str) -> str:
+    """``text`` with the persona's fork clause -- `response_contracts.FORK_SOURCES_CLAUSE`, wherever the
+    persona's own structure sentence or a contract's structure clause carries it -- spoken in the register
+    table's words (`_DESK_FORK_CLAUSE`). A prompt that carries no fork rule (a contract whose plan has no
+    '## Where the record disagrees' heading) comes back unchanged: there is no clause to correct."""
+    return text.replace(_rc.FORK_SOURCES_CLAUSE, _DESK_FORK_CLAUSE)
+
+
 # ── D-XL: THE PRICE-EXTREME LOCATOR'S PERSONA LEGS ────────────────────────────────────────────────
 # THE LICENSE, flag-only and CONDITIONAL ("If the block carries lines beginning ..."), so a locator-less
 # turn carries a dormant clause rather than a demand -- the CROSS_BOARD / DERIVED_ARITH / CASCADE_WALK
@@ -3829,6 +3856,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         base = _substitute(base, _MENTOR_BOARD_SUBS)   #   block's own movements are not "padding"
     if register_licence:                               # the owner retired the cheap/rich strike; the
         base = _substitute(base, _MENTOR_LICENCE_SUBS)  #  persona may not go on charging for the word
+    if desk_register:                                  # 09-25 AT-4: the persona's fork clause speaks the
+        base = _desk_fork_words(base)                  #   register's words (the table charges "trust tier")
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         # K9-4 FIX PASS: the SEAM-B price paragraph is the assertion's FOURTH producer (the block note
         # above `_SYSTEM_CASCADE_PRICE_RESPONSE` measures why), so it branches on the SAME flag the
@@ -4882,7 +4911,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _ask_printed: tuple = ()
     if _board is not None:
         _board_n_start = len(extra_number_calls or []) + 1
-        _ledger = _evidence_ledger(_uniq)
+        _ledger = _evidence_ledger(_uniq, menu_printed=_menu_on)   # 09-25 AT-3: the decision the menu rendered from
         _s2_kw = _stage2_kwargs(_sbs, ledger=_ledger, uniq=_uniq,
                                 ask_rows=_ask_rows(extra_number_calls, _named_q),
                                 extra_kd=list(extra_number_calls or []),
@@ -5722,7 +5751,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         # chain lints, BEFORE the register lint (it corrects the writer's own names, and the rewrite
         # after it must read the corrected sentence). Board flag only (OWNER DECISION O-2). Its census
         # rides the already-registered `writer_seam` key below, so no trace column moves.
-        _nbl = (_name_binding_lint(structured, extra_number_calls, board=_board)
+        # 09-25 (A-2 / A-3): the served-scalars pool (the run and the window each row PRINTED) and the turn's
+        # as-of ride the call, so correction 4 reads the row's own durations before it touches a phrase.
+        _nbl = (_name_binding_lint(structured, extra_number_calls, board=_board,
+                                   served_scalars=_served_scalars, asof=asof)
                 if _state_board_on() else None)
         # S7b R2's LINT + its ONE bounded rewrite, in the SAME gate and immediately after -- the last
         # pass that may touch the MODEL's own words, and still before any splice. Flag off -> not
@@ -6133,14 +6165,24 @@ def _display_stamped(number_calls: list | None) -> list:
 # Every name another lane mints is read DEFENSIVELY (CONTRACT.md's opening law): `cit.EvidenceLedger`
 # (lane C), `fill_stage2`'s new kwargs (lane R) and `verify_citations(evidence_chunks=)` (lane V) are each
 # probed, and an absent producer leaves this body on HEAD's exact call.
-def _evidence_ledger(uniq: list | None):
+def _evidence_ledger(uniq: list | None, *, menu_printed: bool | None = None):
     """CONTRACT K1's ONE ledger over the turn's menu, or None when lane C's producer is absent or raises
-    (the board then prints through HEAD's `e_start` counter exactly as it did)."""
+    (the board then prints through HEAD's `e_start` counter exactly as it did).
+
+    09-25 CLOSE-OUT (lane AT, MINOR-6): THE MENU DECISION IS HANDED TO THE LEDGER, never read back by it.
+    `menu_printed` is whether THIS turn's menu printed its `[Ek]` ordinals -- the ONE producer's value,
+    `_handle_menu_on()`; the serving body passes the `_menu_on` it rendered the menu from (read once, the
+    same thread and override), and `None` reads the producer here. It is passed only to a ledger that
+    DECLARES the kwarg (the signature probe every lane-C name gets), so an older producer keeps HEAD's
+    one-argument call."""
     cls = getattr(cit, "EvidenceLedger", None)
     if cls is None:
         return None
+    kw: dict = {}
+    if "menu_printed" in _callable_params(cls):
+        kw["menu_printed"] = bool(_handle_menu_on() if menu_printed is None else menu_printed)
     try:
-        return cls(list(uniq or []))
+        return cls(list(uniq or []), **kw)
     except Exception:  # noqa: BLE001 -- a ledger that cannot be built is HEAD's counter, never a raise
         return None
 
@@ -6177,14 +6219,17 @@ def _stage2_kwargs(sbs, *, ledger, uniq: list, ask_rows=None, extra_kd=None, pag
 
 
 def _evidence_chunks_kw(vf, ledger) -> dict:
-    """``{"evidence_chunks": ledger.issued()}`` when the ledger ISSUED any address to the block and the loaded
-    verifier declares the kwarg (K1 V, OWNER DECISION O-10: board turns only); ``{}`` otherwise, so a
-    board-off turn -- and a board that addressed nothing -- calls `verify_citations` with HEAD's kwargs.
+    """``{"evidence_chunks": ledger.issued()}`` when the ledger ISSUED any address and the loaded verifier
+    declares the kwarg (K1 V, OWNER DECISION O-10: board turns only); ``{}`` otherwise, so a board-off turn
+    -- and a ledger that issued nothing -- calls `verify_citations` with HEAD's kwargs.
 
-    FIX ROUND 2, fixer pass (REVIEW_VC F1, the K1 amendment): the map's KEYS are the addresses the block
-    printed, and only those resolve address-first; a menu index the block never printed is the writer's
-    plain menu citation and takes HEAD's resolution. A ledger without `issued` (an older producer) passes
-    its `chunks()` -- every key of which the block printed -- so the rule never widens past the block."""
+    FIX ROUND 2, fixer pass (REVIEW_VC F1, the K1 amendment): the map's KEYS are the ISSUED addresses, and
+    only those resolve address-first. 09-25 VC-2: those are the MENU'S ORDINALS -- on a turn whose menu
+    printed them (`_evidence_ledger`'s `menu_printed`) -- plus the BLOCK'S RECEIPTS as the block addressed
+    them: the page's whole address space. On a turn whose menu printed no ordinals (the dossier lane) the
+    keys are the block's receipts alone, and a plain menu citation takes HEAD's resolution. A ledger
+    without `issued` (an older producer) passes its `chunks()` -- every key of which the block printed --
+    so the rule never widens past the addresses a reader was handed."""
     if ledger is None:
         return {}
     fn = getattr(vf, "verify_citations", None)
@@ -11344,6 +11389,39 @@ def _chain_market_fence(board) -> dict | None:
     return out
 
 
+def _chain_question_markets(board, page_markets=()) -> frozenset | None:
+    """THE QUESTION'S OWN MARKETS -- the distance-0 set of CONTRACT K9 -- as the ONE set L1 may append a
+    served figure for. ``None`` when not one contract could be read (the caller fails CLOSED on it).
+
+    09-25 FIX ROUND 3 (lane A, item A-1; CHAIN_ANALOG_READ N1 / fact cotton M1, MAJOR x2). MEASURED on
+    the served cotton page: the walk seated a CORN-board chain (China reserves -> China import demand ->
+    export pace -> corn stocks-to-use -> cotton by a sign-"0" competes-with cross) and the writer's TRUE
+    sentence "the export-pace and tariff readings here are one series under two names, so count it
+    once" (cotton's PSD export row, served twice under two drivers) named that chain's hop by its reader
+    spelling "export pace". The page names ONE market, so `_chain_market_fence` returned ``{}`` and L1
+    appended "weekly export shipments, summed over every destination, on CBOT corn reads 1900 1000 MT
+    [N67]" -- twice, after the verifier -- and the next sentence then said the record carries no
+    shipment figure. The fence refused only a sentence that NAMES another market; a sentence that names
+    no market speaks for the QUESTION'S market, and a foreign board's row is never that market's.
+
+    THE SET IS A FACT OF THE TURN AND NEVER A LIST: the board's own reach (``Board.question_reach``,
+    written by the walk from its anchors' distance-0 stamp -- the markets the question named or the
+    planner planned), else the routed seeds the seam threads as ``page_markets`` (K9's own definition of
+    distance 0), else -- on a turn the subject resolver did not reach, where no distance is computed and
+    the anchors ARE S6's own seeds (B4) -- the board's anchors. REJECTED: a stop-list of hop spellings
+    ("export pace"), a per-commodity word list, or a single-market special case."""
+    try:
+        reach = tuple(getattr(board, "question_reach", None) or ())
+        own = {str(s) for s, d in reach if str(s or "").strip() and int(d) == 0}
+        if not own:
+            own = {str(s) for s in (page_markets or ()) if str(s or "").strip()}
+        if not own:
+            own = {str(s) for s in (getattr(board, "anchor_slugs", None) or ()) if str(s or "").strip()}
+    except Exception:  # noqa: BLE001 -- an unreadable reach is NO FIGURE, never an unfenced one
+        return None
+    return frozenset(own) if own else None
+
+
 def _chain_fold(text: str) -> str:
     """``text`` as the match alphabet, space-padded so a lookup is a word-boundary test."""
     return " " + _CHAIN_FOLD_RX.sub(" ", str(text or "").lower()).strip() + " "
@@ -11986,8 +12064,12 @@ def _chain_lints(structured: dict | None, number_calls, board, *, handle_prose: 
                  page_markets=()) -> dict:
     """DESIGN B.6's THREE CORRECTIONS, in one pass over the writer's own sentences. Returns
     ``{outcome, sentences, corrected, chain_hops_unfigured, chain_hops_skipped,
-    chain_unranked_narrated, chain_hops_ambiguous, chain_fence_closed}``; mutates ``structured`` in
-    place; never raises; never deletes.
+    chain_unranked_narrated, chain_hops_ambiguous, chain_fence_closed, chain_hops_off_question}``;
+    mutates ``structured`` in place; never raises; never deletes.
+
+    ``chain_hops_off_question`` (09-25, item A-1) counts the hops that HAD a served figure and were
+    refused it because the hop's row sits on a board outside the question's distance-0 set
+    (:func:`_chain_question_markets`): L1 binds a reading only for the question's own markets.
 
     ``chain_fence_closed`` (ROUND 4, review MINOR m-6) is the FAIL-CLOSED counter and it belongs to
     both fences at once: it counts the corrections this pass WITHHELD because an instrument it reads
@@ -12069,7 +12151,7 @@ def _chain_lints(structured: dict | None, number_calls, board, *, handle_prose: 
     re-minted by the correction itself. Default False, so every non-`_hp` turn is byte-identical."""
     census = {"outcome": "ok", "sentences": 0, "corrected": 0, "chain_hops_unfigured": 0,
               "chain_hops_skipped": 0, "chain_unranked_narrated": 0, "chain_hops_ambiguous": 0,
-              "chain_fence_closed": 0}
+              "chain_fence_closed": 0, "chain_hops_off_question": 0}
     if not isinstance(structured, dict):
         census["outcome"] = "bad_shape"
         return census
@@ -12091,7 +12173,11 @@ def _chain_lints(structured: dict | None, number_calls, board, *, handle_prose: 
         # `chain_fence_closed` -- never made on an instrument that could not be read, and never lost
         # in silence, which is the doctrine's own pair (a dropped item is COUNTED).
         market = _chain_market_fence(board)
-        fence_unreadable = market is None
+        # 09-25 (item A-1): THE QUESTION'S OWN MARKETS, read once per turn beside the market fence and
+        # failing closed WITH it -- an unreadable distance-0 set is a page this correction cannot speak
+        # for, the same withholding, counted in the same `chain_fence_closed`.
+        own = _chain_question_markets(board, page_markets)
+        fence_unreadable = market is None or own is None
         if fence_unreadable:
             market = {}
         # AND SO IS THE POOL (round 3, review MAJOR B-1): the chains this page RANKED, rendered and
@@ -12149,6 +12235,16 @@ def _chain_lints(structured: dict | None, number_calls, board, *, handle_prose: 
                     # markets are unreadable is a page this correction cannot speak for either.
                     if fence_unreadable:
                         census["chain_fence_closed"] += 1
+                        continue
+                    # 09-25 (item A-1): A READING IS BOUND ONLY FOR THE QUESTION'S OWN MARKETS. A sentence
+                    # that names no market speaks for the question's market, so a hop whose row sits on
+                    # another board -- a cross chain's far-side links, a chain seated by its terminal --
+                    # gets no figure appended at all, and where the question's own series is empty the
+                    # sentence keeps the writer's words and gains nothing. COUNTED, never silent: the
+                    # refusal costs a figure the reader can still look up, the append cost the page its
+                    # word (cotton 09-25: corn's weekly shipments printed as cotton's export pace).
+                    if h["contract"] not in own:
+                        census["chain_hops_off_question"] += 1
                         continue
                     if market and (h["contract"] not in market
                                    or any(t in fold for t in market[h["contract"]])):
@@ -14723,9 +14819,22 @@ def _nbl_figure_words(idn: dict, numeral: str, call) -> str:
     return (str(numeral).strip() + (" " + uw if uw else "")).strip()
 
 
-def _name_binding_lint(structured: dict | None, number_calls, *, board=None) -> dict:
+def _name_binding_lint(structured: dict | None, number_calls, *, board=None, served_scalars=None,
+                       asof: str = "") -> dict:
     """CONTRACT K4 -- the row identity reaches the SENTENCE. Returns the census; mutates `structured`'s two
     prose fields by SUBSTITUTION only; never raises; never deletes a handle, a digit or a claim.
+
+    09-25 FIX ROUND 3 (lane A, items A-2 / A-3): correction 4 applies ONLY to a phrase the row's PERIOD
+    speaks for. A written duration the bound row's OWN duration members back -- the counts of its own
+    observations the block printed for it, its RUN and its sigma WINDOW (``served_scalars``' ``run_length``
+    / ``window_length`` of the same ``_row_id``, else the board row's own) -- and its AGE at the as-of (`narration.age_in_periods`, the arithmetic the block's age clause prints)
+    -- is a run or an age, never the row's period, and is left as written and counted
+    (``period_duration_kept``); a bare COUNT of the row's own kind carrying no end date of its own names a
+    LENGTH, which the row's period words (a NAME: "December 2023", "week to 17 September 2026") cannot
+    stand in for grammatically, so it is left as written and counted (``period_unanchored``). MEASURED:
+    all nine period corrections on the ten 09-25 pages were of these two shapes and all nine wrote false
+    or broken English ("rising December 2023 straight", "falling 2026/27", "about a 20 August 2026
+    before"). REJECTED: a list of run verbs ("rising", "running", "straight") or of gap words ("before").
 
     THE FOUR CORRECTIONS, each read off the bound call's own identity (`citations.call_identity`):
       1. ROUTING NAME AS SERIES NAME -- the noun phrase bound to the row carries the driver words the block
@@ -14743,7 +14852,8 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None) -> 
     `board` is accepted for the seam's symmetry and read by nothing here: every fact the lint needs rides
     the call (the board writes the routing words onto its own SB-1 call row)."""
     census = {"outcome": "ok", "sentences": 0, "bindings": 0, "routing_corrected": 0,
-              "commodity_corrected": 0, "unit_corrected": 0, "period_corrected": 0, "name_unbound": 0}
+              "commodity_corrected": 0, "unit_corrected": 0, "period_corrected": 0, "name_unbound": 0,
+              "period_duration_kept": 0, "period_unanchored": 0}
     if not isinstance(structured, dict):
         census["outcome"] = "bad_shape"
         return census
@@ -14758,6 +14868,11 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None) -> 
     calls = list(number_calls or [])
     cache: dict = {}
     bindp = getattr(_vf, "bind_periods", None)
+    # 09-25 (A-2): THE RUN EACH BOARD ROW PRINTED, keyed by the row identity the calls carry (`_row_id`) --
+    # read ONCE per turn off the served-scalars pool (C4, the figures the block printed), else off the
+    # board's own rows through the render's one identity door. `{}` when neither is readable.
+    runs = _nbl_row_runs(served_scalars, board)
+    durs: dict = {}
     try:
         for field in ("tldr", "mechanism"):
             text = structured.get(field)
@@ -14827,7 +14942,9 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None) -> 
                             continue
                         idn = _nbl_identity(calls[k - 1], cache, k)
                         if idn is not None:
-                            edits += _nbl_period_edits(sent, pb, idn)
+                            if k not in durs:
+                                durs[k] = _nbl_duration_members(calls[k - 1], idn, runs, asof)
+                            edits += _nbl_period_edits(sent, pb, idn, durations=durs[k], tally=census)
                 # -- handle-only citations: corrections 1-2 on the noun the handle backs --------------
                 for m in _N_HANDLE_RX.finditer(sent):
                     mem = _n_handle_members(m.group(0))
@@ -15007,18 +15124,117 @@ def _nbl_name_edits(sent: str, noun, idn: dict, call=None) -> list:
     return out
 
 
-def _nbl_period_edits(sent: str, pb: dict, idn: dict) -> list:
+#: THE SERVED-SCALAR KINDS THAT ARE A COUNT OF THE ROW'S OWN OBSERVATIONS (`rows.SCALAR_KINDS`): the run the
+#: block printed ("in each of the last fourteen months") and the window its sigma is measured over ("on its
+#: trailing window of sixty months"). Both are counted in the series' own cadence, i.e. in periods of the
+#: row's own kind -- which is what lets a written count be compared with them at all.
+_NBL_ROW_COUNT_KINDS: tuple = ("run_length", "window_length")
+
+
+def _nbl_row_runs(served_scalars, board=None) -> dict:
+    """``{row_id: {counts}}`` -- the COUNTS OF ITS OWN OBSERVATIONS each board row PRINTED: its run and its
+    sigma window (:data:`_NBL_ROW_COUNT_KINDS`), off the served-scalars pool (CONTRACT C4, registered by the
+    render at the moment it formats the words, so the number the writer read and this one are the same
+    variable); where no pool is threaded, the board's own rows through the render's ONE identity door
+    (``render.row_identity_for``) -- the run the render prints (a declined run skipped exactly as the
+    render skips it) and the z window it prints. ``{}`` when neither is readable: no member, never a
+    guessed one."""
+    out: dict = {}
+    if isinstance(served_scalars, (list, tuple)):
+        for sc in served_scalars:
+            if (not isinstance(sc, dict) or str(sc.get("kind") or "") not in _NBL_ROW_COUNT_KINDS
+                    or not sc.get("row_id")):
+                continue
+            try:
+                out.setdefault(str(sc["row_id"]), set()).add(int(float(sc.get("value"))))
+            except (TypeError, ValueError):
+                continue
+        return out
+    if board is None:
+        return out
+    try:
+        from leviathan.graphrag.state import render as _sr  # lazy: phase-2 only
+        for r in (getattr(board, "rows", None) or ()):
+            st = getattr(r, "state", None)
+            if st is None:
+                continue
+            counts: set = set()
+            run = getattr(st, "run", None)
+            if isinstance(run, dict) and not run.get("declined") and run.get("length"):
+                counts.add(int(run.get("length")))
+            z = getattr(st, "z", None)
+            if isinstance(z, dict) and z.get("value") is not None:
+                win = z.get("window_n") or z.get("window") or z.get("n")
+                if win:
+                    counts.add(int(win))
+            if not counts:
+                continue
+            ident = _sr.row_identity_for(r)
+            if ident is not None and getattr(ident, "row_id", ""):
+                out.setdefault(str(ident.row_id), set()).update(counts)
+    except Exception:  # noqa: BLE001 -- an unreadable board contributes no member
+        return out
+    return out
+
+
+def _nbl_duration_members(call, idn: dict, runs: dict, asof: str = "") -> dict:
+    """``{"run": {(period kind, count)}, "age": {(period kind, count)}}`` -- the DURATIONS the bound row
+    itself backs, each a measured fact of that row and never a phrase:
+      * ``run``: the counts of its own observations the block printed for it -- its RUN and its sigma
+        WINDOW (:func:`_nbl_row_runs`, by the call's own ``_row_id``) -- in the row's own period kind: both
+        count observations of the row's own period;
+      * ``age``: its AGE at the as-of (`narration.age_in_periods` over the headline row's knowledge date and
+        the call's own as-of, else the turn's) -- the floored count the block's age clause prints and the
+        nearest one, in every observation kind. An age ends AT THE AS-OF, so it can back only a phrase that
+        carries no end date of its own (the caller's rule).
+    Both empty when the row carries neither -- which leaves correction 4 exactly HEAD's for that row."""
+    run: set = set()
+    age: set = set()
+    rk = str((idn or {}).get("period_kind") or "").strip()
+    rid = str((call or {}).get("_row_id") or "") if isinstance(call, dict) else ""
+    if rid and rk:
+        run.update((rk, int(n)) for n in (runs.get(rid) or ()) if n)
+    try:
+        rows = list((call or {}).get("rows") or []) if isinstance(call, dict) else []
+        kd = str((rows[-1] or {}).get("knowledge_date") or "") if rows else ""
+        q_asof = str(((call or {}).get("query") or {}).get("asof") or "") if isinstance(call, dict) else ""
+        if kd:
+            from leviathan.graphrag.state.narration import age_in_periods
+            for kind, (fl, near) in age_in_periods(kd, q_asof or asof).items():
+                age.update({(kind, int(fl)), (kind, int(near))})
+    except Exception:  # noqa: BLE001 -- an unreadable age is no age member, never a guessed one
+        pass
+    return {"run": frozenset(run), "age": frozenset(age)}
+
+
+def _nbl_period_edits(sent: str, pb: dict, idn: dict, *, durations=None, tally=None) -> list:
     """Correction 4 (FIXER PASS, REVIEW_RA lexical 1-3 / VC M1): ONE period phrase lane V binds to the row's
     own handle (`verify.bind_periods`: the date-binding shapes -- in the handle's clause before it, or right
     after it) is replaced by the row's `period_words` where it CONTRADICTS the row's period at its own
     precision (`call_identity`, the headline row's own observation):
       * a LONGER kind than the row measures, written as ONE period ("this marketing year" over one week's
         shipments) -- the order is `rows.OBSERVATION_PERIOD_KINDS`, longest grain first;
-      * a COUNT of two or more of the row's OWN kind written right AFTER the handle ("[N3] over the two weeks
-        to 10 September 2026" over one week) -- a count before the handle is a run or a horizon the clause
-        states ("rising in each of the last two weeks [N241]", "over the next three months ... [N23]"),
-        never the row's period.
-    The writer's own determiner and preposition stay; the phrase and its own end date are replaced."""
+      * a COUNT of two or more of the row's OWN kind written right AFTER the handle and DATED by its own end
+        ("[N3] over the two weeks to 10 September 2026" over one week) -- a count before the handle is a
+        run or a horizon the clause states ("rising in each of the last two weeks [N241]", "over the next
+        three months ... [N23]"), never the row's period.
+    The writer's own determiner and preposition stay; the phrase and its own end date are replaced.
+
+    09-25 FIX ROUND 3 (lane A, items A-2 / A-3) -- A PERIOD CORRECTION APPLIES ONLY TO A PHRASE THE ROW'S
+    PERIOD SPEAKS FOR, and two facts of the row decide it before either rule is read:
+      * ``durations`` (:func:`_nbl_duration_members`): the written (kind, count) -- a count not written is
+        one period -- equals the row's own RUN, or (for a phrase with no end date of its own, since an age
+        ends at the as-of) its own AGE at the as-of. It is then a run ("rising
+        fourteen months straight" over the ONI row's run of fourteen; "falling eight weeks running" over
+        the COT row's run of eight) or an age ("about a month before the data as of 25 September 2026"
+        over a crush row known 21 August), TRUE on the page and never touched: counted
+        ``period_duration_kept``.
+      * the count rule substitutes a period NAME, so it applies only to a phrase that NAMES a period by
+        its own end date; a bare count of the row's own kind is a LENGTH, and putting a name in its slot
+        is the broken English the 09-25 pages printed ("rising December 2023 straight", "falling
+        2026/27"). Left as written and counted ``period_unanchored`` -- the same producer that mints the
+        replacement words is the one that now refuses to mint them where they cannot read as English.
+    REJECTED: a list of run verbs, of gap prepositions, or of determiners."""
     out: list = []
     kinds = _nbl_period_kinds()
     rk = str(idn.get("period_kind") or "").strip()
@@ -15030,6 +15246,17 @@ def _nbl_period_edits(sent: str, pb: dict, idn: dict) -> list:
     longer = kinds.index(wk) < kinds.index(rk) and (n is None or int(n) < 2)
     multi = wk == rk and n is not None and int(n) >= 2 and str(pb.get("shape") or "") == "after"
     if not (longer or multi):
+        return out
+    dated = bool(pb.get("end_date_span"))
+    key = (wk, int(n) if n is not None else 1)
+    dur = durations if isinstance(durations, dict) else {}
+    if key in (dur.get("run") or ()) or (not dated and key in (dur.get("age") or ())):
+        if isinstance(tally, dict):
+            tally["period_duration_kept"] = int(tally.get("period_duration_kept") or 0) + 1
+        return out
+    if multi and not dated:
+        if isinstance(tally, dict):
+            tally["period_unanchored"] = int(tally.get("period_unanchored") or 0) + 1
         return out
     sp = _nbl_span(pb.get("span"))
     if sp is None:

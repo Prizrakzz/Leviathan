@@ -345,6 +345,42 @@ reading_words:
   silver_sagis_cec.current_estimate_t:                   "the South African crop estimate"
 
 # =====================================================================================================
+# TAIL WORDS -- WHAT EACH SIDE OF A READING MEANS FOR THIS SERIES (the 09-25 fix round, RT-2 / RT-3)
+# =====================================================================================================
+# THE DEFECT, VERBATIM FROM THE 09-25 COCOA PAGE (FATAL). The TL;DR read "West African dryness and heat
+# readings deep in their own tails [N14][N20] ... toward higher prices" off two rows sitting in their LOW
+# tails: the dry-day run at -0.92 z (3rd percentile -- SHORTER dry spells than usual, so wetter) and the
+# maximum-temperature anomaly at -0.67 z (6th percentile -- cooler). The rows named the series and the
+# side ("on the low side") and never said what the low side IS for that series, so a writer read "tail"
+# as the story the driver's name tells. And the deep soybean page printed one regional growing cell -- the
+# DRIEST of ten -- as "US dryness", sign-flipped against the board's own national row (D11).
+#
+# WHAT THIS DECLARES, AND IT IS A FACT ABOUT THE SERIES, NOT A BAND. For each metric, the reader words of
+# its LOW side and its HIGH side (``side``) and the superlative of each side (``extreme``, "the driest of
+# ten" for the cell a read ranks first). The SIDE ITSELF IS NEVER DECLARED HERE: it is computed off the
+# row's own served reading by the one side producer (``walk.reading_side`` -- the percentile and the z,
+# the figures the loud set ranked the row by), so these words can only name a side the reading is on.
+#
+# ITS OWN TOP-LEVEL KEY, for the ``watch_overlay`` reason: ``render.series_tail_words()`` is the ONE reader and
+# nothing on the rank, the loud cut or the convention label can move because of an entry here. A metric
+# with no entry prints no side words at all -- fail-closed, never a guess about which way a series signs.
+# ``state/lint.py`` clause 18 grades every entry: a ``<table>.<metric>`` key on the board map, both sides
+# present and different, ASCII, digit-free and register-clean on all four detectors.
+tail_words:
+  gold_weather_z.drought_z:
+    low:  {side: "shorter dry spells than usual, so wetter", extreme: "wettest"}
+    high: {side: "longer dry spells than usual, so drier", extreme: "driest"}
+  gold_weather_z.tmax_anomaly:
+    low:  {side: "cooler than usual", extreme: "coolest"}
+    high: {side: "hotter than usual", extreme: "hottest"}
+  gold_weather_z.heat_stress_z:
+    low:  {side: "less heat stress than usual", extreme: "least heat-stressed"}
+    high: {side: "more heat stress than usual", extreme: "most heat-stressed"}
+  gold_weather_z.gdd_z:
+    low:  {side: "fewer growing-degree days than usual, so a cooler season", extreme: "coolest"}
+    high: {side: "more growing-degree days than usual, so a warmer season", extreme: "warmest"}
+
+# =====================================================================================================
 # PHASE PAIRS -- WHICH PHASE OF A SIGNED CLIMATE SERIES IS IN FORCE (lane D, the same smoke)
 # =====================================================================================================
 # THE DEFECT. The shipped graph puts `El_Nino` and `La_Nina` on ONE ONI ref with OPPOSITE declared signs

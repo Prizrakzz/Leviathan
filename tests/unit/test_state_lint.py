@@ -590,9 +590,11 @@ def test_clause15_counters_are_the_names_the_arm_report_reads():
     the hour, naming the extra key. That is the contract working: the roster row follows the producer
     IN THE SAME COMMIT, and a counter in the function and not in the tuple is a census column no build
     grades."""
+    # 09-25 FIX ROUND 3: lane A's L1 lint gained `chain_hops_off_question` (item A-1, the chain read's N1);
+    # the roster row follows the producer in the same commit, exactly as `chain_fence_closed` did in round 4
     assert sbl.CHAIN_LINT_COUNTERS == ("chain_hops_unfigured", "chain_hops_skipped",
                                        "chain_unranked_narrated", "chain_hops_ambiguous",
-                                       "chain_fence_closed")
+                                       "chain_fence_closed", "chain_hops_off_question")
     from leviathan.graphrag import answer as _an
     assert hasattr(_an, "_chain_lints")                        # the SHIPPED object, never a stand-in
     _node = [n for n in _ast.walk(_ast.parse(sbl._answer_source()))
@@ -1165,7 +1167,9 @@ def test_CLAUSE16_is_GREEN_on_the_tree_and_the_whole_roster_is_SIXTEEN():
     src = inspect.getsource(sbl.check_state_board)
     assert "_check_analog_near_asof()" in src
     assert "_check_desk_register_classes()" in src
-    assert src.count("errs += _check") == 17, src.count("errs += _check")
+    # 09-25 FIX ROUND 3 (RT-2 / RT-3): clause 18 grades the declared tail-word book -- the roster is eighteen
+    assert "_check_tail_words()" in src
+    assert src.count("errs += _check") == 18, src.count("errs += _check")
 
 
 def test_the_SB_A_SAMPLE_IS_WHAT_THE_PRODUCER_RENDERS_AND_CARRIES_ONE_FLOOR_YEAR():

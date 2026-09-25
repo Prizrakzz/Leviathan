@@ -211,7 +211,9 @@ def test_K4_the_lint_is_inert_without_its_producers_and_rides_the_board_flag_on_
     assert st["mechanism"] == RICE
     monkeypatch.undo()
     src2 = inspect.getsource(an._answer_l2)
-    assert "_nbl = (_name_binding_lint(structured, extra_number_calls, board=_board)" in src2
+    # 09-25 (A-2 / A-3): the served-scalars pool and the turn's as-of ride the board body's call
+    assert ("_nbl = (_name_binding_lint(structured, extra_number_calls, board=_board,\n"
+            "                                   served_scalars=_served_scalars, asof=asof)") in src2
     assert "if _state_board_on() else None)" in src2
     assert src2.index("_name_binding_lint(") < src2.index("_desk_register_lint(")
     assert 'sg.trace["writer_seam"]["name_binding"] = _nbl' in src2
@@ -363,13 +365,22 @@ def test_K1_the_seam_takes_the_ledgers_address_and_HEADs_kwargs_otherwise():
 
 
 def test_K1_the_chunk_kwarg_rides_only_a_ledger_that_issued_an_address():
-    """O-10: address-first resolution on board turns only, and only when the ledger issued anything."""
+    """O-10: address-first resolution on board turns only, and only when the ledger issued anything.
+
+    09-25 (VC-2, re-banked by the close-out lane AT): on a turn whose menu PRINTED its ordinals the menu IS
+    issued -- an address the reader was handed is an address the ledger vouches for -- so the round-2 premise
+    "a fresh ledger issues nothing" holds only where the menu printed none (the dossier lane's override). The
+    registered-receipt half is driven on THAT ledger, the one that still starts with nothing issued."""
     uniq = [{"source_key": "a", "text": "x", "source": "s", "date": "2025-01-01"}]
-    led = an._evidence_ledger(uniq)
+    led = an._evidence_ledger(uniq)                       # the menu printed its ordinal (answer's own decision)
     assert an._evidence_chunks_kw(vf, None) == {}
-    assert an._evidence_chunks_kw(vf, led) == {}                     # nothing issued: HEAD's kwargs
-    led.address({"source_key": "b", "text": "y", "source": "t", "date": "2025-02-01"})
-    kw = an._evidence_chunks_kw(vf, led)
+    assert set(an._evidence_chunks_kw(vf, led)) == {"evidence_chunks"}          # 09-25 VC-2: the menu issues
+    with an.handle_menu_override(False):                  # a menu that printed no ordinals issues nothing
+        assert an._evidence_chunks_kw(vf, an._evidence_ledger(uniq)) == {}
+        led0 = an._evidence_ledger(uniq)
+    assert an._evidence_chunks_kw(vf, led0) == {}                    # nothing issued: HEAD's kwargs
+    led0.address({"source_key": "b", "text": "y", "source": "t", "date": "2025-02-01"})
+    kw = an._evidence_chunks_kw(vf, led0)
     assert set(kw) == {"evidence_chunks"} or "evidence_chunks" not in inspect.signature(
         vf.verify_citations).parameters
 
@@ -531,7 +542,8 @@ def test_K19_the_state_mandate_names_the_record_the_way_the_boards_rows_do():
     _why = " ".join(str(v) for v in R.ABSENCE_WHY.values())
     assert _why.count(N.MANDATE_BLOCK_READER_NAME) >= 3, _why[:200]
     desk = N.state_board_mandate(nonobvious=True, chain=True, desk=True)
-    assert "the block" not in desk and "take the chains this page puts first" in desk
+    # 09-25 (A-5): the movement names the record's LEADING chains, never the page's own verb
+    assert "the block" not in desk and "take this page's leading chains" in desk
     assert N.state_board_mandate() is N.SYSTEM_STATE_BOARD_MANDATE
     assert N.check_literals() == []
 
@@ -728,3 +740,183 @@ def test_fixer_B20_a_routing_word_inside_the_rows_own_printed_name_is_the_row_na
                     "[N34]."), out2
     # every word counts, short ones included: "crude oil" is not a word-subset of the printed Brent name
     assert not an._nbl_words_within("crude oil", "the Brent crude price against its own five-year record")
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-25 FIX ROUND 3 (lane A, items A-2 / A-3) -- CORRECTION 4 NEVER TOUCHES A DURATION THE ROW BACKS
+# The served 09-25 sentences, verbatim (ASCII-folded), over board calls of the shipped shape: the lint wrote
+# "rising December 2023 straight", "falling week to 20 February 2024 running", "falling 2026/27" and "about a
+# 20 August 2026 before the data" -- nine period corrections on seven pages, all nine false.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+RID_ONI = "soybeans_cbot|La_Nina|oni_climate|_global|"
+RID_COT = "soybeans_cbot|cot_mm_positioning|cot_mm_positioning|soybeans_cbot|"
+RID_CRUSH25 = "soybeans_cbot|soybean_crush_margin|cbot_board_crush_margin|_global|"
+ONI_2024 = ("Warm-phase Pacific +1.99 degC, December 2023 [N16], +2.0 sigma on ten years [N17], rising fourteen "
+            "months straight.")
+COT_2024 = ("Managed money on beans -126,674 contracts in the week to 20 February 2024 [N10], -3.4 sigma [N11], "
+            "falling eight weeks running; on meal -27,990 contracts [N13], the 2nd percentile of its own record "
+            "[N15].")
+CRUSH_MAX = ("The crush reading is read through 21 August 2026, about a month before the data as of 25 "
+             "September 2026 [N138].")
+
+
+def _asof(c, asof):
+    c["query"]["asof"] = asof
+    return c
+
+
+def _oni_calls():
+    return _pad(17, {16: _asof(_board("silver_noaa_oni", "oni_anom", 1.99, "degC", row_id=RID_ONI,
+                                      commodity="_global", period="2023-12", known="2024-02-05"), "2024-03-01"),
+                     17: _asof(_board("silver_noaa_oni", "oni_anom", 2.0, "sigma", row_id=RID_ONI,
+                                      commodity="_global", period="2023-12", stat="sigma",
+                                      known="2024-02-05"), "2024-03-01")})
+
+
+def _cot_calls():
+    return _pad(15, {10: _asof(_board("silver_cot", "mm_net", -126674.0, "contracts", row_id=RID_COT,
+                                      commodity="soybeans_cbot", period="2024-02-20", known="2024-02-26"),
+                               "2024-03-01"),
+                     11: _asof(_board("silver_cot", "mm_net", -3.4, "sigma", row_id=RID_COT,
+                                      commodity="soybeans_cbot", period="2024-02-20", stat="sigma",
+                                      known="2024-02-26"), "2024-03-01")})
+
+
+def test_0925_A2_a_run_the_block_printed_is_never_rewritten_as_the_rows_period():
+    """THE 2024 PAGE (A-2): "rising fourteen months straight" is the ONI row's run of fourteen and "falling eight
+    weeks running" the COT row's run of eight -- both TRUE, both run members the block printed (the served-
+    scalars pool's `run_length` of the same `_row_id`). HEAD replaced each with the row's period words. The
+    tree leaves both as written and counts them `period_duration_kept`; the figures and handles never move."""
+    pool = [{"value": 14.0, "unit": "months", "kind": "run_length", "row_id": RID_ONI, "handle": None, "text": ""},
+            {"value": 8.0, "unit": "weeks", "kind": "run_length", "row_id": RID_COT, "handle": None, "text": ""}]
+    for sent, calls in ((ONI_2024, _oni_calls()), (COT_2024, _cot_calls())):
+        st = {"tldr": "", "mechanism": sent}
+        cen = an._name_binding_lint(st, calls, served_scalars=pool, asof="2024-03-01")
+        assert st["mechanism"] == sent, st["mechanism"]
+        assert cen["period_corrected"] == 0 and cen["period_duration_kept"] == 1, cen
+
+
+def test_0925_A2_the_row_counts_are_the_run_and_the_window_the_block_printed_and_nothing_else():
+    """The members are read off the served-scalars pool (C4's transport) by the call's own `_row_id`: the run
+    and the sigma window -- both counts of the row's own observations -- and never another scalar kind. No
+    pool and no board -> no member, never a guess."""
+    assert an._nbl_row_runs(None, None) == {}
+    pool = [{"value": 14.0, "kind": "run_length", "row_id": RID_ONI},
+            {"value": 60, "kind": "window_length", "row_id": RID_ONI},
+            {"value": 3.0, "kind": "percentile", "row_id": RID_ONI},
+            {"value": 5.0, "kind": "run_length", "row_id": None}]
+    assert an._nbl_row_runs(pool) == {RID_ONI: {14, 60}}
+
+
+def test_0925_A3_an_age_the_row_backs_is_never_rewritten_as_the_rows_period():
+    """THE MAX PAGE (A-3): "about a month before the data as of 25 September 2026 [N138]" -- the crush row was
+    known 21 August, 35 days before the as-of: one month by the age clause's own arithmetic
+    (`narration.age_in_periods`). HEAD read "a month" as a LONGER kind than the row's day and printed "about a
+    20 August 2026 before the data". Left as written, counted `period_duration_kept`."""
+    cr = _asof(_board("gold_board_crush", "crush_margin_usd_bu", 2.6, "USD/bu", row_id=RID_CRUSH25,
+                      country="global", period="2026-08-20", known="2026-08-21"), "2026-09-25")
+    st = {"tldr": "", "mechanism": CRUSH_MAX}
+    cen = an._name_binding_lint(st, _pad(138, {138: cr}), asof="2026-09-25")
+    assert st["mechanism"] == CRUSH_MAX, st["mechanism"]
+    assert cen["period_corrected"] == 0 and cen["period_duration_kept"] == 1, cen
+    assert N.age_in_periods("2026-08-21", "2026-09-25") == {
+        "marketing_year": (0, 0), "crop_season": (0, 0), "month": (1, 1), "week": (5, 5), "day": (35, 35)}
+
+
+def test_0925_A3_a_bare_count_the_row_does_not_back_is_left_as_written_and_counted():
+    """THE GRAMMAR GUARD: the replacement is a period NAME ("December 2023"), so it may stand only where the
+    writer wrote a period NAME -- a count DATED by its own end ("the two weeks to 10 September 2026", the
+    K4 pin above, still corrected). A bare count the row does not back ("seven months" over a run of
+    fourteen) is a LENGTH: putting a name in its slot is the broken English the 09-25 pages printed. It is
+    left as written and counted `period_unanchored`, never rewritten."""
+    sent = ONI_2024.replace("fourteen", "seven")
+    pool = [{"value": 14.0, "kind": "run_length", "row_id": RID_ONI}]
+    st = {"tldr": "", "mechanism": sent}
+    cen = an._name_binding_lint(st, _oni_calls(), served_scalars=pool, asof="2024-03-01")
+    assert st["mechanism"] == sent and cen["period_corrected"] == 0, (cen, st["mechanism"])
+    assert cen["period_unanchored"] == 1 and cen["period_duration_kept"] == 0, cen
+
+
+def test_0925_the_age_clause_prints_HEADs_words_through_the_one_age_arithmetic():
+    """`age_clause` now reads `age_span` -- one arithmetic for the words the block prints and the age the
+    lint compares against. Its output is HEAD's, byte for byte, on both unit branches and on a fresh row."""
+    assert N.age_clause("2026-08-21", "2026-09-25", "daily") == \
+        "read through 2026-08-21, 1-month span to this as-of"
+    assert N.age_clause("2026-09-01", "2026-09-25", "daily") == \
+        "read through 2026-09-01, 24-day span to this as-of"
+    assert N.age_clause("2020-01-15", "2026-09-25", "monthly") == \
+        "read through 2020-01-15, 6-year span to this as-of"
+    assert N.age_clause("2026-09-20", "2026-09-25", "daily") == ""
+    assert N.age_clause("not a date", "2026-09-25", "daily") == ""
+    assert N.age_span("2026-08-21", "2026-09-25") == {"days": 35, "months": 1, "from": "2026-08-21",
+                                                      "to": "2026-09-25"}
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-25 CLOSE-OUT (lane AT, item AT-4; VERIFY MINOR-3 / RT-7) -- THE FORK CLAUSE AND THE DESK TABLE SPEAK ONE
+# VOCABULARY
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+#: The served 09-25 cocoa sentence (raw draft, '## Where the record disagrees'), verbatim.
+_COCOA_TIER = ("The two readings of the same season's cushion differ by trust tier: the ICCO's published "
+               "2024/25 stocks-to-grindings is 29.2% [E7], while the series read here gives 28.52% [N1].")
+
+
+def test_0925_AT4_the_fork_clause_is_the_register_tables_own_words_under_the_register_and_HEADs_off_it(
+        monkeypatch):
+    """MEASURED: the cocoa page named two RELEASES of one ICCO series "trust tier" -- the persona's own fork
+    clause ("sources of different trust tiers that disagree") -- while, with GRAPHRAG_DESK_REGISTER lit, the
+    desk table (RT-7) charges exactly that phrase: one prompt taught it and charged it. Under the register
+    the clause is COMPOSED from the table row's own replacement column; with the register off every persona
+    byte is HEAD's (B1). The clause is keyed on its ONE definition (`response_contracts.FORK_SOURCES_CLAUSE`),
+    which both needles and the persona carry."""
+    from leviathan.graphrag import response_contracts as rc
+    monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "off")          # the persona alone (the B1 cell)
+    clause = rc.FORK_SOURCES_CLAUSE
+    for text in (an._SYSTEM_MENTOR, rc.NEEDLE_STRUCTURE, rc._DISAGREES_RULE):
+        assert text.count(clause) == 1                             # the ONE needle every copy carries
+    # the served sentence IS charged by the table, and so is the clause that taught it...
+    assert [n for n, _s in reg.desk_register_hits(_COCOA_TIER)] == ["trust tier"]
+    assert [n for n, _s in reg.desk_register_hits(clause)] == ["trust tier"]
+    # ...and the register's variant is composed of the row's own three phrases, adds no content word the
+    # table does not teach, and is charged nothing
+    var = an._DESK_FORK_CLAUSE
+    for k in range(3):
+        assert reg.desk_phrase("trust tier", k) in var, k
+    assert an._desk_content(var) - an._desk_content(clause) - an._desk_allowed_stems() == set()
+    assert reg.desk_register_hits(var) == [] and reg.count_desk_register(var) == 0
+    # FLAG OFF: HEAD's object, on every contract
+    assert an._system() is an._SYSTEM_MENTOR
+    for name in sorted(rc.CONTRACTS):
+        assert an._system(response_contract=name, desk_register=False) == an._system(response_contract=name)
+    # FLAG ON: the persona's clause speaks the register on every contract whose plan carries the fork heading;
+    # a plan without the heading carries no fork rule to correct
+    for name in sorted(rc.CONTRACTS):
+        lit = an._system(response_contract=name, desk_register=True)
+        has_fork = rc.DISAGREES in rc.CONTRACTS[name].sections
+        assert clause not in lit, name
+        assert lit.count(var) == (1 if has_fork else 0), name
+    # ...and it is the ONE substitution the leg adds to the persona: the rest is the pure append
+    assert an._system(desk_register=True) == an._desk_fork_words(an._system()) + N.desk_register_mandate()
+    base = an._system(state_board=True)
+    assert an._system(state_board=True, desk_register=True) == an._desk_fork_words(
+        base.replace(N.state_board_mandate(), N.state_board_mandate(desk=True))) \
+        + N.desk_register_mandate(state_board=True)
+    assert "trust tier" in {n for n, _s in reg.desk_register_hits(an._SYSTEM_MENTOR)}           # HEAD's taught it
+    assert "trust tier" not in {n for n, _s in reg.desk_register_hits(an._desk_fork_words(an._SYSTEM_MENTOR))}
+
+
+def test_0925_AT4_the_fork_detector_counts_one_publishers_releases_as_one_tier():
+    """The detector half, pinned where it stands (no code moved): `_fork_basis`'s `tier_mixed` is read off
+    the DOCUMENTS the prompt showed -- never off a served row -- so two releases of one publisher are one
+    tier, and the served ICCO row is not an input at all. The 09-25 cocoa turn's `tier_mixed` came from two
+    PUBLISHERS the writer itself declared (the ICCO bulletin, T3, and the World Bank outlook, T4). Documents
+    as the served cocoa ledger declared them (source ids from the store's own cocoa families)."""
+    feb = {"source": "icco_qbcs_summary", "date": "2026-02-27", "text": "2024/25 stocks-to-grindings 29.2%"}
+    aug = {"source": "icco_qbcs_summary", "date": "2025-08-31", "text": "2023/24 stocks-to-grindings 26.4%"}
+    ewg = {"source": "icco_ewg_stocks", "date": "2025-06-01", "text": "end-season stocks"}
+    wb = {"source": "wb_cmo_outlook", "date": "1996-08-01", "text": "cocoa prices"}
+    one_publisher = an._fork_basis(None, [], [feb, aug, ewg], {})
+    assert one_publisher["tier_mixed"] is False                    # a revision is never a second tier
+    assert an._fork_basis(None, [], [feb, aug, wb], {})["tier_mixed"] is True     # another publisher is
+    assert "served" not in inspect.signature(an._fork_basis).parameters   # no served row reaches it

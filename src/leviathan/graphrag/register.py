@@ -1162,6 +1162,21 @@ DESK_REGISTER_TOKENS: tuple = (
      "the way the model expects, the direction the model expects"),
     ("declared window", r"\b(?:the )?(?:window declared for it|declared window)\b",
      "the lag the model allows for it"),
+    # -- 09-25 (RT-8, the chain read's N13): "renders in full" (cocoa:22) is the instrument's own verb, and the
+    # row that would charge it is NOT added this round: the chain mandate (``narration.MANDATE_CHAIN_MOVEMENT``,
+    # lane A) teaches the writer that exact phrase ("the ones it renders in full") and is held to ZERO charges
+    # by ``narration.check_literals`` -- a row here would red the build on a literal this lane does not own.
+    # DOCKETED to lane A: the mandate speaks the count line's own words ("followed link by link"), THEN the row
+    # lands. The count line itself already composes its verb from this table (``render.sb_chain_count``).
+    # 09-25 (RT-7): THE EVIDENCE MENU'S OWN TIER TAG ("[T3]", "industry body, T3") IS INSTRUMENT VOCABULARY.
+    # The cocoa page wrote "the two readings of the same season's cushion differ by trust tier" over the ICCO's
+    # February release (29.2 %) and its May release of the same season (28.52 %, the served row) -- a REVISION
+    # by one publisher, which the menu's tier cannot express. The replacement column names the three real
+    # relations (a revision, a vintage, another source); the row identity says which one a served row is
+    # (``rows.release_words``). Every phrase is claim-class free ("same" / "earlier" are claim words and are
+    # not taught).
+    ("trust tier", r"\btrust[- ]tiers?\b",
+     "a revision by its own publisher, another vintage of this series, a different source"),
 )
 #: THE ELEVEN NAMES THE TABLE CARRIED AT HEAD ee06f19c, FROZEN (OWNER DECISION 8). The arm reports the
 #: register count on BOTH tables side by side -- ``count_desk_register(text, DESK_REGISTER_V1_NAMES)`` and

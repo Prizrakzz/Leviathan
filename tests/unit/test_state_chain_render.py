@@ -447,8 +447,11 @@ def test_the_count_line_COUNTS_and_never_NAMES_and_its_denominators_are_stated(c
     line = next(x for x in blk.lines if x.startswith(R.CHAIN_HEAD_PREFIX + "COUNT "))
     c = bd.chain_counts
     assert R.words_for_int(int(c["distinct_sequences"])) in line
-    assert R.words_for_int(int(c["total"])) in line
-    assert "ways in all" in line
+    # 09-25 FIX ROUND 3 (RT-8): the pool's raw total and its sub-counts are a census the writer copied as one
+    # (the chain read's N13); the line counts the distinct chains, those carried above and the rest, not
+    # followed -- one population, stated once. The pool arithmetic rides the trace.
+    assert "ways in all" not in line and "past one link" not in line
+    assert "chains of cause" in line and "the rest are counted here" in line
     assert R.classify(line) == ("SB-P",)
     bare = _GLUED_RX.sub("", _YEAR_RX.sub("", _ISO_RX.sub("", line)))
     assert not any(ch.isdigit() for ch in bare), line

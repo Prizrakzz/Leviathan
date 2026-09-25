@@ -197,6 +197,16 @@ CONTRACTS: dict[str, Contract] = {c.name: c for c in (
 )}
 
 
+# ── the persona's FORK CLAUSE: ONE definition (09-25 close-out lane AT, VERIFY MINOR-3 / RT-7) ─────────
+# The clause names what licenses the '## Where the record disagrees' heading besides opposing drivers and
+# diverging members. It is spelt ONCE, here, and composed into both of this module's copies of the fork rule
+# (NEEDLE_STRUCTURE, the persona's own span, and _DISAGREES_RULE, the contract-rendered one) -- so the ONE
+# reader that corrects it under GRAPHRAG_DESK_REGISTER (`answer._desk_fork_words`, composed from the register
+# table's own words: the desk table now charges "trust tier", and a same-publisher revision is a VINTAGE)
+# keys on the clause itself, never on a retyped copy. Its VALUE is HEAD's byte for byte (B1): the always-on
+# persona and both needles are unchanged; only the register-lit prompt speaks the register's words.
+FORK_SOURCES_CLAUSE = "sources of different trust tiers that disagree"
+
 # ── the three needles apply() rewrites (D-RC-8: rewrite, never append-contradict) ────────────────────
 # Byte-for-byte spans of answer._SYSTEM_MENTOR, pinned by tests/unit/test_response_contracts.py —
 # if the persona is ever reworded, the needle test reds and this module is updated DELIBERATELY.
@@ -206,7 +216,7 @@ NEEDLE_STRUCTURE = (
     "'## The record', '## Where the record disagrees', '## What to watch'. Always include '## Mechanism' and "
     "'## What to watch'. Include '## The record' whenever you cite any dated or observed evidence. Include "
     "'## Where the record disagrees' ONLY when there is a genuine conflict WITHIN the record -- opposing "
-    "same-confidence drivers, sources of different trust tiers that disagree, or members/eras that diverge; "
+    "same-confidence drivers, " + FORK_SOURCES_CLAUSE + ", or members/eras that diverge; "
     "OMIT that heading when there is no disagreement (never write a 'no disagreement' line). This heading is "
     "NEVER for a contradiction between the record and the USER'S PREMISE -- when the record contradicts what "
     "the question assumed, you correct that in the TL;DR (per the premise rule above), never as a fork heading; "
@@ -216,7 +226,7 @@ NEEDLE_FIELDLIST = "structured under the four '## ' headings above"
 
 _DISAGREES_RULE = (
     "Include '## Where the record disagrees' ONLY when there is a genuine conflict WITHIN the "
-    "record -- opposing same-confidence drivers, sources of different trust tiers that disagree, or "
+    "record -- opposing same-confidence drivers, " + FORK_SOURCES_CLAUSE + ", or "
     "members/eras that diverge; OMIT that heading when there is no disagreement (never write a 'no "
     "disagreement' line). This heading is NEVER for a contradiction between the record and the "
     "USER'S PREMISE -- when the record contradicts what the question assumed, you correct that in "

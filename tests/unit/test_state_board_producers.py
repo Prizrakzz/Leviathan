@@ -825,12 +825,32 @@ def test_NEW2_the_count_and_the_ENUMERATION_agree_on_the_b40_oversupply_row():
     line = [l for l in ctx["block"].lines if l.startswith("- oversupply")]
     assert line, "the b40 oversupply quorum row"
     line = line[0]
-    assert "so four of the five are counted here" in line
+    # 09-25 RE-BANK (lane W, W-2 / N4 -- THE PATTERN QUORUM IS TAIL-AWARE): the oversupply pattern is
+    # price-pressuring and names MPOB ending stocks, declared `-`, so it asks for HIGH stocks; the b40
+    # fixture's stocks read on the LOW side of their record, so the walk states them AGAINST the pattern
+    # (`against`) and no longer counts them -- HEAD counted "two of the five ... showing (La Nina and ending
+    # stocks)" and "four of the five". The phase-opposed member (IOD negative) and the two unread members are
+    # HEAD's. THE SENTENCE NAMED FOUR OF THE FIVE until the render printed the walk's `against`.
+    # 09-25 CLOSE-OUT RE-BANK (lane RW, RW-1 = R-W2, VERIFY MAJOR-1): the render now reads `against` /
+    # `unsided`, so the fifth condition is STATED by name with its reason, after the phase-opposed clause --
+    # "one of them reads in the tail opposite the one the pattern names (Malaysian closing palm oil stocks,
+    # read here for ending stocks), so it counts against the pattern here". THE COUNT DID NOT MOVE (three of
+    # the five counted); the sentence now names all five: one showing + one phase-opposed + one against + two
+    # unread.
+    assert "so three of the five are counted here" in line
     assert "are on this page" not in line
-    # the enumeration the count must agree with: 2 showing + 1 opposed + 2 unread = the five it names
-    assert "two of the five conditions it names are showing here" in line
+    assert "one of the five conditions it names is showing here" in line
     assert "so it is not counted here" in line
     assert "two more are named by the pattern with no series read here" in line
+    assert ("; one of them reads in the tail opposite the one the pattern names (Malaysian closing palm oil "
+            "stocks, read here for ending stocks), so it counts against the pattern here; two more") in line
+    for name in ("read here for La Nina", "IOD negative", "read here for ending stocks", "export pace lag",
+                 "USD index"):
+        assert name in line, name
+    _ov = next(c for c in ctx["board"].convergence
+               if c["name"] == "bearish_oversupply" and c["contract"] == "malaysian_crude_palm_oil_cme")
+    assert _ov["against"] == ("ending_stocks",) and _ov["unsided"] == ()
+    assert (len(_ov["matched"]) + len(_ov["against"]) + len(_ov["unsided"])) == _ov["n_declared"]
     assert R.classify(line) == ("SB-C",)
     # ONE PAGE, ONE PATTERN, ONE COUNT: the watch sentence carries the same number under the same verb
     watch = [R.sb_watch(w) for w in WA.nonobvious_rows(ctx["board"], analogs=ctx["analogs"])
@@ -1022,3 +1042,165 @@ def test_NEW_ONELINER_the_SB_L_sample_is_the_line_the_class_ACTUALLY_RENDERS_lin
     assert rendered and "the newest number here is known" in rendered[0]
     assert "knowledge date" not in rendered[0]
     assert R.classify(rendered[0]) == ("SB-L",)
+
+
+# === THE 09-25 CLOSE-OUT, LANE RW -- RW-1 (VERIFY MAJOR-1): THE RENDER HALF OF THE TAIL-AWARE QUORUM =====
+@pytest.fixture(scope="module")
+def shipped_graph():
+    from leviathan.graphrag import graph as G
+    return G.CausalGraph(G.load_contracts(), silver=set(), version="test")
+
+
+def _rw1_cocoa(graph):
+    """The 09-25 cocoa page's own three loud conditions of the West Africa deficit squeeze, with the trace's
+    served readings (`state_board.row_states`): harmattan on the West Africa max-temperature anomaly (-1.23 z,
+    the 6th percentile: COOL), drought on the dry-day run (-1.49 z, the 3rd percentile: WET), and the unread
+    export-pace lag."""
+    from leviathan.graphrag.state import board as B
+    from leviathan.graphrag.state import walk as W
+    from leviathan.graphrag.state.rows import SeriesKey, StateRow
+
+    def _st(ref, metric, level, z, pct):
+        return StateRow(key=SeriesKey(ref=ref, commodity="cocoa", country="West Africa"), status="ok",
+                        coverage_tier="series", table="gold_weather_z", metric=metric, cadence="monthly",
+                        unit="z", narrate_unit="z", level=level, level_date="2026-08",
+                        z={"value": z, "window_n": 120}, percentile={"value": pct, "n": 120})
+
+    def _row(did, st=None):
+        d = next(x for x in graph.contracts["cocoa"].drivers if x.id == did)
+        r = W._node_row(graph, "cocoa", d)
+        if st is not None:
+            r.state, r.series_key = st, st.key.label()
+        r.legs["loud"] = True
+        return r
+    rows = [_row("harmattan", _st("stage_tmax_anomaly", "tmax_anomaly", -0.668, -1.23, 6.4)),
+            _row("drought", _st("drought_z", "drought_z", -0.918, -1.49, 3.4)),
+            _row("export_pace_lag")]
+    bd = B.Board(asof="2026-09-24", mode="deep")
+    bd.rows = rows
+    read = {r.driver_id for r in rows if r.state is not None}
+    conv = W.convergence_rows(graph, "cocoa", {r.driver_id for r in rows}, loud_k=12, band_ids=set(),
+                              measured_ids=read, sides={r.driver_id: W.row_side(r) for r in rows
+                                                        if r.driver_id in read})
+    return bd, next(c for c in conv if c["name"] == "west_africa_deficit_squeeze")
+
+
+def test_RW1_the_COCOA_SQUEEZE_row_never_denies_a_read_series_and_names_both_against_readings(shipped_graph):
+    """VERIFY MAJOR-1, THE ROUND'S HEADLINE FATAL ON THE PAGE: with lane W's side-aware quorum and HEAD's
+    render, the cocoa row printed "none of the six conditions it names is showing here (none of those
+    drivers has a series read here); all one are named by the pattern with no series read here (export
+    pace lag)" -- FALSE for harmattan and drought, both read here ([N14] / [N20]), and neither named. The
+    render now reads the walk's `against` / `unsided`: the parenthetical denies a read series only where
+    nothing was read, each against reading is NAMED with its series identity and RT-3's side words (the
+    page's own `condition_names` map), and the n=1 unread form is English. THE COUNT DOES NOT MOVE."""
+    from leviathan.graphrag import register as REG
+    bd, row = _rw1_cocoa(shipped_graph)
+    assert row["against"] == ("harmattan", "drought") and row["matched_unmeasured"] == ("export_pace_lag",)
+    names = R.condition_names(bd)
+    line = R.sb_convergence(row, series_of=R.series_by_driver(bd),
+                            names_of={d: w for (c, d), w in names.items() if c == "cocoa"})
+    assert "has a series read here" not in line, line
+    assert ("none of the six conditions it names is showing here (none of them reads in the tail the "
+            "pattern names)") in line, line
+    assert ("; two of them read in the tail opposite the one the pattern names (the maximum-temperature "
+            "anomaly for West Africa, read here for harmattan, which reads on the low side (cooler than usual) "
+            "and the longest dry-day run in the month, as a z-score for West Africa, read here for drought, "
+            "which reads on the low side (shorter dry spells than usual, so wetter)), so they count against "
+            "the pattern here") in line, line
+    assert "; the one counted here is named by the pattern with no series read here (export pace lag)" in line
+    assert "all one are" not in line
+    assert "it asks for three, so the count here is short of that number" in line
+    # THE COUNT IS THE WALK'S, UNCHANGED BY THE WORDS: the same row without the two keys counts the same
+    bare = {k: v for k, v in row.items() if k not in ("against", "unsided")}
+    assert R.pattern_count(row, R.series_by_driver(bd))["n_distinct"] == 1
+    assert R.pattern_count(bare, R.series_by_driver(bd))["n_distinct"] == 1
+    assert R.classify(line) == ("SB-C",) and R.register_hits(line) == []
+    assert REG.desk_register_hits(line) == [], REG.desk_register_hits(line)
+    # the amplifier over harmattan x drought keeps its rank claim and says which side they sit on
+    amp = next(i for i in row["interactions"] if set(i["when"]) == {"harmattan", "drought"})
+    a = R.sb_amplifier("cocoa", amp)
+    assert ("are all among the largest moves here; harmattan and drought read on the side opposite the one "
+            "the pattern names; the graph records the effect as") in a, a
+    assert R.classify(a) == ("SB-M",) and R.register_hits(a) == []
+
+
+def test_RW1_every_clause_reads_its_own_key_and_a_row_without_them_is_HEADs_byte_for_byte():
+    """The four clauses of BUILD_W sec 6, each off its own list, in the render's own idiom (a count in words,
+    the names in parentheses, the reason after) -- and the rows the walk did not side (`sides=None`, every
+    board-off and every deck row) render exactly as before, keys absent OR empty."""
+    from leviathan.graphrag import register as REG
+    base = _pattern(name="bearish_trade_war", contract="soybeans_cbot", threshold=2, n_declared=4,
+                    matched=("China_state_reserves",), n_matched=1, matched_measured=(),
+                    matched_unmeasured=("China_state_reserves",))
+    head = R.sb_convergence(base)
+    assert R.sb_convergence(dict(base, against=(), unsided=())) == head, "empty lists are HEAD's row"
+    assert ("none of the four conditions it names is showing here (none of those drivers has a series "
+            "read here); the one counted here is named by the pattern with no series read here (China state "
+            "reserves)") in head
+    # (1)+(2) one reading on the other side: the parenthetical changes, the reading is named, singular
+    one = R.sb_convergence(dict(base, against=("export_pace_lag",)),
+                           names_of={"export_pace_lag": "US weekly exports, read here for export pace lag"})
+    assert "(none of them reads in the tail the pattern names)" in one
+    assert ("; one of them reads in the tail opposite the one the pattern names (US weekly exports, read here "
+            "for export pace lag), so it counts against the pattern here") in one
+    # no map: the driver's own words, never a raw id
+    assert "(export pace lag), so it counts against" in R.sb_convergence(dict(base, against=("export_pace_lag",)))
+    # (3) unsided -- a `0`-signed driver, or a reading in no tail -- stated, never counted
+    uns = R.sb_convergence(dict(base, unsided=("eurusd_fx", "sagis_deliveries")))
+    assert ("; two of them carry no committed direction for this pattern in the driver model, or sit in the "
+            "middle of their own records (eurusd fx and sagis deliveries), so they are not counted here") in uns
+    assert "(none of them reads in the tail the pattern names)" in uns
+    # with a condition SHOWING, the lead is untouched and the clause still rides after the fold's
+    shown = _pattern(name="bearish_glut", contract="soybeans_cbot", threshold=3, n_declared=5,
+                     matched=("area",), n_matched=1, matched_measured=("area",), matched_unmeasured=(),
+                     against=("psd_ending_stock_su_ratio",))
+    s = R.sb_convergence(shown)
+    assert "one of the five conditions it names is showing here (area, with its own [N] z)" in s
+    assert "; one of them reads in the tail opposite the one the pattern names (psd ending stock su ratio)" in s
+    # the phase-only case keeps NEW-3's true words (no against / unsided): pinned there, re-read here
+    ph = {"driver": "IOD_positive", "other_driver": "IOD_negative", "in_force": True}
+    smap = {"IOD_negative": {"key": "iod|_global|", "confidence": "high", "sign": "positive", "phase": ph}}
+    phase_only = R.sb_convergence({"name": "oversupply", "contract": "malaysian_crude_palm_oil_cme",
+                                   "n_declared": 3, "threshold": 2, "n_with_band": 0,
+                                   "matched": ["IOD_negative"], "matched_measured": ["IOD_negative"],
+                                   "matched_unmeasured": []}, series_of=smap)
+    assert "none of those drivers has a series read here in the phase the pattern names" in phase_only
+    # (4) the amplifier: HEAD's row where `against` is absent or empty
+    inter = {"when": ("crude_oil_price", "biodiesel_mandate"), "effect": "amplifies", "note": "",
+             "unmeasured": ("biodiesel_mandate",)}
+    assert R.sb_amplifier("malaysian_crude_palm_oil_cme", inter) == R.sb_amplifier(
+        "malaysian_crude_palm_oil_cme", dict(inter, against=()))
+    one_side = R.sb_amplifier("malaysian_crude_palm_oil_cme", dict(inter, against=("crude_oil_price",)))
+    assert "largest moves here; crude oil price reads on the side opposite the one the pattern names;" in one_side
+    for l in (one, uns, s):
+        assert R.register_hits(l) == [] and REG.desk_register_hits(l) == [], (l, REG.desk_register_hits(l))
+    # the amplifier's own "the graph records" is HEAD's and outside this clause; the clause adds no hit
+    assert [h[0] for h in REG.desk_register_hits(one_side)] == [h[0] for h in REG.desk_register_hits(
+        R.sb_amplifier("malaysian_crude_palm_oil_cme", inter))] == ["the graph"]
+    assert R.register_hits(one_side) == []
+
+
+def test_N8R_MINOR_A_the_unsided_clause_names_the_model_through_the_desk_tables_ONE_reader(monkeypatch):
+    """VERIFY_CLOSEOUT MINOR-A (the 09-25 N8 restore): RW-1's unsided clause TYPED the desk table's replacement
+    for "the graph" as a literal -- a second copy of one declared vocabulary item (`register.DESK_REGISTER_TOKENS`,
+    the MINOR-7 class). It now reads the phrase through the table's ONE reader, `register.desk_phrase`, the idiom
+    of AT-4's `answer._desk_fork_words`: the phrase appears nowhere in render.py's source, the printed bytes
+    are unchanged, and a table that teaches another phrase moves the clause with no second edit."""
+    import inspect
+    from leviathan.graphrag import register as REG
+    phrase = REG.desk_phrase("the graph", 1)
+    assert phrase == "the driver model", "the table's own column: the printed bytes do not move"
+    assert phrase.lower() not in inspect.getsource(R).lower(), "a second typed copy of the desk table's phrase"
+    base = _pattern(name="bearish_trade_war", contract="soybeans_cbot", threshold=2, n_declared=4,
+                    matched=("China_state_reserves",), n_matched=1, matched_measured=(),
+                    matched_unmeasured=("China_state_reserves",))
+    one = R.sb_convergence(dict(base, unsided=("eurusd_fx",)))
+    assert ("; one of them carries no committed direction for this pattern in the driver model, or sits in the "
+            "middle of its own record (eurusd fx), so it is not counted here") in one, one
+    # THE PHRASE COMES FROM THE REGISTER: re-declare the table's column and the clause follows
+    taught = tuple((n, p, ("the mechanism, the causal map" if n == "the graph" else r))
+                   for n, p, r in REG.DESK_REGISTER_TOKENS)
+    monkeypatch.setattr(REG, "DESK_REGISTER_TOKENS", taught)
+    moved = R.sb_convergence(dict(base, unsided=("eurusd_fx",)))
+    assert "for this pattern in the causal map, or sits" in moved and phrase not in moved, moved
+    assert moved.replace("the causal map", phrase) == one

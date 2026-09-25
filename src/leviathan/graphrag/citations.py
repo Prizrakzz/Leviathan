@@ -1829,8 +1829,55 @@ def _roll_front_methods():
 
 def _axis_words(q: dict, row: dict, cf: dict, geo, dest_coded: bool, withheld: bool, board: bool = False,
                 rows: Optional[list] = None):
-    """The geography a label may state for its headline row, from the CARD's axis and the ROW's own
-    value -- never from a country name. Returns the scope term that replaces ``geo``.
+    """The geography a label may state for its headline row -- :func:`_axis_scope`'s words with no cell
+    card, i.e. HEAD's words byte for byte (every caller that is not under the analyst stamp)."""
+    return _axis_scope(q, row, cf, geo, dest_coded, withheld, board=board, rows=rows)[0]
+
+
+def _cell_grain_words(cell_card: tuple, scope, row: dict, at_period: list) -> str:
+    """THE CELL GRAIN OF ONE HEADLINE ROW (09-25 close-out lane CC, B-2 / RT-2 / D11) -- "for one United States
+    growing cell (the driest of ten)" -- through lane RT's ONE producer (``render.cell_grain_words``), over
+    EXACTLY the rows :func:`_axis_scope` counted at the headline's own period (``at_period``, the headline
+    among them). ``cell_card`` is ``(table, metric, commodity)``, the card the label is spoken from.
+
+    THE STANDING IS AN ORDER STATISTIC, SO EVERY VALUE IT COMPARES MUST BE IN ONE UNIT: a row's unit is its
+    own ``unit`` or, where it carries none, the card's (``_metric_unit``) -- the cascade's injected call
+    pre-scales ONLY its headline row to the narrate unit (``cascade._prescaled``), so a re-scaled headline
+    beside raw siblings is two scales, and the grain FAILS CLOSED ("" -> the caller's HEAD words) rather
+    than rank a percent among ratios. ``""`` also wherever the producer declines (no cell axis, fewer than
+    two readings, no declared tail words) or is absent on the tree."""
+    try:
+        table, metric, commodity = cell_card
+    except (TypeError, ValueError):
+        return ""
+    card_u = _metric_unit(table, metric, commodity)
+    own = _unit_norm((row or {}).get("unit") or card_u)
+    vals: list = []
+    for r in at_period or ():
+        if _unit_norm(r.get("unit") or card_u) != own:
+            return ""
+        try:
+            vals.append(float(str(r.get("value")).replace(",", "")))
+        except (TypeError, ValueError):
+            continue
+    try:
+        head = float(str((row or {}).get("value")).replace(",", ""))
+        from leviathan.graphrag.state import render as _render
+        fn = getattr(_render, "cell_grain_words", None)
+        if fn is None:
+            return ""
+        return str(fn(str(table or ""), str(metric or ""), scope=str(scope or ""), values_at_period=vals,
+                      headline=head) or "").strip()
+    except Exception:  # noqa: BLE001 -- no grain is HEAD's words, never a raise
+        return ""
+
+
+def _axis_scope(q: dict, row: dict, cf: dict, geo, dest_coded: bool, withheld: bool, board: bool = False,
+                rows: Optional[list] = None, *, cell_card: Optional[tuple] = None) -> tuple:
+    """``(scope words, cell_grain)`` -- the geography a label may state for its headline row, from the CARD's
+    axis and the ROW's own value -- never from a country name. The words replace ``geo``; ``cell_grain`` is
+    True only where they are the CELL GRAIN (below), so a caller composing a noun phrase knows the words
+    already carry their own preposition, and the figure token knows its period is the cross-section's.
 
       * a board call carries its identity's scope words (``axis_scope``, C3) -- they win;
       * a DESTINATION axis (``country_axis: destination``, else the registry's ``destination_coded()``)
@@ -1844,6 +1891,11 @@ def _axis_words(q: dict, row: dict, cf: dict, geo, dest_coded: bool, withheld: b
         is: the card's grain is "one growing CELL / basin / member-country surface per row", so a lone row
         may be a basin or member-country aggregate (the cocoa page's tail-share row), and only the row's
         own region value -- not surfaced by the read today -- could name which.
+        09-25 CLOSE-OUT (lane CC, B-2, the carried FATAL RT-2 / D11): with a ``cell_card`` -- passed ONLY
+        under the analyst stamp (O-3 (b)) -- the cross-section says WHICH cell the headline is, by its
+        standing among the SAME rows counted here (:func:`_cell_grain_words`: "for one United States growing
+        cell (the driest of ten)"); where the producer declines, HEAD's "one of several regional readings".
+        With no ``cell_card`` every return is HEAD's words.
 
     A BOARD call (``_sb``) takes its scope words from the board's own identity and from NOTHING else: the
     board COLLAPSES a region-cell card by ``mean`` across its cells (``cascade._PACE_COLLAPSE``), so its
@@ -1851,29 +1903,34 @@ def _axis_words(q: dict, row: dict, cf: dict, geo, dest_coded: bool, withheld: b
     board drought row would otherwise have read "one region cell" over a ten-cell mean (THREAT_MODEL R-2)."""
     scope = str((row or {}).get("axis_scope") or "").strip()
     if scope:
-        return scope
+        return scope, False
     if board or not row or _value_blank(row):
-        return geo                                # a board call's scope is its identity's; no figure, no scope
+        return geo, False                         # a board call's scope is its identity's; no figure, no scope
     axis = str((cf or {}).get("country_axis") or "").strip()
     if (axis == "destination" or (not axis and dest_coded)) and not q.get("country") and not withheld:
         c = str((row or {}).get("country") or "").strip()
         if c:
-            return f"to {c}"
-        return geo
+            return f"to {c}", False
+        return geo, False
     if axis == "region_cell" and str((row or {}).get("region") or "").strip():
         region = str(row["region"]).strip()                   # the row's OWN axis value names its surface
-        return f"{geo}, {region}" if geo and region != geo else region
+        return (f"{geo}, {region}" if geo and region != geo else region), False
     if (axis == "region_cell" and str((cf or {}).get("axis_national") or "").strip() == "none"
             and str(q.get("agg") or "").strip().lower() not in _aggregate_aggs()):
-        tok, k = None, 0
+        tok, at = None, []
         try:
             from leviathan.graphrag.state.feeders import row_period as _rp
             tok = _rp(row)[0]
-            k = sum(1 for r in (rows or []) if isinstance(r, dict) and not _value_blank(r) and _rp(r)[0] == tok)
+            at = [r for r in (rows or []) if isinstance(r, dict) and not _value_blank(r) and _rp(r)[0] == tok]
         except Exception:  # noqa: BLE001
-            k = 0
+            at = []
+        k = len(at)
         if tok and k > 1:
-            return f"{geo}, one of several regional readings" if geo else "one of several regional readings"
+            if cell_card:
+                g = _cell_grain_words(cell_card, geo, row, at)
+                if g:
+                    return g, True
+            return (f"{geo}, one of several regional readings" if geo else "one of several regional readings"), False
         # A LONE ROW OF A CARD THAT HAS NO NATIONAL ROW IS STILL ONE REGION'S READING (09-23 fix round,
         # review VC M4: deep26's N13, a LIMIT-1 read over ten cells, was labelled "United States" -- a
         # national figure the card declares it never serves). The card says every row is one region's
@@ -1883,11 +1940,11 @@ def _axis_words(q: dict, row: dict, cf: dict, geo, dest_coded: bool, withheld: b
         # surface the region column: docketed to the numbers query (C's B-4).
         qr = str(q.get("region") or "").strip()
         if qr:
-            return f"{geo}, {qr}" if geo and qr != geo else qr
+            return (f"{geo}, {qr}" if geo and qr != geo else qr), False
         if str((cf or {}).get("row_grain") or "") == "aggregate":
-            return geo                            # the metric's rows ARE the surface's aggregate (card)
-        return f"{geo}, one regional reading" if geo else "one regional reading"
-    return geo
+            return geo, False                     # the metric's rows ARE the surface's aggregate (card)
+        return (f"{geo}, one regional reading" if geo else "one regional reading"), False
+    return geo, False
 
 
 def _stat_words(row: dict, value) -> str:
@@ -2162,22 +2219,46 @@ def _period_words_for(kind: Optional[str], token) -> str:
 
 
 def figure_token_for(shown: str, *, unit: str = "", figure_basis: str = "", period_words: str = "",
-                     period_role: str = "") -> str:
+                     period_role: str = "", period_kind: str = "", grain_words: str = "") -> str:
     """THE K2 FIGURE TOKEN through lane R's ONE producer (``rows.figure_token``); until that producer lands
     on a tree, its contract spelling (CONTRACT K2: "<shown> <unit> <figure_basis>, <period_words>[,
     <period_role>]", every part omitted when empty) -- the same string, so the label and the board row
-    can never spell one figure two ways."""
+    can never spell one figure two ways.
+
+    09-25 CLOSE-OUT (lane CC, B-3): ``period_kind`` is handed to the producer, which joins the period by its
+    kind's own preposition (``rows.PERIOD_TOKEN_JOINS``) exactly as the board row's token does; an empty kind
+    is not passed at all, so every caller naming none gets HEAD's comma byte for byte. ``grain_words`` (the
+    cascade level line's cell grain, :func:`level_line_figure`) is passed the same way."""
     try:
         from leviathan.graphrag.state import rows as _rows
         fn = getattr(_rows, "figure_token", None)
         if fn is not None:
             return str(fn(shown, unit=unit, figure_basis=figure_basis, period_words=period_words,
-                          period_role=period_role))
+                          period_role=period_role, **({"period_kind": period_kind} if period_kind else {}),
+                          **({"grain_words": grain_words} if grain_words else {})))
     except Exception:  # noqa: BLE001
         pass
     head = " ".join(x for x in (str(shown or "").strip(), str(unit or "").strip(),
-                                str(figure_basis or "").strip()) if x)
+                                str(figure_basis or "").strip(), str(grain_words or "").strip()) if x)
     return ", ".join(x for x in (head, str(period_words or "").strip(), str(period_role or "").strip()) if x)
+
+
+def _release_role_words(table, known_date) -> str:
+    """THE RELEASE A VINTAGE CARD'S ROW IS (09-25 close-out lane CC, B-4 / RT-7): lane RT's ONE producer
+    (``render.release_role_words``: the card's declared publisher + the row's own knowledge date -- "the ICCO
+    release of 29 May 2026"), read defensively. ``""`` for a card that declares no publisher (every non-vintage
+    card), a row with no knowledge date, or a tree without the producer -- so every such label is HEAD's.
+    A same-publisher document of an earlier date is then an earlier RELEASE of this series, never a "trust
+    tier" (the served cocoa N1)."""
+    kd = str(known_date or "").strip()[:10]
+    if not kd:
+        return ""
+    try:
+        from leviathan.graphrag.state import render as _render
+        fn = getattr(_render, "release_role_words", None)
+        return str(fn(str(table or ""), kd) or "").strip() if fn is not None else ""
+    except Exception:  # noqa: BLE001 -- no release words is HEAD's label, never a raise
+        return ""
 
 
 def _governing_unit(table, metric, commodity) -> str:
@@ -2368,19 +2449,60 @@ def _window_words(call: dict, row: dict, token: str) -> str:
     return out or str(token)
 
 
+#: The unit the label prints the calculator's percent change in (`_pct_words`: "(+70.25 %)"). ONE spelling,
+#: read by the label and by the verifier's member vocabulary (`row_side_figures`) alike.
+PCT_MEMBER_UNIT = "%"
+
+
+def _row_pct(row) -> Optional[float]:
+    """The calculator's own percent change riding a served change row (``pct_change``, stats.window_change's
+    own field, carried by lane T's ``_stat_calls`` under the board kwarg), as a float -- or ``None`` where the
+    row carries none. The ONE reader of the member: the label prints it and the verifier backs it."""
+    p = (row or {}).get("pct_change") if isinstance(row, dict) else None
+    if p in (None, ""):
+        return None
+    try:
+        v = float(str(p).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    return v if v == v else None
+
+
 def _pct_words(row: dict) -> str:
     """The calculator's own percent change riding a change row (``pct_change``, stats.window_change's own
     field -- lane T carries it on the seat row), printed through the ONE precision producer with its sign:
     " (+0.37 %)". "" where the row carries none -- nothing here divides."""
-    p = (row or {}).get("pct_change")
-    if p in (None, ""):
+    p = _row_pct(row)
+    if p is None:
         return ""
     try:
         from leviathan.graphrag.state.rows import figure_text
-        txt = str(figure_text(float(str(p).replace(",", "")), unit="%", two_sided=True) or "")
+        txt = str(figure_text(p, unit=PCT_MEMBER_UNIT, two_sided=True) or "")
     except Exception:  # noqa: BLE001
         return ""
     return f" ({txt})" if txt else ""
+
+
+# ══ 09-25 FIX ROUND 3, LANE VC (VC-1) -- EVERY FIGURE A SERVED ROW PRINTS IS A SERVED FIGURE ══════════════
+# THE MEASURED DEFECT (09-25 quick palm/rape, number_unbacked 15 of 16 charges; dhp_successor
+# unconstructible 15): the seat's `compute_stat window_change` rows carry the calculator's percent beside
+# the change (lane T's K5 half: `pct_change` on the row, printed by this module's label as "(+70.25 %)"),
+# and the writer copied both -- "+170,000 MT (+70.25%) [N12]". The verifier's row vocabulary read only
+# `row["value"]`, so every percent the LABEL printed read as a figure nobody served, the backstop convicted
+# every handle in its sentence and the page's own answer shipped with no receipt (N1, N2, N11..N17 gone).
+# THE FIX IS ONE PRODUCER FOR BOTH READERS: the figures a row prints BESIDE its value, each with the unit
+# the label prints it in, read by `_pct_words` (the label) and by the verifier (its typed member arm).
+# Nothing here divides; a row that carries no member returns () and every reader is HEAD's.
+def row_side_figures(row) -> tuple:
+    """``((value, unit words), ...)``: every figure a served row's LABEL prints beside its headline value,
+    each in the unit the label prints it in -- today the calculator's percent change (`_row_pct`, printed
+    by `_pct_words` in ``PCT_MEMBER_UNIT``). ``()`` for a row that carries none (every lookup row, and every
+    row of a board-off turn: the member rides the seat row only under the board kwarg)."""
+    out = []
+    p = _row_pct(row)
+    if p is not None:
+        out.append((p, PCT_MEMBER_UNIT))
+    return tuple(out)
 
 
 def from_number(call: dict, i: int) -> Citation:
@@ -2541,8 +2663,14 @@ def from_number(call: dict, i: int) -> Citation:
     _scope_k = _unscoped_multi_geo(q, _geos)
     _scope_withheld = bool(_scope_withhold_on() and _scope_k)
     # 09-23: the geography the CARD's axis and the ROW's own value license (`_axis_words`).
-    geo = _axis_words(q, rH, _cf, geo, _dest_coded(_src_table or table), _scope_withheld,
-                      board=bool(call.get("_sb")), rows=rows)
+    # 09-25 CLOSE-OUT (lane CC, B-2 -- the carried FATAL RT-2 / D11): UNDER THE ANALYST STAMP ONLY (O-3 (b))
+    # the card is handed in, so a cross-section headline says WHICH cell it is -- its standing among the
+    # rows the read served at its own period, through lane RT's one producer (`_axis_scope` ->
+    # `render.cell_grain_words`); off the stamp `cell_card` is None and every word is HEAD's.
+    geo, _cell_grain = _axis_scope(q, rH, _cf, geo, _dest_coded(_src_table or table), _scope_withheld,
+                                   board=bool(call.get("_sb")), rows=rows,
+                                   cell_card=((_ctable or table, _cmetric or metric, q.get("commodity"))
+                                              if call.get("display") == "analyst" else None))
     if per is None and _row_per and not _scope_withheld:
         per = _row_per
         _per_tok = _row_per_tok
@@ -2653,6 +2781,14 @@ def from_number(call: dict, i: int) -> Citation:
                     # native or display unit, on ONE observation -- never a percentile, sigma, change,
                     # aggregate or computed statistic (`_basis_applies`)
                     _fpw, _fpk, _frole = _figure_period(call, rH)
+                    # 09-25 CLOSE-OUT (lane CC, B-2): a cell's standing is an order statistic AT the headline's
+                    # own period, so where the axis words carry the grain the figure names THAT period ("0.9 z,
+                    # April 2011"), never the read's window -- the same `_row_own_period` the label prints
+                    if _cell_grain:
+                        _gtok, _gkind = _row_own_period(call, rH)
+                        _gpw = _period_words_for(_gkind, _gtok) if _gtok else ""
+                        if _gpw:
+                            _fpw, _fpk = _gpw, str(_gkind or "")
                     _val = figure_token_for(
                         _txt, unit=_pu,
                         figure_basis=(_figure_basis(_ctable or table, _cmetric or metric)
@@ -2660,7 +2796,16 @@ def from_number(call: dict, i: int) -> Citation:
                                                         q.get("commodity"), _pu, level=_level, agg=_agg)
                                       else ""),
                         period_words=("" if _is_change else _fpw),
-                        period_role=str(rH.get("period_role") or _frole or ""))
+                        # 09-25 CLOSE-OUT (lane CC, B-4 / RT-7): a VINTAGE card's LEVEL row names the release
+                        # it is ("the ICCO release of 29 May 2026", lane RT's one producer) in the SAME slot the
+                        # board's release words ride; the store-period words (K23) and the query's own period
+                        # role keep precedence, so a row carries ONE period role. "" off a vintage card.
+                        period_role=str(rH.get("period_role") or _frole
+                                        or (_release_role_words(_ctable or table, kd) if _level else "")),
+                        # 09-25 CLOSE-OUT (lane CC, B-3 / RT-4): the period joins the figure by its KIND
+                        # (`rows.PERIOD_TOKEN_JOINS`: "325 Million Bushels for 2025/26") -- the kind
+                        # `_figure_period` already read off the card, which this call used to drop
+                        period_kind=("" if _is_change else str(_fpk or "")))
                 else:
                     _val = f"{_txt} {_pu}".strip()
                 _a, _b = _change_window(call, rH) if _is_change else ("", "")
@@ -3501,9 +3646,35 @@ class EvidenceLedger:
 
     ``menu_n`` is ``len(uniq)`` at construction -- the rows the MENU rendered; every address above it was
     registered by the board. Addresses are 1-based and positional: ``address(r) == k`` means
-    ``evidence()[k - 1]`` is the document ``r`` came from."""
+    ``evidence()[k - 1]`` is the document ``r`` came from.
 
-    def __init__(self, uniq) -> None:
+    09-25 FIX ROUND 3, LANE VC (VC-2) -- THE MENU AND THE BOARD SHARE ONE ADDRESS SPACE, AND THE MENU ISSUES
+    TOO. MEASURED on the ten 09-25 pages: ``evidence_ledger.registered`` 0 on ten, so every [E] the writer
+    cited was a MENU ordinal -- and the round-2 issued set held only what the BLOCK printed, so those
+    citations fell to HEAD's declaration matcher: cocoa's E1 / E7 / E2 (declared, dated, stable across three
+    runs) collided with [N1] / [N2] / [N7] and were kept unresolved, then pruned -- the page served ZERO [E]
+    rows; rice's four GAIN receipts, soyoil's palm receipt and the tariff's 2020 relief leg and MPOC receipt
+    were struck ``fabricated_citation`` because the writer spelt the publisher in paraphrase while writing
+    the index and the date the menu printed beside it. The menu PRINTS ``[Ek]`` beside each document with its
+    date (``answer._ev_block``: "- [E7][T2] (usda_gain_soybeans, reported 2025-03-19)") -- an address the
+    reader was handed is an address this ledger issued. So when the turn's menu printed its ordinals
+    (``menu_printed=True``), every menu row carrying a ``source_key`` (every ``uniq`` row, by
+    ``answer._uniq_evidence``'s own construction) is ISSUED at its ordinal, and the block's receipts join
+    the same set as they are addressed. A menu that printed no ordinals (the dossier lane's pre-D-HP prompt,
+    where a writer's ref is its OWN numbering) issues nothing, exactly the round-2 set. The verifier's
+    support test for an issued address (``_address_supports``) is unchanged -- the round-2 fixer measured
+    it on the "every address issued" cell of the twin drive.
+
+    09-25 CLOSE-OUT (lane AT, MINOR-6) -- THE MENU DECISION IS HANDED IN, NEVER READ BACK. The decision is
+    made by exactly one producer, ``answer._handle_menu_on()`` (the D-HP-2 numbered receipt menu, default
+    ON; the dossier sub-answer lane turns it off per call), and the ONE caller that builds the turn's
+    ledger -- ``answer._evidence_ledger`` -- passes it as ``menu_printed``. The first VC-2 cut read it back
+    through ``sys.modules``, so a ledger built by hand behaved differently depending on whether the serving
+    body happened to be imported in the process. A ledger is told what its menu printed; one nobody told
+    (``menu_printed`` omitted: a deck, the state harness) printed no menu and issues nothing at
+    construction."""
+
+    def __init__(self, uniq, *, menu_printed: bool = False) -> None:
         self.items: list = list(uniq or [])
         self.menu_n: int = len(self.items)
         self._by_key: dict = {}
@@ -3514,9 +3685,16 @@ class EvidenceLedger:
         self._extra: dict = {}                    # {k: [ledger_row, ...]} -- chunks beyond items[k-1]
         self._unaddressed: int = 0
         # FIX ROUND 2, fixer pass (REVIEW_VC F1, a K1 amendment): every address THIS ledger handed the block.
-        # A menu address the block never printed is the writer's plain menu citation, not an address the
-        # ledger vouched for -- the verifier's address-first rule reads this set, never the index range.
+        # A menu address nobody printed is not an address the ledger vouched for -- the verifier's
+        # address-first rule reads this set, never the index range.
         self._issued: set = set()
+        # 09-25 VC-2: ...and every ordinal the MENU printed (the positional k of each keyed menu row), on
+        # the caller's word alone (09-25 close-out AT-3: never read back off the process's imports).
+        self.menu_printed: bool = bool(menu_printed)
+        if self.menu_printed:
+            for k, it in enumerate(self.items, 1):
+                if _rec_key(it) and self._by_key.get(_rec_key(it)) == k:
+                    self._issued.add(k)
 
     def address(self, record):
         """The [E] ordinal of ``record``'s document, or ``None``.
@@ -3563,7 +3741,11 @@ class EvidenceLedger:
         resolved to whatever document sat at that index (56% of same-turn twins on 1,099 unseen answers).
         An address is ISSUED only when the block printed it: this map is the verifier's ``evidence_chunks``
         (its keys are the issued set, its values the support pool), and a menu index the block never printed
-        takes HEAD's resolution."""
+        takes HEAD's resolution.
+
+        09-25 VC-2: "printed" includes the MENU -- on a turn whose menu printed its ordinals every keyed menu
+        row is issued at construction (see the class note), so the map is the page's whole address space:
+        the menu's ordinals and the block's receipts, one document one address."""
         return {k: [self.items[k - 1]] + list(self._extra.get(k, ())) for k in sorted(self._issued)}
 
     def stamp(self) -> dict:
@@ -3608,6 +3790,54 @@ def unit_family(unit) -> str:
     verifier's written-unit family (K4's ``unit_family_written``) is spelt in the SAME declared vocabulary
     the call's identity is -- two readers of one list, never two lists."""
     return _unit_family(unit)
+
+
+def level_line_figure(call: dict, value, *, table: str, metric: str, unit: str) -> Optional[str]:
+    """THE ANALYST TEXT OF ONE CASCADE LEVEL LINE (09-25 close-out lane CC, B-1 -- the carried FATAL RT-2 /
+    D11's other surface): what ``numbers/cascade.py``'s ``_fmt_line`` / ``_chain_fmt_line`` print in place of
+    ``f"{value:g} {unit}"`` when the threaded display key is ``"analyst"``. ``None`` -> the caller prints HEAD's.
+
+    * THE FIGURE is the label's own reader of the ONE precision producer (:func:`_analyst_figure` ->
+      ``render.shown_figure``, with its backing guard: the printed text must be ``value`` at the card's
+      declared scale, rounded at its own written decimals) -- so the walk line and the footer label print ONE
+      figure for one row ("0.9 z", never "0.90036 z" beside "0.9 z"). A level line is a LEVEL (``level=True``).
+    * THE GRAIN: where the call's headline is one cell of a cross-section (:func:`_axis_scope` with the card --
+      the SAME rows and the SAME producer the label's axis words use), its standing rides the figure with
+      the period the standing is AT ("0.9 z for one United States growing cell (the driest of ten), April
+      2011"), through the one token producer. No period for the standing -> no grain (fail closed).
+
+    ``call`` is the RAW record the line reads (every row in the store's own unit, so the standing ranks one
+    scale); ``value`` / ``unit`` are the line's own (the pre-scaled headline and the narrate unit)."""
+    q = (call or {}).get("query") or {}
+    got = _analyst_figure(value, table=str(table or ""), metric=str(metric or ""), unit=str(unit or ""),
+                          commodity=q.get("commodity"), level=True)
+    if got is None:
+        return None
+    shown = " ".join(x for x in (str(got[0] or "").strip(), str(got[1] or "").strip()) if x)
+    grain, pw, pk = "", "", ""
+    try:
+        rows = (call or {}).get("rows") or []
+        rH, _curve = _headline(call)
+        ctable, cmetric = _card_address(call, rH)
+        ctable, cmetric = (ctable or str(table or "")), (cmetric or str(metric or ""))
+        geos = _geo_scopes(rows)
+        spec = _card_spec(ctable)
+        dest = bool(spec is not None and spec.destination_coded())
+        geo = q.get("country") or (None if dest else (next(iter(geos)) if len(geos) == 1 else None))
+        withheld = bool(_scope_withhold_on() and _unscoped_multi_geo(q, geos))
+        words, on = _axis_scope(q, rH, _card_fields(ctable, cmetric), geo, dest, withheld,
+                                board=bool((call or {}).get("_sb")), rows=rows,
+                                cell_card=(ctable, cmetric, q.get("commodity")))
+        if on:
+            gtok, gkind = _row_own_period(call, rH)
+            pw = _period_words_for(gkind, gtok) if gtok else ""
+            if pw:
+                grain, pk = str(words or ""), str(gkind or "")
+    except Exception:  # noqa: BLE001 -- no grain is the figure alone, never a raise
+        grain, pw, pk = "", "", ""
+    if not grain:
+        return shown
+    return figure_token_for(shown, period_words=pw, period_kind=pk, grain_words=grain)
 
 
 def call_identity(call: dict) -> dict:
@@ -3660,8 +3890,12 @@ def call_identity(call: dict) -> dict:
             dest = True
         geo = q.get("country") or (None if dest else (next(iter(geos)) if len(geos) == 1 else None))
         withheld = bool(_scope_withhold_on() and _unscoped_multi_geo(q, geos))
-        geo = _axis_words(q, rH, cf, geo, dest, withheld, board=bool((call or {}).get("_sb")),
-                          rows=(call or {}).get("rows") or [])
+        # 09-25 CLOSE-OUT (lane CC, B-2): the SAME axis words the label prints for this call -- the cell grain
+        # under the analyst stamp only (`_axis_scope`), HEAD's words otherwise
+        geo, cell_grain = _axis_scope(q, rH, cf, geo, dest, withheld, board=bool((call or {}).get("_sb")),
+                                      rows=(call or {}).get("rows") or [],
+                                      cell_card=((ctable or table, cmetric or metric, q.get("commodity"))
+                                                 if (call or {}).get("display") == "analyst" else None))
         if str((rH or {}).get("stat") or "") == "window_change":
             a, b = _change_window(call, rH)
             pw = (f"{_window_words(call, rH, a)} to {_window_words(call, rH, b)}" if (a and b and a != b) else "")
@@ -3672,6 +3906,12 @@ def call_identity(call: dict) -> dict:
             # period at the card's precision, the query's marketing year as its role -- never a kind read
             # off a printed prefix
             pw, kind, role = _figure_period(call, rH)
+            if cell_grain:
+                # the grain's standing is at the headline's own period -- the period the label's token prints
+                _gtok, _gkind = _row_own_period(call, rH)
+                _gpw = _period_words_for(_gkind, _gtok) if _gtok else ""
+                if _gpw:
+                    pw, kind = _gpw, str(_gkind or "")
         agg = _call_aggregate(call)
         if agg:
             name = _aggregate_label(ctable or table, cmetric or metric, agg) or name
@@ -3689,7 +3929,9 @@ def call_identity(call: dict) -> dict:
             _in_base = False
         short = " ".join(x for x in ((cwords if not _in_base else ""), base) if x)
         if geo:
-            short = f"{short} for {geo}"
+            # the cell grain is already a phrase with its own preposition ("for one ... growing cell (...)"),
+            # known by the branch that minted it (`cell_grain`), never by reading the words
+            short = f"{short} {geo}" if cell_grain else f"{short} for {geo}"
         routing = str((call or {}).get("routing") or (rH or {}).get("routing") or "")
         if (call or {}).get("_sb"):
             # FIXER PASS (REVIEW_RA M1, the K3/K4 join): a BOARD call's identity is the one the BLOCK PRINTED

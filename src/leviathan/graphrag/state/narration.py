@@ -449,9 +449,23 @@ MANDATE_WATCH_NONOBVIOUS: str = _T_MANDATE_WATCH_NONOBVIOUS.format(record=MANDAT
 #:     the chain's", which is SELF-LIMITING: with ``first_dim`` unwired the block marks nothing and the
 #:     order is silent; when lane R wires it the same sentence becomes stronger rather than false. Both
 #:     states are pinned in ``tests/unit/test_state_narration.py``.
+#: 09-25 FIX ROUND 3 (lane A, item A-5; CHAIN_ANALOG_READ N13) -- THE MOVEMENT STOPS TEACHING THE PAGE'S OWN
+#: VERBS. The writer copies this paragraph, and it spoke about the page in the page's own mechanics:
+#: "take the chains {record} puts first", "the ones it renders in full", "a count of further chains, state
+#: the count". MEASURED on the ten 09-25 pages: "the one chain the page renders in full" (cocoa), "The chain
+#: the page puts first runs from Thai meal imports" (2024), "The chain the page puts inside this horizon"
+#: (max) -- and palm/rape narrated the whole COUNT line as a census, "one hundred sequences ... two hundred
+#: seventy-one of the five hundred thirteen paths read their own series past one link". The orders are
+#: HEAD's, clause for clause; what moved is the vocabulary the writer is handed for them: the chains are
+#: the record's LEADING chains, a chain is NAMED BY WHAT IT LINKS (the one positive order that replaces the
+#: page-talk rather than forbidding a phrase -- the J6 doctrine), and the count line gets ONE plain clause
+#: with one number, the rest of that line being the record's own reading. REJECTED: a post-writer
+#: find-and-replace of "renders" / "puts first", or adding them to the desk-register table.
 _T_MANDATE_CHAIN_MOVEMENT: str = (
-    "(3) THE CHAIN: take the chains {record} puts first, in the order it gives them, and narrate "
-    "the ones it renders in full, link by link, in the present tense. At each link give the figure in "
+    "(3) THE CHAIN: take {record}'s leading chains, in the order it gives them, and narrate each chain "
+    "it sets out link by link the same way -- link by link, in the present tense. Name every chain by what it "
+    "links -- where it starts and the market it reaches -- and never by where or how {record} shows it: "
+    "the reader is told what moves what. At each link give the figure in "
     "its unit and the plain meaning in the same sentence, say which way the driver model expects "
     "that link to push the next one, and say whether the current readings agree with the direction "
     "the model expects or run against it -- {record} gives you the word. Cite the chain's dated "
@@ -463,10 +477,12 @@ _T_MANDATE_CHAIN_MOVEMENT: str = (
     "measured after those past episodes and never as what is coming. Where the question sets one "
     "market against another, make the call on the pair where the chain ends: one sentence naming "
     "which of the two the record leans toward and the reading that carries it, or saying plainly "
-    "that the record does not settle it. Narrate the chains {record} puts first and not the rest of "
-    "the driver model; where {record} prints a count of further chains, state the count and move "
-    "on. Where {record} carries a chain in one line instead of in full, that chain still gets its "
-    "sentence: say what it links and which way it pushes, in {record}'s own words -- a turn whose "
+    "that the record does not settle it. Narrate those leading chains and not the rest of the driver "
+    "model; where {record} prints a COUNT line of further chains, give it one plain clause -- how many "
+    "further chains run into this market, one number -- and move on: the line's other counts describe "
+    "{record}'s own reading, never the market. Where {record} gives a chain in a single line, that "
+    "chain still gets its sentence: say what it links and which way it pushes, in {record}'s own "
+    "words -- a turn whose "
     "block carries a chain never reaches the reader without one. Where {record} states what it "
     "could read for a chain -- the terms it could do the arithmetic for, the links no series served, "
     "a buffer series this market does not carry -- say that in the same breath: it states what this "
@@ -678,23 +694,86 @@ def age_clause(knowledge_date: Optional[str], asof: str, cadence: str) -> str:
     and a row printing the word would teach the idiom it fences.
 
     THE UNIT SWITCHES AT TWO YEARS and the year count is FLOORED -- the same safe direction the estate's
-    clause takes: an understated age is never an overstated freshness."""
+    clause takes: an understated age is never an overstated freshness.
+
+    09-25 (fix round 3, item A-3): THE ARITHMETIC IS :func:`age_span`'s, so the age this clause PRINTS
+    and the age the name-binding lint reads a writer's "about a month before the data as of ..." against
+    (:func:`age_in_periods`) are one computation with one owner -- the output here is HEAD's, byte for
+    byte."""
     limit = AGE_LIMIT_DAYS.get(cadence or "", AGE_LIMIT_DAYS["monthly"])
+    sp = age_span(knowledge_date, asof)
+    if sp is None:
+        return ""                                   # an unreadable date DECLINES, never guesses
+    days = sp["days"]
+    if days <= int(limit):
+        return ""
+    months = sp["months"]
+    if months < 1:
+        return f"read through {sp['from']}, {days}-day span to this as-of"
+    n, unit = (months // 12, "year") if months >= 24 else (months, "month")
+    return f"read through {sp['from']}, {n}-{unit} span to this as-of"
+
+
+def age_span(knowledge_date: Optional[str], asof: str) -> Optional[dict]:
+    """THE ROW'S AGE AT THE AS-OF -- ``{"days", "months", "from", "to"}`` -- or None on an unreadable
+    date. ``months`` is WHOLE CALENDAR MONTHS, floored where the as-of's day-of-month has not reached
+    the knowledge date's (the age clause's own rule: an understated age is never an overstated
+    freshness); ``from`` / ``to`` are the two dates in ISO form. The ONE arithmetic of the row's age:
+    :func:`age_clause` prints it, :func:`age_in_periods` measures it in each observation kind."""
     try:
         kd = _dt.date.fromisoformat(str(knowledge_date or "")[:10])
         a = _dt.date.fromisoformat(str(asof or "")[:10])
     except ValueError:
-        return ""                                   # an unreadable date DECLINES, never guesses
-    days = (a - kd).days
-    if days <= int(limit):
-        return ""
+        return None
     months = (a.year * 12 + a.month) - (kd.year * 12 + kd.month)
     if a.day < kd.day:
         months -= 1
-    if months < 1:
-        return f"read through {kd.isoformat()}, {days}-day span to this as-of"
-    n, unit = (months // 12, "year") if months >= 24 else (months, "month")
-    return f"read through {kd.isoformat()}, {n}-{unit} span to this as-of"
+    return {"days": (a - kd).days, "months": months, "from": kd.isoformat(), "to": a.isoformat()}
+
+
+#: THE CALENDAR'S OWN LENGTH OF EACH OBSERVATION KIND (``rows.OBSERVATION_PERIOD_KINDS``), as the unit the
+#: age is counted in: a marketing year and a crop season are twelve calendar months, a month is one, a
+#: week is seven days and a day is one. A DEFINITION OF THE KIND, never a measured fact about any series.
+PERIOD_KIND_CALENDAR: dict = {"marketing_year": ("months", 12), "crop_season": ("months", 12),
+                              "month": ("months", 1), "week": ("days", 7), "day": ("days", 1)}
+
+
+def _add_months(d: "_dt.date", n: int) -> "_dt.date":
+    y, m0 = divmod(d.month - 1 + int(n), 12)
+    y, m = d.year + y, m0 + 1
+    nxt = _dt.date(y + (m == 12), (m % 12) + 1, 1)
+    return d.replace(year=y, month=m, day=min(d.day, (nxt - _dt.timedelta(days=1)).day))
+
+
+def age_in_periods(knowledge_date: Optional[str], asof: str) -> dict:
+    """``{kind: (floor, nearest)}`` -- the row's AGE AT THE AS-OF (:func:`age_span`) counted in whole
+    periods of each observation kind (:data:`PERIOD_KIND_CALENDAR`): the floored count the age clause
+    prints and the count nearest the true span (half a period rounds up). ``{}`` on an unreadable date.
+
+    09-25 FIX ROUND 3 (lane A, item A-3; PM max F2). The writer wrote "The crush reading is read through
+    21 August 2026, about a month before the data as of 25 September 2026 [N138]" -- TRUE: the row was
+    known 21 August, 35 days before the as-of. The name-binding period lint read "a month" as a LONGER
+    period kind than the crush row's day and replaced it with the row's period words: "about a 20 August
+    2026 before the data". A written duration that EQUALS the row's own age in that kind is the row's
+    age, a fact the row backs, and never a claim about its period; this is the producer the lint reads
+    that fact from, so the words the block prints for the age and the check the lint makes are one
+    arithmetic. REJECTED: reading "before" / "after" / "ago" out of the sentence."""
+    sp = age_span(knowledge_date, asof)
+    if sp is None or sp["days"] < 0:
+        return {}
+    kd = _dt.date.fromisoformat(sp["from"])
+    a = _dt.date.fromisoformat(sp["to"])
+    out: dict = {}
+    for kind, (unit, step) in PERIOD_KIND_CALENDAR.items():
+        if unit == "days":
+            fl = sp["days"] // step
+            near = fl + (1 if 2 * (sp["days"] - fl * step) >= step else 0)
+        else:
+            fl = max(0, sp["months"]) // step
+            lo, hi = _add_months(kd, fl * step), _add_months(kd, (fl + 1) * step)
+            near = fl + (1 if 2 * (a - lo).days >= (hi - lo).days else 0)
+        out[kind] = (int(fl), int(near))
+    return out
 
 
 # ---------------------------------------------------------------------------------------------------

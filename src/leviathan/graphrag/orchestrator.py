@@ -166,7 +166,18 @@ def _numbers_block(calls: list, *, budget: dict | None = None) -> str:
     # even with both flags on -- adds nothing and the block is byte-identical.
     if budget is not None:
         _none_back = not (calls or [])            # THE FACT, from `calls`; `returned` picks the SENTENCE
-        if _none_back and budget.get("returned") is False:
+        if _none_back and budget.get("returned") is False and budget.get("board"):
+            # 09-25 A-4: THE BOARD TURN'S OUTAGE. The state block still carries its own readings, so "answer
+            # from the dated evidence alone" would be false here; what failed is the lookup for this
+            # question's OWN figures, and that is what the writer is told to say. The clause names no
+            # instrument (the A-5 lesson: the writer copies the words it is handed), only the readings.
+            notes = notes + [an.NUMBERS_BUDGET_MARK + " this turn's own observed-data lookup for this "
+                             "question's figures could not be completed, so it came back with nothing to "
+                             "show here. Say plainly, in one clause, that the lookup for this question's own "
+                             "figures could not be completed this turn. Every figure you give is a reading "
+                             "printed this turn, at its own handle; a figure the question asks for that no "
+                             "reading prints is named as missing, never estimated."]
+        elif _none_back and budget.get("returned") is False:
             notes = notes + [an.NUMBERS_BUDGET_MARK + " this turn's observed-data lookup leg was "
                              "unavailable, so it came back with nothing to show here. Say plainly that "
                              "the lookup could not be completed for this turn and that what the record "
@@ -760,6 +771,16 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     # reads, and a per-thread read would let the two lanes disagree about the treatment within one turn.
     # Omit-when-off (the `_fnf` idiom): flag off -> the submit below is byte-identical.
     _ps = {"pair_spread": True, "closed_year": True} if an._state_board_on() else {}
+    # 09-25 FIX ROUND 3 (lane A, item A-4; CHAIN_ANALOG_READ N5): THE SEAT'S SPEND IS THE CALLER'S. MEASURED on
+    # the tariff turn (job b372544e, CloudWatch): the agent's ONE round stopped at `max_tokens` with 6,000 out
+    # tokens ("[numbers-thinking] stop=max_tokens in=162 out=6000 cache_read=102568"), the truncation sentinel
+    # raised (numbers/agent.py, "refusing to serve a partial selection"), and the swallow below kept ONLY the
+    # message -- the round's usage (priced $0.1213 at claude-sonnet-5) died inside the agent's own list, so
+    # the turn's numbers seat was UNPRICED and no trace field said it had failed. The accumulator is now
+    # OWNED HERE and handed down, so an exception cannot take the spend with it; it is passed ONLY where the
+    # agent declares the kwarg (the signature probe, the `_callable_params` idiom), so a seat that does not
+    # yet declare it gets HEAD's call byte for byte.
+    _usk_on = _numbers_takes_usage_sink()
     # LANE S (2026-09-06): this turn's NUMBERS-ROUND BUDGET, read HERE, on the CALLING thread, beside
     # `_nf` and for the reason already written three comments up -- deliberately NOT inside `_numbers()`,
     # whose body runs on a pool thread: a per-thread env read lets the numbers lane and the walk lane
@@ -825,6 +846,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                    if on_stage is not None else None)
         import time as _time
         _tn = _time.perf_counter()                                # W6.1-0: numbers-agent duration (MsNumbers)
+        _usage: list = []                                          # 09-25 A-4: the caller-owned accumulator
+        _usk = {"usage_sink": _usage} if _usk_on else {}
         try:
             if _nr:
                 # SCAN RUNG 3: the DETERMINISTIC leg. Zero model rounds, zero agent tokens (design
@@ -841,9 +864,16 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                 nums = na.answer_numbers(numbers_query or query, asof, client=client, model=numbers_model,
                                          query_fn=query_fn, on_call=on_call, families=families, **_fnf,
                                          **_nc,      # LANE S: absent unless the mode carries a budget
-                                         **_ps)      # 09-23 O-1: absent unless the board flag is lit
+                                         **_ps,      # 09-23 O-1: absent unless the board flag is lit
+                                         **_usk)     # 09-25 A-4: absent unless the agent declares it
         except Exception as e:  # noqa: BLE001 — numbers must never take the note down with it
             nums = {"calls": [], "error": str(e)[:200]}
+            # 09-25 A-4: the failure's KIND rides beside its message, and the rounds the agent spent before it
+            # raised are the caller's own list -- carried on the SAME key the agent stamps on a clean return,
+            # so the eval's one pricing arithmetic prices a failed seat exactly as it prices a served one.
+            nums["error_kind"] = type(e).__name__
+            if _usage:
+                nums["numbers_usage"] = list(_usage)
         nums["_ms_numbers"] = int((_time.perf_counter() - _tn) * 1000)
         an._emit(on_stage, "numbers", calls=len(nums.get("calls", [])))   # emitted on COMPLETION
         # F7 `number`: the resolved rows, from THIS worker thread, the moment the agent returns — i.e.
@@ -860,10 +890,12 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     def _resolve() -> tuple[str, list]:
         """The synthesis-time join: bounded wait for the numbers thread; failure -> no-numbers, same as a
         numbers error today."""
+        _join_err = ""
         try:
             nums = fut.result(timeout=300)
-        except Exception:  # noqa: BLE001
+        except Exception as _je:  # noqa: BLE001
             nums = {}
+            _join_err = type(_je).__name__                    # 09-25 A-4: a failed join is a failure too
         calls = nums.get("calls", [])
         # SEAM-C futures levels-only decline on the HYBRID lane (task #144). The agent's own decline preface
         # lives in nums['answer'], which this path never reads, so a curve/named ask arrived here as a bare
@@ -933,6 +965,20 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
             # numbers_only, and the lane error remains its own signal.
             holder["tables_queried"] = []
         holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
+        # 09-25 FIX ROUND 3 (lane A, item A-4): THE SEAT'S FAILURE ON THE RECORD. A lane that RAISED (the swallow
+        # in `_numbers`) or whose join FAILED stamps `numbers_error` -- {kind, error, ms} -- registered at the
+        # TAIL of `tracekeys.TRACE_SPLAT_KEYS`: a SPLAT, never a column, so the per-answer record lifts it only
+        # from a trace that carries it and `TRACE_RECORD_KEYS` is untouched (B11). ABSENT on every turn whose
+        # seat returned (the `ms_numbers` guarded idiom): a flag-off, failure-free trace is HEAD's.
+        _lane_err = None
+        if nums.get("error") is not None:
+            _lane_err = {"kind": str(nums.get("error_kind") or ""), "error": str(nums.get("error")),
+                         "ms": nums.get("_ms_numbers")}
+        elif _join_err:
+            _lane_err = {"kind": _join_err, "error": "the numbers lane did not return inside the join",
+                         "ms": None}
+        if _lane_err is not None:
+            holder["numbers_error"] = _lane_err
         # THE COST CENSUS (lane F, 2026-09-17): the numbers agent's PER-ROUND usage, carried on the
         # SAME seam and in the SAME guarded idiom as `ms_numbers` one line up. IT IS THE LARGEST
         # UNSTAMPED SEAT IN THE ESTATE -- claude-sonnet-5, 5-6 rounds a turn, $0.24-0.28/turn measured
@@ -1024,8 +1070,19 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                    "lookups": 0, "returned": False,
                    "lane_error": nums.get("error") or "the numbers lane returned no result"}
         holder["numbers_budget"] = _nb
+        # 09-25 FIX ROUND 3 (lane A, item A-4): THE HONEST ABSENCE LINE, ON THE BOARD TURN. The outage record above
+        # is minted only under the budget-note flag AND a budgeted mode, so on the tariff turn (deep, board lit,
+        # seat raised) the writer was handed "SILVER NUMBERS ...: (none retrieved)" -- 68 characters, no word
+        # that the lookup had FAILED, which reads as a record with nothing in it. Under GRAPHRAG_STATE_BOARD
+        # (`_ps`, read once on the calling thread) a seat that raised or never joined, with no call back, now
+        # hands `_numbers_block` a board-turn outage record for THIS block only: it is not the budget stamp and
+        # never lands on `numbers_budget`, and every turn whose seat returned -- and every flag-off turn -- is
+        # byte-identical.
+        _nb_block = _nb
+        if _nb_block is None and _ps and _lane_err is not None and not (calls or []):
+            _nb_block = {"lookups": 0, "returned": False, "board": True, "lane_error": _lane_err["error"]}
         return "\n\n".join(x for x in (extra_context, _numbers_block(
-            an._display_stamped(calls) if an._state_board_on() else calls, budget=_nb)) if x), calls
+            an._display_stamped(calls) if an._state_board_on() else calls, budget=_nb_block)) if x), calls
 
     _xc = {"xc_request": xc_request} if xc_request is not None else {}   # reroute v2: omit when None (byte-identical)
     _ol = {"outlook": True} if outlook else {}                           # W5-D4: same omit-when-off idiom
@@ -1068,6 +1125,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
             out.setdefault("trace", {})[_sk] = holder[_sk]
     if holder.get("ms_numbers") is not None:
         out.setdefault("trace", {})["ms_numbers"] = holder["ms_numbers"]   # W6.1-0: surface for the EMF block
+    if holder.get("numbers_error") is not None:                             # 09-25 A-4, see `_resolve`
+        out.setdefault("trace", {})["numbers_error"] = holder["numbers_error"]
     # THE COST CENSUS (lane F, 2026-09-17): the mirror of the `_resolve` carry, in the same guarded
     # idiom as `ms_numbers` directly above and for the same reason as `numbers_budget` directly below
     # -- `holder` never gains the key unless the agent stamped it under `GRAPHRAG_COST_CENSUS`, so a
@@ -1722,6 +1781,18 @@ def _numbers_mode_budget_on() -> bool:
     flag turns the other on, and both default off and fail closed. Rollback = drop the env var (single
     flag, instant, no redeploy)."""
     return os.environ.get("GRAPHRAG_NUMBERS_MODE_BUDGET", "off").lower() == "on"
+
+
+def _numbers_takes_usage_sink() -> bool:
+    """09-25 FIX ROUND 3 (lane A, item A-4): does the numbers agent this process loaded DECLARE the caller-owned
+    ``usage_sink`` kwarg? Read off the signature -- the estate's own probe idiom (`answer._callable_params`),
+    so a seat that does not declare it is called exactly as HEAD calls it and an injected fake with the older
+    signature stays valid. Never raises: an unreadable signature is False."""
+    try:
+        import inspect as _inspect
+        return "usage_sink" in _inspect.signature(na.answer_numbers).parameters
+    except Exception:  # noqa: BLE001 -- an unreadable signature is no kwarg, never a raise
+        return False
 
 
 def _numbers_budget_note_on() -> bool:

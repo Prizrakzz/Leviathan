@@ -538,6 +538,15 @@ class TableSpec(BaseModel):
     #                                                          the KIND of period one row is about -- a
     #                                                          marketing year, an ICCO crop season, a month,
     #                                                          a week, a session day
+    publisher_words: Optional[str] = None                    # 09-25 fix round (RT-7): the PUBLISHER's own
+    #                                                          reader name on a VINTAGE card ("the ICCO") --
+    #                                                          a served row of this card IS that publisher's
+    #                                                          release of the figure, so a document of the
+    #                                                          same publisher dated earlier is an EARLIER
+    #                                                          RELEASE (a vintage), never a second source.
+    #                                                          Read by the row identity's release words
+    #                                                          (`rows.release_words`) and the citation label;
+    #                                                          digit-free; never printed in the numbers prompt
     period_first_known: Optional[dict] = None                # {anchor, offset_months}, VALIDATED by the
     #                                                          PeriodFirstKnown model and STORED as the plain
     #                                                          dict every reader tests for (lane C's
@@ -1170,6 +1179,19 @@ def definition_phrases(table: Optional[str] = None, metric: Optional[str] = None
     if m is None:
         return ()
     return tuple(str(p) for p in (getattr(m, "definition_phrases", None) or []) if str(p).strip())
+
+
+def publisher_words(table: str, reg: Optional[NumbersRegistry] = None) -> str:
+    """RT-7 (09-25): the publisher's reader name ONE vintage card declares ("the ICCO"), or ``""`` -- for a
+    card that declares none, and for a card whose knowledge semantics are not ``vintage`` (only a release
+    of the SAME series has a vintage; an observation card's rows are not releases)."""
+    try:
+        ts = (reg or load_registry()).get(str(table))
+    except Exception:  # noqa: BLE001 -- an unknown card declares nothing
+        return ""
+    if str(getattr(ts, "knowledge_semantics", "") or "") != "vintage":
+        return ""
+    return str(getattr(ts, "publisher_words", None) or "").strip()
 
 
 def class_scope(table: str, commodity: str, reg: Optional[NumbersRegistry] = None) -> dict:

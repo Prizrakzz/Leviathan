@@ -2901,10 +2901,36 @@ def _series_tag(q: dict | None, row: dict | None = None) -> str:
     return f" [{'; '.join(parts)}]" if parts else ""
 
 
-def _fmt_line(rec: dict, row: dict, n: int, *, era) -> str:
+def _level_value_text(rec: dict, row: dict, sv, unit: str, display=None) -> str:
+    """THE VALUE SLOT OF A LEVEL LINE: HEAD's ``f"{sv:g} {unit}"`` byte for byte, unless the threaded display
+    key is ``CW_DISPLAY_ANALYST`` (09-25 close-out lane CC, B-1 -- the carried FATAL RT-2 / D11): then the
+    label's own reader of the ONE precision producer (``citations.level_line_figure`` ->
+    ``render.shown_figure``) prints the figure, and a CELL of a cross-section carries its grain and the period
+    its standing is at ("0.9 z for one United States growing cell (the driest of ten), April 2011", lane RT's
+    ``render.cell_grain_words``). MEASURED: the deep soybean page printed "US dryness at 0.90036 z then
+    [N164]" off this slot -- six significant digits and no grain -- while the footer label printed "0.9 z".
+    The ``shown`` binding is NOT moved (B5): the append site binds ``sv`` exactly as HEAD does, and the
+    verifier backs the printed figure at its own written precision. Imported LAZILY here, never at module top
+    (``numbers/`` must not import ``state/`` at import time); any failure prints HEAD's text."""
+    v = f"{sv:g}" if sv is not None else "?"
+    head = f"{v} {unit}"
+    if sv is None or str(display or "") != CW_DISPLAY_ANALYST:
+        return head
+    try:
+        from leviathan.graphrag import citations as _cit   # reads state/render + state/rows lazily itself
+        txt = _cit.level_line_figure(rec, sv, table=str(row.get("table") or (rec.get("query") or {}).get("table")
+                                                          or ""),
+                                     metric=str(row.get("metric") or (rec.get("query") or {}).get("metric") or ""),
+                                     unit=str(unit or ""))
+        return txt if txt else head
+    except Exception:  # noqa: BLE001 -- the precision producer can never break a quantify line
+        return head
+
+
+def _fmt_line(rec: dict, row: dict, n: int, *, era, display=None) -> str:
     sv = _scaled_val(rec, row)                            # the SAME float the append site binds as `shown`
-    val = f"{sv:g}" if sv is not None else "?"
     unit = row.get("narrate_unit") or ""
+    val = _level_value_text(rec, row, sv, unit, display)  # 09-25 CC B-1: HEAD's "{sv:g} {unit}" when off
     q = rec.get("query") or {}
     tag = _era_label(era, row)
     # W1.1: the calm word -- a weather-z read carries its magnitude in ANALYST vocabulary ("near
@@ -2915,7 +2941,7 @@ def _fmt_line(rec: dict, row: dict, n: int, *, era) -> str:
             and sv is not None:
         word = f" ({_z_word(sv)})"
     return (f"- [N{n}] {q.get('commodity')} {_metric_display(row)} {q.get('period') or ''} ({tag}, "
-            f"as-of {q.get('asof')}): {val} {unit}".rstrip() + word + _series_tag(q, row))
+            f"as-of {q.get('asof')}): {val}".rstrip() + word + _series_tag(q, row))
 
 
 def _fmt_delta(row: dict, d: float, n: int, *, era, q: dict | None = None) -> str:
@@ -2963,7 +2989,7 @@ def _assemble(records: list, kept: list, base: int, calls: list, *, display=None
             for r in oks:                                         # inject each MY endpoint level (pre-scaled)
                 n += 1
                 calls.append(_shown(_prescaled(r, row, n), _scaled_val(r, row)))
-                lines.append(_fmt_line(r, row, n, era=i))
+                lines.append(_fmt_line(r, row, n, era=i, **({"display": display} if display else {})))
             for r in recs:
                 if r.get("status") and r["status"] != "ok":
                     lines.append(_fmt_absence(r))
@@ -2984,7 +3010,7 @@ def _assemble(records: list, kept: list, base: int, calls: list, *, display=None
         if cur and cur.get("status") == "ok" and (cur.get("rows") or []):
             n += 1
             calls.append(_shown(_prescaled(cur, row, n), _scaled_val(cur, row)))
-            lines.append(_fmt_line(cur, row, n, era="current"))
+            lines.append(_fmt_line(cur, row, n, era="current", **({"display": display} if display else {})))
         elif cur:
             lines.append(_fmt_absence(cur))
         div, a, b = _divergence(era_deltas, eras, cur, row)
@@ -5998,17 +6024,18 @@ def _chain_hop_label(hop_no: int, n_hops: int, names: list, meta: dict) -> str:
     return f"(chain hop {hop_no}/{n_hops}: {who} -> {loc}{meta.get('metric') or ''})".replace("  ", " ")
 
 
-def _chain_fmt_line(rec: dict, row: dict, n: int, *, label: str, current: bool = False) -> str:
+def _chain_fmt_line(rec: dict, row: dict, n: int, *, label: str, current: bool = False, display=None) -> str:
     """Endpoint LEVEL line, hop-marked (the _fmt_line shape prefixed with the hop ordinal, sec 3.3); one figure
     per line (the handle discipline). The value re-scales the RAW record (narrate_unit), matching the injected
-    _prescaled row exactly (the _assemble contract)."""
+    _prescaled row exactly (the _assemble contract). 09-25 CC B-1: the value slot is `_level_value_text`'s --
+    HEAD's bytes unless the threaded display key is "analyst"."""
     sv = _scaled_val(rec, row)                            # the SAME float the append site binds as `shown`
-    val = f"{sv:g}" if sv is not None else "?"
     unit = row.get("narrate_unit") or ""
+    val = _level_value_text(rec, row, sv, unit, display)
     q = rec.get("query") or {}
     period = "current" if current else (q.get("period") or "")
     return (f"- [N{n}] {label} {q.get('commodity') or ''} {_metric_display(row)} {period} "
-            f"(as-of {q.get('asof')}): {val} {unit}".rstrip() + _series_tag(q, row))
+            f"(as-of {q.get('asof')}): {val}".rstrip() + _series_tag(q, row))
 
 
 def _chain_fmt_delta(row: dict, d: float, n: int, *, label: str, q: dict | None = None) -> str:
@@ -6244,7 +6271,8 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
                 for r in oks:                                      # each MY endpoint LEVEL (pre-scaled, R10 prov)
                     n += 1
                     calls.append(_shown(_prescaled(r, row, n), _scaled_val(r, row)))
-                    lines.append(_chain_fmt_line(r, row, n, label=label))
+                    lines.append(_chain_fmt_line(r, row, n, label=label,
+                                                 **({"display": display} if display else {})))
                 dlt = _era_delta(oks, row)                         # WITHIN-hop delta ONLY (no cross-hop math, 4.1)
                 if dlt is not None:
                     delta_val = dlt
@@ -6263,7 +6291,8 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
                 statuses["current"] = "ok"
                 n += 1
                 calls.append(_shown(_prescaled(cur, row, n), _scaled_val(cur, row)))
-                lines.append(_chain_fmt_line(cur, row, n, label=label, current=True))
+                lines.append(_chain_fmt_line(cur, row, n, label=label, current=True,
+                                             **({"display": display} if display else {})))
             elif cur is not None:
                 statuses["current"] = cur.get("status")
             entry = {"hop": d["idxs"][0], "node": " / ".join(d["names"]), "ref": d["meta"]["ref"],

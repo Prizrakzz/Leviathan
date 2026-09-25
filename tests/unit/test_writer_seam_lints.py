@@ -120,8 +120,10 @@ def test_the_leg_is_a_pure_append_after_the_board_mandate_and_before_the_other_t
     assert base.endswith(an._system_writer_seam_mandate(None) + rc.directive(None, state_board=True))
     # RE-BANKED 09-24 (CONTRACT K19, declared B1 cell): under the register the board's own mandate
     # speaks the record's reader-facing name ("this page") -- the leg is otherwise the same pure append.
+    # RE-BANKED 09-25 (close-out lane AT, AT-4 -- declared B1 move): the persona's fork clause speaks the
+    # register table's words (`answer._desk_fork_words`), the one substitution the register leg makes.
     assert an._system(state_board=True, desk_register=True) == \
-        base.replace(sn.state_board_mandate(), sn.state_board_mandate(desk=True)) \
+        an._desk_fork_words(base.replace(sn.state_board_mandate(), sn.state_board_mandate(desk=True))) \
         + sn.desk_register_mandate(state_board=True)
     assert (an._system(state_board=True, watch_selection=True)
             == base.replace(sn.MANDATE_WATCH_HEAD_RX, sn.MANDATE_WATCH_NONOBVIOUS)

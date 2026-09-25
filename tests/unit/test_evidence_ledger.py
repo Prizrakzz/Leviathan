@@ -157,3 +157,32 @@ def test_registered_addresses_start_past_the_menu_and_are_contiguous(n_menu):
     ks = [led.address({"source_key": f"new{i}", "text": "t"}) for i in range(3)]
     assert ks == [n_menu + 1, n_menu + 2, n_menu + 3]
     assert led.stamp()["registered"] == 3
+
+
+def test_0925_AT3_the_menu_decision_is_the_callers_word_never_read_off_the_process():
+    """09-25 CLOSE-OUT (lane AT, VERIFY MINOR-6). The VC-2 ledger issues the menu's ordinals when the turn's
+    menu printed them -- and the first cut read that decision back out of `sys.modules`, so a ledger built by
+    hand behaved one way before `answer` was imported and another way after. The decision is now HANDED IN by
+    the one caller that builds the turn's ledger (`answer._evidence_ledger`, which passes the producer's own
+    `_handle_menu_on()`), and a ledger nobody told printed no menu.
+
+    Pinned on behaviour, both sides of the import: the SAME hand-built ledger issues nothing before and after
+    the serving body is loaded; `menu_printed=True` issues every keyed menu ordinal; and the serving body's own
+    builder passes its decision -- True by default, False under the dossier lane's override."""
+    import sys
+    menu = _menu(3) + [{"source": "keyless", "text": "a menu row with no durable key"}]
+    before = cit.EvidenceLedger(menu)
+    from leviathan.graphrag import answer as an  # the serving body, now certainly loaded
+    assert "leviathan.graphrag.answer" in sys.modules and an._handle_menu_on() is True
+    after = cit.EvidenceLedger(menu)
+    for led in (before, after):
+        assert led.menu_printed is False and led.issued() == {}, "a ledger nobody told printed no menu"
+    told = cit.EvidenceLedger(menu, menu_printed=True)
+    assert sorted(told.issued()) == [1, 2, 3], "every KEYED menu ordinal; a keyless row has no address"
+    assert told.evidence() == menu and told.stamp() == before.stamp(), "issuing moves no address and no count"
+    served = an._evidence_ledger(menu)                           # the serving body's builder: its own decision
+    assert served.menu_printed is True and sorted(served.issued()) == [1, 2, 3]
+    with an.handle_menu_override(False):                          # the dossier lane: the menu printed no ordinals
+        dossier = an._evidence_ledger(menu)
+    assert dossier.menu_printed is False and dossier.issued() == {}
+    assert an._evidence_ledger(menu, menu_printed=False).issued() == {}   # the seam's threaded value wins

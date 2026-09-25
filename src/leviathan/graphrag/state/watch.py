@@ -59,6 +59,10 @@ KIND_WORDS: dict = {
     "policy_date": "a date the record already knew",
 }
 
+#: WHAT THE LIKE-STATE ITEM SAYS WHEN ITS OUTCOME IS THE LIKE STATE'S OWN SERIES (the 09-25 close-out, RW-4):
+#: RT-1's own not-a-price words (``render.ANALOG_NOT_PRICE``, the SB-A stanza's), read and never re-typed.
+OWN_SERIES_WORDS: str = "the like state's own series, %s" % R.ANALOG_NOT_PRICE
+
 #: SB-W rows RENDERED per tier -- sec 7's own line counts ("3 SB-W" on Scan, 6 on Analysis, 8 on
 #: Cascade). It is a render cap and NOT one of the nine board knobs, because it prices no read: every
 #: input above is already on the board. Declared here, beside its only consumer.
@@ -375,21 +379,39 @@ def watch_rows(bd, *, analogs=(), cap: Optional[int] = None, conventions: Option
                 "dates": ed[:10], "declined": None, "row": row.key})
 
     # -- kind 4: the analog's own trigger, sourced from a row already minted ------------------------
+    # **A LIKE STATE'S CONSEQUENCE IS WHAT THE RECORD DID AFTER IT; ITS OWN SERIES IS THE FALLBACK** (the
+    # 09-25 close-out, RW-4 = VERIFY MINOR-1). RT-1 mints the like state's OWN series over its band
+    # (``analogs.own_units_outcome``, flagged ``own_series``) wherever no outcome in the call's units read,
+    # and on every deep / max harness cell this item then nominated it -- "after the like state dated
+    # 2020-04-30, the tropical Pacific sea-surface temperature anomaly was read where the lag ... ends", the
+    # seed's own series read again -- displacing a DECLARED-CONSEQUENCE outcome (the price, or the next
+    # link's series) another stanza carried. The rule reads the producer's own flag, never a label: inside a
+    # stanza a consequence outcome is named where one read; the own series only where none did, and then
+    # with RT-1's own not-a-price words; and across stanzas a consequence item is never drawn behind an
+    # own-series one (the same shape as "a fired row never sits behind a declined one"). The rejected
+    # lexical form: matching outcome labels or seed driver ids.
+    consequence_items, own_items = [], []
     for a in analogs:
         if a.get("declined"):
             continue
-        for o in (a.get("outcomes") or ()):
-            if o.get("declined") or not o.get("far_date"):
-                continue
-            queues["analog_trigger"].append({
-                "kind": "analog_trigger", "kind_words": KIND_WORDS["analog_trigger"],
-                "label": f"{R.humanise(a['driver_id'])} on {R.board_label(a['contract'])}",
-                # 09-23 DESK VOCABULARY (CONTRACT.md C13): where the lag the model allows ENDS, never
-                # the instrument's "far end of that declared band"; the date rides the row's own tail.
-                "what": (f"after the like state dated {a['date']}, {o['label']} was read where the lag "
-                         f"the model allows for it ends"),
-                "dates": o["far_date"], "declined": None, "row": (a["contract"], a["driver_id"])})
-            break                                   # ONE trigger per stanza: the stanza is the source
+        read = [o for o in (a.get("outcomes") or ()) if not o.get("declined") and o.get("far_date")]
+        cons = [o for o in read if not o.get("own_series")]
+        o = (cons or read or [None])[0]
+        if o is None:
+            continue
+        own = not cons
+        # 09-23 DESK VOCABULARY (CONTRACT.md C13): where the lag the model allows ENDS, never the
+        # instrument's "far end of that declared band"; the date rides the row's own tail.
+        what = ((f"after the like state dated {a['date']}, {o['label']} was read where the lag "
+                 f"the model allows for it ends") if not own else
+                (f"after the like state dated {a['date']}, {o['label']} itself -- {OWN_SERIES_WORDS} -- "
+                 f"was read where the lag the model allows for it ends"))
+        (own_items if own else consequence_items).append({
+            "kind": "analog_trigger", "kind_words": KIND_WORDS["analog_trigger"],
+            "label": f"{R.humanise(a['driver_id'])} on {R.board_label(a['contract'])}",
+            "what": what, "dates": o["far_date"], "declined": None,
+            "row": (a["contract"], a["driver_id"])})       # ONE trigger per stanza: the stanza is the source
+    queues["analog_trigger"].extend(consequence_items + own_items)
 
     for kind in WATCH_KINDS:                        # a fired row never sits behind a declined one
         queues[kind].sort(key=lambda w: (1 if w.get("declined") else 0))
@@ -830,6 +852,16 @@ NONOBVIOUS_CLAUSES: dict = {
     "window": (" The declared lag window, counted from that reading's own date, {opened}; the span "
                "this line ends on is {closes}"),
     "falsifier": "{body}; this reads wrong if {falsifier}.",
+    # 09-25 (RT-6): THE FALSIFIER IS MINTED FROM THE ROW, SO IT SAYS WHICH WAY THE READING TURNS AND WHERE
+    # THE LINE IS. A state-return falsifier on a LOW-tail reading and one on a HIGH-tail reading were one
+    # sentence ("returns ... to the middle"), and the cocoa page read a wet dry-day run's return to the
+    # middle as the thing that would sink a drought squeeze -- backwards. The direction is the row's own
+    # computed side (``render.reading_side``) and, where the card declares them, the series' own side words
+    # (``render.tail_side_words``). And a crossed line is named at its value in words -- the deep soybean
+    # page's "turns back inside that line" over a pace line no reader was shown ("an unreadable threshold").
+    "toward": " -- a move {direction} from its {side} side{away}",
+    "toward_away": ", away from {words}",
+    "line_at": " (the line called {label} sits at {value})",
 }
 
 #: The FIVE admission-floor clauses (ANY-OF). A candidate that satisfies none is not nominated.
@@ -1153,7 +1185,19 @@ def _side_word(st, *, kind: str = "") -> str:
     ``_crossed`` folds ``abs_bands`` and ``z_bands`` to ``abs(reading)`` and ``convention_distance``
     returns ``shown = abs(reading)``, so "zero point nine sigma under the severe line" does not say
     which side of zero it is on. The side is taken from the SIGNED reading -- the z where there is one,
-    else the percentile against its own midpoint -- and a reading this board cannot sign says so."""
+    else the percentile against its own midpoint -- and a reading this board cannot sign says so.
+
+    **AND THE SIDE SAYS WHAT IT MEANS FOR THIS SERIES** (09-25 fix round, RT-3 / RT-6, the cocoa FATAL):
+    where the card declares its low-side / high-side words (``render.tail_side_words`` -- the side COMPUTED
+    by the one side producer, the words DECLARED), the side word carries them ("on the low side, shorter
+    dry spells than usual, so wetter"), so a watch line on a wet reading can never be read as a drought
+    watch. A series the book declares nothing for keeps HEAD's words byte for byte."""
+    try:
+        _tw = R.tail_side_words(st) if st is not None else None
+    except Exception:                                   # noqa: BLE001 -- words never cost a row
+        _tw = None
+    if _tw:
+        return "on the %s side, %s" % _tw
     z = _num(getattr(st, "z", None) if st is not None else None)
     if z is not None and kind in ("z_bands", "abs_bands", ""):
         if z > 0:
@@ -1457,7 +1501,7 @@ def _cand(kind: str, row, *, what: str, dates: str,
         raise KeyError(f"watch: {v!r} is not a declared variant of {kind!r}")
     # K14: the falsifier's series is the BACKING ROW'S OWN IDENTITY -- the series the row names -- and
     # never a driver id; a row with no readable identity names its driver's display words.
-    falsifier = NONOBVIOUS_FALSIFIERS[v].format(series=_series_words(row))
+    falsifier = NONOBVIOUS_FALSIFIERS[v].format(series=_series_words(row)) + _falsifier_tail(v, row)
     floor = tuple(floor)
     stated = FLOOR_STATED_BY_KIND.get(kind)
     admitted = ("" if (stated is not None and stated in floor) or not floor
@@ -1486,6 +1530,135 @@ def _series_words(row) -> str:
     except Exception:                                   # noqa: BLE001 -- a name never costs a row
         w = ""
     return R.ascii_text(w) if w else R.humanise(str(getattr(row, "driver_id", "") or ""))
+
+
+#: THE FALSIFIERS WHOSE CLAIM IS A READING RETURNING OR TURNING -- they carry the row's own direction
+#: (:data:`NONOBVIOUS_CLAUSES` ``toward``). ``past_the_line`` carries the line's own value instead; the
+#: ``approaching_line`` family's falsifier is about the run, and ``recurrence``'s about the like state.
+_TOWARD_FALSIFIERS: frozenset = frozenset({"tail_reading", "upstream_convergence", "spillover_reach",
+                                           "spillover_reach_unplaced", "convergence_amplified",
+                                           "convergence_amplified_alone"})
+
+
+def _number_words(x) -> str:
+    """A small magnitude in WORDS for the letters-only SB-W class ("two", "one and a half", "one point
+    two five") -- the digits of a line's value would be charged numerals on a row that mints no handle."""
+    try:
+        v = abs(float(x))
+    except (TypeError, ValueError):
+        return ""
+    whole = int(v)
+    frac = round(v - whole, 6)
+    if frac == 0:
+        return R.words_for_int(whole)
+    if abs(frac - 0.5) < 1e-9:
+        return "a half" if whole == 0 else "%s and a half" % R.words_for_int(whole)
+    digits = ("%.4f" % frac).split(".")[1].rstrip("0")
+    return "%s point %s" % (R.words_for_int(whole), " ".join(R.words_for_int(int(d)) for d in digits))
+
+
+def _line_value_words(kind: str, band, *, low_side: bool = False, unit: str = "") -> str:
+    """A declared line's VALUE in words, in the statistic the convention kind is measured on
+    (``state_conventions.yaml`` ``band_semantics``) -- "ten percent ahead of the same point of the prior
+    year", "the ninetieth percentile", "two sigma", "minus one and a half sigma". ``""`` for a band this
+    page cannot place."""
+    try:
+        b = float(band)
+    except (TypeError, ValueError):
+        return ""
+    if kind == "pace_vs_prior_year":
+        return "%s percent %s the same point of the prior year" % (
+            _number_words(b), "ahead of" if b >= 0 else "behind")
+    if kind == "percentile_bands":
+        pw = R.percentile_words(b)
+        return ("the %s percentile" % pw) if pw else ""
+    if kind == "z_bands":
+        return "%s%s sigma" % ("minus " if low_side else "", _number_words(b))
+    if kind == "abs_bands":
+        u = str(unit or "").strip()
+        if any(ch.isdigit() for ch in u):
+            u = ""
+        return ("%s%s %s" % ("minus " if low_side else "", _number_words(b), u)).strip()
+    return ""
+
+
+def _falsifier_tail(variant: str, row) -> str:
+    """THE ROW-MINTED HALF OF A FALSIFIER (09-25 fix round, RT-6): the direction a state-return falsifier
+    watches, in the row's own computed side and the series' own declared side words, or a crossed line's
+    value in words. ``""`` where the row carries neither fact -- the kind's template then stands alone,
+    exactly as at HEAD."""
+    st = getattr(row, "state", None)
+    if st is None:
+        return ""
+    kind = NONOBVIOUS_VARIANTS.get(variant, variant)
+    try:
+        if kind == "past_the_line":
+            conv = getattr(st, "convention", None) or {}
+            ck = str(conv.get("kind") or "")
+            rd = conv.get("reading")
+            low = bool(ck in ("z_bands", "abs_bands") and rd is not None and float(rd) < 0)
+            val = _line_value_words(ck, conv.get("band"), low_side=low,
+                                    unit=str(getattr(st, "narrate_unit", "") or getattr(st, "unit", "") or ""))
+            if val and conv.get("label"):
+                return NONOBVIOUS_CLAUSES["line_at"].format(label=str(conv["label"]), value=val)
+            return ""
+        if variant in _TOWARD_FALSIFIERS or kind in _TOWARD_FALSIFIERS:
+            side = R.reading_side(st)
+            if not side:
+                return ""
+            tw = R.tail_side_words(st)
+            away = NONOBVIOUS_CLAUSES["toward_away"].format(words=tw[1]) if tw else ""
+            return NONOBVIOUS_CLAUSES["toward"].format(direction=("down" if side > 0 else "up"),
+                                                       side=("high" if side > 0 else "low"), away=away)
+    except Exception:                                   # noqa: BLE001 -- a falsifier's tail never costs a row
+        return ""
+    return ""
+
+
+def call_rows(bd) -> frozenset:
+    """THE ROWS THE PAGE'S CALL RESTS ON (09-25 fix round, RT-6): the board's LEAD readings -- the first
+    ``render.LEAD_ROWS`` series of the loud order, folded exactly as the lead line folds them (every
+    member of a folded series counts) -- and the measured links of every rendered chain that holds a
+    QUESTION seat (the subject, the pair, the horizon: the chains the page seats to answer what was
+    asked). Structural, off the board's own order and seats; never a word list.
+
+    MEASURED on the 09-25 PM reads: the watch list watched none of the TL;DR's legs on five pages (soyoil:
+    the palm stocks and the dry-day run; rice: the Pacific, the TL;DR's lead; deep soybeans: the Pacific
+    and managed money; 2024: the short, the crush). The draw now seats these rows' best candidates FIRST
+    inside the ceiling (:func:`nonobvious_rows`), under the same caps, before the ruling's rank fills the
+    rest -- the rank itself is the 09-11 ruling's, untouched."""
+    out: set = set()
+    try:
+        order = {k: i for i, k in enumerate(getattr(bd, "order", None) or ())}
+        loud = sorted((r for r in (getattr(bd, "rows", None) or ())
+                       if r.legs.get("loud") and r.state is not None
+                       and status_word(r.state.status) == "ok"),
+                      key=lambda r: order.get(r.key, len(order)))
+        groups: list = []
+        members: dict = {}
+        for r in loud:
+            try:
+                gk = (r.contract, r.state.key.label())
+            except Exception:                           # noqa: BLE001 -- an unlabelled key stands alone
+                gk = (r.contract, r.driver_id)
+            if gk not in members:
+                members[gk] = []
+                groups.append(gk)
+            members[gk].append(r.key)
+        for gk in groups[:int(getattr(R, "LEAD_ROWS", 3))]:
+            out.update(members[gk])
+        for c in (getattr(bd, "chains", None) or ()):
+            if not getattr(c, "rendered", False):
+                continue
+            if str(getattr(c, "slot", "") or "") not in ("subject", "pair", "horizon"):
+                continue
+            for h in (getattr(c, "hops", None) or ()):
+                if getattr(h, "measured", False):
+                    out.add(getattr(h, "key", None)
+                            or (getattr(h, "contract", ""), getattr(h, "driver_id", "")))
+    except Exception:                                   # noqa: BLE001 -- no call rows is HEAD's draw
+        return frozenset()
+    return frozenset(out)
 
 
 def _floor_of(row, *, pattern_rows=(), path_n: int = 0, base_rate=None, dist=None) -> tuple:
@@ -2596,7 +2769,7 @@ def nonobvious_rows(bd, *, analogs=(), cap: Optional[int] = None,
     # admission clause that does.
     kcap = max(1, (ceiling + 2) // 3)
 
-    def _draw(limit: int, series_cap: int, kind_cap: int, row_cap: int, slot: str) -> None:
+    def _draw(limit: int, series_cap: int, kind_cap: int, row_cap: int, slot: str, only=None) -> None:
         """One pass of the draw, up to ``limit`` rows, under one set of caps.
 
         ``slot`` IS THE PASS AND NOT THE POSITION. Labelling by ``len(out) < ceiling`` would stamp
@@ -2609,6 +2782,8 @@ def nonobvious_rows(bd, *, analogs=(), cap: Optional[int] = None,
                 return
             if c.get("slot"):
                 continue                                # already taken by an earlier pass
+            if only is not None and c.get("row") not in only:
+                continue                                # 09-25 (RT-6): the call pass seats call rows only
             # THE SERIES CAP -- R10's fold: one reading per slot inside the ceiling.
             if per_series.get(c["dedupe"], 0) >= series_cap:
                 continue
@@ -2635,6 +2810,14 @@ def nonobvious_rows(bd, *, analogs=(), cap: Optional[int] = None,
     # table, because the ceiling was never reached and the nomination tail's own rules were therefore
     # never applied. The ceiling is filled first under the tight caps -- that is what makes it a
     # ceiling of DISTINCT items -- and the nomination tail is then drawn under the relaxed ones.
+    # 09-25 (RT-6): THE LIST WATCHES THE CALL. The rows the page's call rests on (:func:`call_rows`) take
+    # their best-ranked candidate FIRST, under the ceiling's own caps; the ruling's rank then fills the rest
+    # of the ceiling exactly as before. A board whose call rows cleared no floor draws byte for byte as HEAD.
+    _calls = call_rows(bd)
+    if _calls:
+        _draw(ceiling, 1, kcap, 1, "ceiling", only=_calls)
+        for c in out:
+            c["call_row"] = True
     _draw(ceiling, 1, kcap, 1, "ceiling")
     taken = len(out)
     _draw(nominate, 2, 2 * kcap, 2, "nomination")

@@ -1617,8 +1617,12 @@ def test_the_TOP_chain_always_renders_even_below_the_print_line_IN_FULL():
     in a reduced form for having scarce data. The chain below the line keeps its score, its rank and
     its trace row, and the count line says it sat below the line only where it did NOT render."""
     bd = _cboard()
+    # 09-25 RE-BANK (W-3 / N7, CONTRACT: ONE QUANTITY IS ONE LINK): the two placeholder rows carried ONE
+    # reading (level 1.0 t, the 50th percentile, one period, one scope), which the measured quantity
+    # identity folds into one link exactly as it folds the 2024 meal consumption / feed-waste pair. They
+    # stand for two quantities, so the second now carries its own level; nothing this pin asserts moved.
     _crow(bd, "a_cbot", "top", st=_cs("top", pct=50), conf="low")
-    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50), conf="low")
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50, level=2.0), conf="low")
     _cpath(bd, "a_cbot", ["top", "bot"])
     _cfinish(bd)
     got = W.chain_rows(bd, None, knobs=bd.knobs)
@@ -2285,9 +2289,13 @@ def test_RULING_6_the_PRINT_LINE_never_renders_fewer_than_K_and_the_SCOPE_says_w
     `Chain.full` means "rendered in full" and the count is computed from the SCORE over the chains
     that did NOT render."""
     bd = _cboard(mode="max")                    # k = 3
+    # 09-25 RE-BANK (W-3 / N7, CONTRACT: ONE QUANTITY IS ONE LINK): the two placeholder rows carried ONE
+    # reading (level 1.0 t, the 50th percentile, one period, one scope), which the measured quantity
+    # identity folds into one link exactly as it folds the 2024 meal consumption / feed-waste pair. They
+    # stand for two quantities, so the second now carries its own level; nothing this pin asserts moved.
     for i in range(5):
-        _crow(bd, "a_cbot", "t%d" % i, conf="low", st=_cs("t%d" % i, pct=50))
-        _crow(bd, "a_cbot", "b%d" % i, conf="low", st=_cs("b%d" % i, pct=50))
+        _crow(bd, "a_cbot", "t%d" % i, conf="low", st=_cs("t%d" % i, pct=50, level=1.0 + i))
+        _crow(bd, "a_cbot", "b%d" % i, conf="low", st=_cs("b%d" % i, pct=50, level=10.0 + i))
         _cpath(bd, "a_cbot", ["t%d" % i, "b%d" % i])
     _cfinish(bd)
     got = W.chain_rows(bd, None, knobs=bd.knobs)
@@ -2350,8 +2358,12 @@ def test_RULING_6b_the_BUFFER_family_is_resolved_PER_ANCHOR_and_its_absence_is_P
     assert ch.terms["asymmetry"] == 10.0, ch.terms
     # and a market that serves NONE says so, in its own sentence
     bd2 = _cboard()
+    # 09-25 RE-BANK (W-3 / N7, CONTRACT: ONE QUANTITY IS ONE LINK): the two placeholder rows carried ONE
+    # reading (level 1.0 t, the 50th percentile, one period, one scope), which the measured quantity
+    # identity folds into one link exactly as it folds the 2024 meal consumption / feed-waste pair. They
+    # stand for two quantities, so the second now carries its own level; nothing this pin asserts moved.
     _crow(bd2, "a_cbot", "weather", st=_cs("weather", pct=50))
-    _crow(bd2, "a_cbot", "bot", st=_cs("bot2", pct=50))
+    _crow(bd2, "a_cbot", "bot", st=_cs("bot2", pct=50, level=2.0))
     _cpath(bd2, "a_cbot", ["weather", "bot"])
     _cfinish(bd2)
     af2 = W.anchor_facts(bd2, "a_cbot")
@@ -2599,8 +2611,12 @@ def test_CENSUS3_the_anchors_PRICE_ROW_scores_TAIL_on_the_TERMINAL_when_the_TAPE
             assert c.scope["price_standing"] == "level and its own window percentile"
     # THE NEGATIVE, AND IT IS THE ORDERING HAZARD ITSELF: no tape, no reading, and the fact says so.
     bd2 = _cboard()
+    # 09-25 RE-BANK (W-3 / N7, CONTRACT: ONE QUANTITY IS ONE LINK): the two placeholder rows carried ONE
+    # reading (level 1.0 t, the 50th percentile, one period, one scope), which the measured quantity
+    # identity folds into one link exactly as it folds the 2024 meal consumption / feed-waste pair. They
+    # stand for two quantities, so the second now carries its own level; nothing this pin asserts moved.
     _crow(bd2, "a_cbot", "top", st=_cs("top", pct=50))
-    _crow(bd2, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _crow(bd2, "a_cbot", "bot", st=_cs("bot", pct=50, level=2.0))
     _cpath(bd2, "a_cbot", ["top", "bot"])
     _cfinish(bd2)
     assert bd2.tape == {}
@@ -4419,3 +4435,135 @@ def test_W0924_the_chain_trace_prose_stays_register_clean_at_ALL_THREE_TIERS(cha
             assert REG.internal_leaks(text) == [], (mode, key, text)
             if key in ("history", "outcome", "notes.history", "notes.tail"):
                 assert "firing" not in text, (mode, key, text)
+
+
+# ── THE 09-25 CLOSE-OUT (lane RW): N8 RULED, MEASURED, RESTORED; one declared set read in both places ─
+def _rw2_banked_reach(depth: int, unnamed: bool, cross: bool) -> int:
+    """THE BANKED REACH ARITHMETIC (HEAD 21b111c7; restored 2026-09-25): 10 [depth >= 2] + 5 [depth >= 3]
+    + 10 [a terminal the question did not name] + 5 [an earned cross], capped at 25. The pins below hold
+    `walk.chain_score` to it on READ and on UNREAD far terminals alike."""
+    return min(10 * (depth >= 2) + 5 * (depth >= 3) + 10 * bool(unnamed) + 5 * bool(cross), 25)
+
+
+def _rw2_unit(depth: int, *, source: str, terminal: str = "b_cbot", cross: bool = True,
+              named=("a_cbot",)) -> W.Chain:
+    hops = tuple(W.ChainHop(contract="a_cbot", driver_id="h%d" % i) for i in range(depth + 1))
+    ch = W.Chain(contract="a_cbot", hops=hops, depth=depth, terminal=terminal,
+                 cross=({"other": terminal, "sign": "+"} if cross else None),
+                 terminal_reading=({"source": source} if source else {}))
+    return W.chain_score(ch, named_markets=named, with_notes=True)
+
+
+def test_RW2_N8_the_reach_NOTE_says_whether_the_far_move_is_read_through_the_ONE_predicate_and_moves_no_point(
+        monkeypatch):
+    """N8, RULED THEN RESTORED (2026-09-25). What stays of the 5 + 5 split is WORDS: the trace's reach note
+    says whether this record reads the own move of the market the question did not name -- ", whose own move
+    this record reads" / ", whose own move this record cannot read" -- through the ONE predicate
+    (`walk.terminal_read`) that `_agree` reads for the verdict's child move, over the ONE reading
+    `_terminal_reading` returned. The words inform the reader and move NO point: the read and the unread
+    terminal carry the same reach."""
+    seen = []
+    real = W._terminal_reading
+
+    def _spy(bd, last, cross, far_index=None):
+        tr = real(bd, last, cross, far_index)
+        seen.append((tr["source"], W.terminal_read(tr), tr["state"] is not None))
+        return tr
+    monkeypatch.setattr(W, "_terminal_reading", _spy)
+    tape, base = _cross_board(tape_delta=+2.0)                   # the far contract's OWN tape was read
+    same, _ = _cross_board(far_row=("-", -3.0))                  # the far board's SAME-driver row was read
+    none, _ = _cross_board()                                     # neither: the far move cannot be read
+    ident, _ = _cross_board(far_row=("+", 1.0), far_is_bot_series=True)   # the series against itself
+    # THE ONE PREDICATE, on every rung of the real producer: exactly "the reading's state is not None"
+    assert {s for s, _r, _st in seen} == {"tape", "same_driver", W.TERMINAL_UNREAD}, seen
+    assert all(r == st for _s, r, st in seen), seen
+    assert W.terminal_read({}) is False and W.terminal_read(None) is False   # no cross: HEAD's verdict
+    read_ = [W.chain_explain(c, named_markets=("a_cbot",)) for c in (tape, same)]
+    unread = [W.chain_explain(c, named_markets=("a_cbot",)) for c in (none, ident)]
+    for c in read_:
+        assert c.notes["reach"].endswith(
+            ", a market this question did not name, whose own move this record reads"), c.notes["reach"]
+    for c in unread:
+        assert c.notes["reach"].endswith(
+            ", a market this question did not name, whose own move this record cannot read"), c.notes["reach"]
+    assert "did not name" not in W.chain_explain(base, named_markets=("a_cbot",)).notes["reach"]
+    for c in read_ + unread:
+        n = c.notes["reach"]
+        assert REG.internal_leaks(n) == [] and n == n.encode("ascii", "ignore").decode("ascii"), n
+    # ...AND THE WORDS MOVE NO POINT: read or unread, the reach is one number
+    assert {c.terms["reach"] for c in read_ + unread} == {15}, [c.terms for c in read_ + unread]
+
+
+def test_RW2_N8_RESTORED_the_reach_points_are_the_BANKED_arithmetic_on_a_READ_and_an_UNREAD_unnamed_terminal():
+    """THE MEASUREMENT THAT RESTORED IT (rw2_reach_split_drive, the ten 09-25 traces): 0 of the 91 carried
+    chains ending on an unnamed market had a READ terminal -- the walk reads a far board only for a named or
+    anchored market -- so the split's readable half never fired and it was only a five-point cut on every
+    depth-2 unnamed chain. RESTORED to HEAD 21b111c7's arithmetic exactly (`_rw2_banked_reach`), on the
+    real producer's four terminal rungs and on every depth / cross / named / source cell of the unit."""
+    assert W.CHAIN_TERM_MAX["reach"] == 25.0
+    tape, base = _cross_board(tape_delta=+2.0)
+    same, _ = _cross_board(far_row=("-", -3.0))
+    none, _ = _cross_board()
+    ident, _ = _cross_board(far_row=("+", 1.0), far_is_bot_series=True)
+    # every chain here is one link (depth 1) with an EARNED cross onto b_cbot, a market this question
+    # (anchored on a_cbot) did not name: 0 + 10 + 5 = 15, read or not -- HEAD's number
+    for c in (tape, same, none, ident):
+        assert c.depth == 1 and c.cross and c.unnamed_terminal is True, (c.depth, c.terminal)
+        assert c.terms["reach"] == _rw2_banked_reach(1, True, True) == 15, (c.terminal_reading, c.terms)
+    assert base.terms["reach"] == _rw2_banked_reach(base.depth, False, False) == 0, base.terms
+    # THE UNIT GRID: depth x earned cross x named / unnamed terminal x every terminal-reading source
+    for depth in (1, 2, 3, 4):
+        for cross in (False, True):
+            for unnamed in (False, True):
+                named = ("a_cbot",) if unnamed else ("a_cbot", "b_cbot")
+                for src in ("tape", "same_driver", W.TERMINAL_UNREAD, ""):
+                    got = _rw2_unit(depth, source=src, cross=cross, named=named).terms["reach"]
+                    assert got == _rw2_banked_reach(depth, unnamed, cross), (depth, cross, unnamed, src, got)
+    # the two cells the split had moved, spelled out: two links deep onto an unnamed market is 25 with the
+    # earned cross and 20 without it, whether its own move is read or not (the split paid 20 / 15 unread)
+    for src in ("tape", W.TERMINAL_UNREAD):
+        assert _rw2_unit(2, source=src).terms["reach"] == 25, src
+        assert _rw2_unit(2, source=src, cross=False).terms["reach"] == 20, src
+
+
+def test_RW2_N8_an_UNREAD_far_market_is_NEVER_DEMOTED_its_reach_credit_is_whole_and_never_a_gate():
+    """THE OWNER'S RULING OF 2026-09-25: cross-market chains and far markets are never demoted or dropped for
+    lack of data -- the reach credit for an unnamed terminal is whole; when far-market reads land (the curve
+    lane), a READ terminal may earn EXTRA credit and an unread one never loses any. So, on the real producer,
+    the unread variant carries exactly the read variant's reach and every other term but HISTORY (which reads
+    the terminal the verdict read, K10); and on the unit, an unread unnamed terminal is worth the full ten
+    over the same chain ending on a named market wherever the ceiling leaves room for it."""
+    tape, _ = _cross_board(tape_delta=+2.0)
+    same, _ = _cross_board(far_row=("-", -3.0))
+    for unread in (_cross_board()[0], _cross_board(far_row=("+", 1.0), far_is_bot_series=True)[0]):
+        assert not W.terminal_read(unread.terminal_reading), unread.terminal_reading
+        for read_ in (tape, same):
+            assert W.terminal_read(read_.terminal_reading), read_.terminal_reading
+            assert unread.terms["reach"] == read_.terms["reach"], (unread.terms, read_.terms)
+            for k in W.CHAIN_TERMS:
+                if k != "history":
+                    assert unread.terms[k] == read_.terms[k], (k, unread.terms, read_.terms)
+    for depth in (1, 2):
+        for cross in (False, True):
+            twin_named = _rw2_unit(depth, source=W.TERMINAL_UNREAD, cross=cross, named=("a_cbot", "b_cbot"))
+            unread = _rw2_unit(depth, source=W.TERMINAL_UNREAD, cross=cross)
+            read_ = _rw2_unit(depth, source="tape", cross=cross)
+            room = int(W.CHAIN_TERM_MAX["reach"]) - twin_named.terms["reach"]
+            assert unread.terms["reach"] - twin_named.terms["reach"] == min(10, room), (depth, cross)
+            assert unread.terms["reach"] == read_.terms["reach"], (depth, cross)
+
+
+def test_RW3_row_side_reads_the_ONE_DECLARED_regime_type_set_the_regime_ladder_reads(monkeypatch):
+    """VERIFY MINOR-7: `walk.row_side` tested the literal "policy_event" while `hop_event`'s regime ladder
+    reads `REGIME_NODE_TYPES` -- two copies of one declared set. Both now read the set: re-declare it and
+    the side test follows, with no second edit."""
+    st = _cs("x", pct=3)
+    row = B.NodeRow(contract="a_cbot", driver_id="ban", sign="+", state=st, series_key=st.key.label())
+    row.type = "policy_event"
+    assert W.row_side(row) is None, "a regime-typed node's condition is its dated action, not a tail"
+    row.type = "state_marker"
+    assert W.row_side(row) == -1
+    monkeypatch.setattr(W, "REGIME_NODE_TYPES", frozenset({"state_marker"}))
+    assert W.row_side(row) is None, "the side test reads the declared set, not a literal"
+    row.type = "policy_event"
+    assert W.row_side(row) == -1

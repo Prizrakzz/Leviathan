@@ -313,7 +313,9 @@ def test_O2_the_splat_registry_is_its_own_tuple_and_the_record_registry_is_untou
     """The absent-when-off idiom, REGISTERED: a second tuple at the module's tail, disjoint from every
     column the record already has, so `TRACE_RECORD_KEYS` (B11: 50 keys, HEAD's 47 a strict prefix) and
     every negative-index tail pin in every deck stay exactly where they were."""
-    assert tk.TRACE_SPLAT_KEYS == ("tldr_spine_deduped", "rv_pair_spread", "rv_pair_uncomputed")
+    # 09-25 (lane A, item A-4): `numbers_error` APPENDED at the splat tail -- the record registry is untouched
+    assert tk.TRACE_SPLAT_KEYS == ("tldr_spine_deduped", "rv_pair_spread", "rv_pair_uncomputed",
+                                   "numbers_error")
     assert len(set(tk.TRACE_SPLAT_KEYS)) == len(tk.TRACE_SPLAT_KEYS)
     cols = {col for _dk, col in tk.DECISION_RECORD_KEYS}
     assert not (set(tk.TRACE_SPLAT_KEYS) & (set(tk.TRACE_RECORD_KEYS) | cols))

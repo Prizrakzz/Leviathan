@@ -1022,7 +1022,11 @@ def _walk_line_rxs() -> dict:
 #: function's own tree is what made the drift visible the moment it happened.
 CHAIN_LINT_COUNTERS: tuple = ("chain_hops_unfigured", "chain_hops_skipped",
                               "chain_unranked_narrated", "chain_hops_ambiguous",
-                              "chain_fence_closed")
+                              "chain_fence_closed",
+                              # 09-25 FIX ROUND 3: lane A's L1 counter (the chain read's N1 -- a hop the
+                              # sentence's own market does not carry is not appended to), rostered in the
+                              # commit that lands its producer (answer._chain_lints)
+                              "chain_hops_off_question")
 #: The collection methods that REMOVE. A correcting fence may call none of them ON THE SERVED TEXT: the
 #: doctrine is "fences CORRECT or COMPUTE, never delete", and the estate has paid for the other reading
 #: twice this month -- the citation verifier deleted five sentences on five real 2026-09-16 turns, and
@@ -1792,6 +1796,63 @@ def check_state_board() -> list[str]:
     errs += _check_chain_lints_append_only()
     errs += _check_analog_near_asof()
     errs += _check_desk_register_classes()
+    errs += _check_tail_words()
+    return errs
+
+
+# -- clause 18 (09-25 fix round, RT-2 / RT-3): the declared side words of a series ------------------
+def _check_tail_words() -> list[str]:
+    """CLAUSE 18. ``state_conventions.tail_words`` -- each entry a ``<table>.<metric>`` pair the board map
+    reads, with BOTH a ``low`` and a ``high`` side, each carrying ``side`` words (and optional ``extreme``
+    words), the two sides DIFFERENT, every phrase ASCII, digit-free, underscore-free and register-clean on
+    all four detectors.
+
+    THE BOOK MAY BE EMPTY: a metric with no entry prints no side words (``render.series_tail_words`` fails
+    closed). What it may never do is declare a side a series cannot have, or words a detector charges --
+    these words land on SB-1, SB-C and SB-W lines beside a figure."""
+    errs: list[str] = []
+    book = load_conventions().get("tail_words")
+    if book is None:
+        return errs
+    if not isinstance(book, dict):
+        return ["state_conventions.yaml: `tail_words` is not a mapping"]
+    try:
+        from leviathan.graphrag.state.feeders import board_map as _bm
+        rows = _bm()
+    except Exception:                                   # noqa: BLE001 -- S0 ordering: fall back to ours
+        rows = board_map()
+    pairs = {"%s.%s" % (str((r or {}).get("table") or ""), str((r or {}).get("metric") or ""))
+             for r in rows.values()}
+    for key, ent in sorted(book.items()):
+        k = str(key)
+        if k not in pairs:
+            errs.append("tail_words %r is not a `<table>.<metric>` pair the board map reads" % (k,))
+        if not isinstance(ent, dict) or set(ent) != {"low", "high"}:
+            errs.append("tail_words %r must declare exactly a `low` and a `high` side" % (k,))
+            continue
+        seen: list = []
+        for side in ("low", "high"):
+            s = ent.get(side)
+            if not isinstance(s, dict) or not str(s.get("side") or "").strip():
+                errs.append("tail_words %r: the %s side carries no `side` words" % (k, side))
+                continue
+            if set(s) - {"side", "extreme"}:
+                errs.append("tail_words %r: the %s side carries an undeclared field %r"
+                            % (k, side, sorted(set(s) - {"side", "extreme"})))
+            for fld in ("side", "extreme"):
+                w = str(s.get(fld) or "")
+                if not w:
+                    continue
+                if any(ch.isdigit() for ch in w) or "_" in w:
+                    errs.append("tail_words %r.%s.%s carries a digit or an underscore (%r)" % (k, side, fld, w))
+                if any(ord(ch) > 127 for ch in w):
+                    errs.append("tail_words %r.%s.%s is not ASCII (%r)" % (k, side, fld, w))
+                hits = _register_hits(w)
+                if hits:
+                    errs.append("tail_words %r.%s.%s is not register-clean: %s" % (k, side, fld, "; ".join(hits)))
+            seen.append(str(s.get("side") or "").strip().lower())
+        if len(seen) == 2 and seen[0] == seen[1]:
+            errs.append("tail_words %r declares the same words for both sides" % (k,))
     return errs
 
 

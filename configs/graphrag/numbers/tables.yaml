@@ -1466,6 +1466,12 @@ tables:
     # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
     country_axis: global            # the WORLD cocoa balance sheet
     period_words: crop_season       # the ICCO cocoa year '2024/25' (Oct-Sep), never a USDA marketing year
+    # 09-25 FIX ROUND (RT-7): WHOSE RELEASE A ROW OF THIS CARD IS. The 09-25 cocoa page called the gap between
+    # the ICCO's February-2026 figure (29.2 %, a menu document) and the served 2024/25 row (28.52 %, the May-2026
+    # release -- `latest_release_date` IS the release) a "trust tier" difference, and the served row not the
+    # ICCO's own figure. They are two RELEASES of one ICCO series. Declared here, read by the row identity's
+    # release words and the citation label (`registry.publisher_words`); never printed in the numbers prompt.
+    publisher_words: "the ICCO"
     # FIRST KNOWN -- DOCUMENTATION ONLY (the verifier's FATAL F1): the presence opts the card into the
     # store-derived period gap (`feeders.stamp_period_gaps` stamps one only where another series of this
     # table on the same board came back holding a NEWER season as known at the as-of); the pair records

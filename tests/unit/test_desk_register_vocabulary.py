@@ -551,7 +551,8 @@ def test_the_mandate_stops_teaching_the_bare_commodity_board():
     # new row's own name is the word it bans (threat R-9: recomputed and pinned, never assumed).
     assert reg.count_desk_register(m, reg.DESK_REGISTER_V1_NAMES) == 23, reg.desk_register_hits(m)
     _new = len(reg.DESK_REGISTER_TOKENS) - len(reg.DESK_REGISTER_V1_NAMES)
-    assert _new == 11
+    # 09-25 FIX ROUND 3 (RT-7): the evidence menu's own tier word ("trust tier") joins the table -- twelve
+    assert _new == 12
     assert reg.count_desk_register(m) == 23 + _new, reg.desk_register_hits(m)
     assert "Chicago wheat or the CBOT wheat" in m
     # the exemption itself did NOT move -- this test is the record of that decision
@@ -827,6 +828,9 @@ _C13_CHARGED = {
     "coverage floor": "admitted at the coverage floor",
     "declared way": "the next hop moved the declared way inside the declared window",
     "declared window": "The dated report at the crude hop sits outside the window declared for it.",
+    # 09-25 FIX ROUND 3 (RT-7): the 09-25 cocoa page's own sentence, verbatim
+    "trust tier": ("The two readings of the same season's cushion differ by trust tier: the ICCO's published "
+                   "2024/25 stocks-to-grindings is 29.2%, while the series read here gives 28.52%."),
 }
 
 

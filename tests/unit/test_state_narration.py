@@ -113,14 +113,17 @@ def test_the_leg_appends_the_literal_and_nothing_else():
     # board's own mandate speaks the record's reader-facing name ("this page") where it said "the block"
     # -- the tariff page's "the other chain the block puts forward" was the mandate's own phrase copied.
     # The leg is otherwise the SAME pure append, and with the register off the mandate is HEAD's object.
-    assert lit == (base.replace(N.state_board_mandate(), N.state_board_mandate(desk=True))
+    # RE-BANKED 09-25 (close-out lane AT, AT-4 -- a DECLARED B1 move on the register cells): the persona's
+    # fork clause speaks the register table's words (`answer._desk_fork_words`) -- the ONE substitution the
+    # leg makes to the persona; the leg is otherwise the SAME pure append.
+    assert lit == (an._desk_fork_words(base.replace(N.state_board_mandate(), N.state_board_mandate(desk=True)))
                    + N.desk_register_mandate(state_board=True))
     assert "the block" not in N.state_board_mandate(desk=True)
     assert N.state_board_mandate() is N.SYSTEM_STATE_BOARD_MANDATE
     # ...and it rides its OWN leg, so a board-off turn still gets it. "the graph" leaks on a cascade
     # walk that carries no board at all, which is why the vocabulary is the ANSWER's and not the block's.
     assert N.desk_register_mandate() in an._system(desk_register=True)
-    assert an._system(desk_register=True) == an._system() + N.desk_register_mandate()
+    assert an._system(desk_register=True) == an._desk_fork_words(an._system()) + N.desk_register_mandate()
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -909,7 +912,7 @@ def test_chain_the_movement_lands_as_three_and_renumbers_the_two_below_it():
     assert N.MANDATE_CHAIN_MOVEMENT in lit
     # the JOIN is grammatical at both ends -- a substitution that welded two clauses is a defect of the
     # shipped text and of nothing smaller
-    assert "another. (3) THE CHAIN: take the chains" in lit
+    assert "another. (3) THE CHAIN: take the block's leading chains" in lit     # 09-25 (A-5)
     assert "named first. (4) SPILLOVERS: name the other markets" in lit
 
 
@@ -1041,7 +1044,9 @@ def test_chain_a_renumbering_that_lost_a_movement_is_caught_by_arithmetic():
     # `the chain's far end` -> `where the chain ends`, `a hop's window` -> `the lag the model allows
     # for it`. The clause-for-clause map is `test_chain_the_B5_clause_map_is_one_to_one` below.
     # the link-by-link narration, in the present tense, off the block's own order
-    "take the chains the block puts first, in the order it gives them",
+    # 09-25 (A-5): the block's LEADING chains -- the page's own verbs ("puts first", "renders in full") are
+    # what the writer copied onto three 09-25 pages, so the order is kept and the vocabulary moved
+    "take the block's leading chains, in the order it gives them",
     "link by link, in the present tense",
     "give the figure in its unit and the plain meaning in the same sentence",
     "which way the driver model expects that link to push the next one",
@@ -1064,12 +1069,13 @@ def test_chain_a_renumbering_that_lost_a_movement_is_caught_by_arithmetic():
     "which of the two the record leans toward and the reading that carries it",
     "saying plainly that the record does not settle it",
     # anti-padding (threat E2) and the count line
-    "Narrate the chains the block puts first and not the rest of the driver model",
-    "where the block prints a count of further chains, state the count and move on",
+    "Narrate those leading chains and not the rest of the driver model",
+    # 09-25 (A-5): the count line gets ONE plain clause and one number -- palm/rape narrated the whole line
+    "where the block prints a COUNT line of further chains, give it one plain clause -- how many further "
+    "chains run into this market, one number -- and move on",
     # ROUND 2, review MAJOR 4: the chain under the print line is RENDERED IN ONE LINE, never dropped,
     # so the writer is ordered to give it its sentence -- the other half of the 2026-09-17 deviation
-    "Where the block carries a chain in one line instead of in full, that chain still gets its "
-    "sentence",
+    "Where the block gives a chain in a single line, that chain still gets its sentence",
     "a turn whose block carries a chain never reaches the reader without one",
     # ROUND 2, ORCHESTRATOR_NOTES item 6: the arithmetic line states the DATA SCOPE, and a short one
     # reads as scarce data and never as a weak chain
@@ -1133,15 +1139,15 @@ def test_chain_the_top_chain_is_NARRATED_even_when_the_block_gives_it_one_line()
     rendering it in full. (The render half of that pin -- a fixture board whose top chain sits below
     the print line renders ONE LINE -- is `tests/unit/test_state_chain_render.py`'s, lane R's file.)"""
     m = N.MANDATE_CHAIN_MOVEMENT
-    assert "in one line instead of in full" in m
+    assert "gives a chain in a single line" in m
     assert "that chain still gets its sentence" in m
     assert "never reaches the reader without one" in m
     # the count clause is still there and is still about the REST -- the one-line chain is not a count
-    assert "where the block prints a count of further chains, state the count and move on" in m
-    assert m.index("in one line instead of in full") > m.index("state the count and move on")
-    # and the order is unconditional on the block's own rendering: "renders in full" appears ONCE, in
-    # the opening clause, and the one-line sentence is what covers the rest
-    assert m.count("renders in full") == 1
+    assert "prints a COUNT line of further chains, give it one plain clause" in m
+    assert m.index("gives a chain in a single line") > m.index("one number -- and move on")
+    # 09-25 (A-5): and the order no longer rides the page's own rendering verb at all -- the writer copied
+    # "the one chain the page renders in full" onto the cocoa page; the chains are the record's LEADING ones
+    assert "renders" not in m and "in full" not in m
 
 
 def test_chain_the_arithmetic_line_is_read_as_DATA_SCOPE_and_never_as_a_weak_chain():
@@ -1271,10 +1277,10 @@ def test_chain_the_B5_clause_map_is_one_to_one():
         assert m.count(new) == 1, new
     # the movement still orders the same NUMBER of things in the same ORDER: the anchors of each order,
     # read off the literal, in sequence
-    anchors = ["take the chains the block puts first", "At each link give the figure",
+    anchors = ["take the block's leading chains", "At each link give the figure",
                "Cite the chain's dated report", "THEN, and only then, say what the record shows",
                "give the chain's own outcome line", "make the call on the pair",
-               "Narrate the chains the block puts first and not the rest",
+               "Narrate those leading chains and not the rest",
                "that chain still gets its sentence", "Where the block states what it could read",
                "Do not restate under the record", "read that stanza as the history"]
     at = [m.index(a) for a in anchors]
@@ -1325,3 +1331,26 @@ def test_fix_0923_decision8_the_v1_count_rides_beside_the_extended_count():
     assert out["offered_v1"] == 1
     clean = an._desk_register_lint({"tldr": "Crush is wide [N2].", "mechanism": ""})
     assert "hits_before_v1" not in clean and "offered_v1" not in clean
+
+
+# ══ 09-25 FIX ROUND 3 (lane A, item A-5; CHAIN_ANALOG_READ N13) -- THE MOVEMENT STOPS TEACHING THE PAGE'S VERBS ══
+def test_0925_A5_the_chain_movement_names_chains_by_mechanism_and_counts_in_one_clause():
+    """MEASURED on the ten 09-25 pages: "the one chain the page renders in full" (cocoa), "The chain the page
+    puts first runs from Thai meal imports" (2024), "The chain the page puts inside this horizon" (max), and
+    palm/rape narrated the COUNT line as a census ("one hundred sequences ... two hundred seventy-one of the
+    five hundred thirteen paths read their own series past one link"). Every one is the mandate's own
+    wording copied. The orders are HEAD's; the literal now (a) calls the chains the record's LEADING chains,
+    (b) orders the writer to NAME a chain by what it links -- the positive order that replaces page-talk
+    rather than forbidding a phrase (J6) -- and (c) gives the count line ONE plain clause with ONE number.
+    Both record names (the block / this page) carry it, and the desk register stays clean."""
+    for desk in (False, True):
+        m = N.state_board_mandate(nonobvious=True, chain=True, desk=desk)
+        rec = N.MANDATE_BLOCK_READER_NAME if desk else N.MANDATE_BLOCK_SELF_NAME
+        for gone in ("renders in full", "puts first", "state the count and move on", "instead of in full"):
+            assert gone not in m, (desk, gone)
+        assert "take %s's leading chains, in the order it gives them" % rec in m, desk
+        assert "Name every chain by what it links -- where it starts and the market it reaches" in m
+        assert "give it one plain clause -- how many further chains run into this market, one number" in m
+    assert N.check_literals() == []
+    assert N.state_board_mandate(chain=False) is N.SYSTEM_STATE_BOARD_MANDATE      # chain off: HEAD's object
+

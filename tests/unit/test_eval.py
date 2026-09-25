@@ -1137,7 +1137,9 @@ def test_the_chain_counter_gloss_is_built_from_the_roster_and_cannot_outlive_a_r
         if "chain_sixth_counter" in x]
     assert len(sixth) == 1 and "`chain_sixth_counter` 5" in sixth[0]
     assert "`chain_sixth_counter` is NOT" not in sixth[0]
-    assert "the 6 `state.lint.CHAIN_LINT_COUNTERS`" in sixth[0]   # the COUNT is read, never spelled
+    # the COUNT is read, never spelled -- 09-25 FIX ROUND 3 (lane RT): the shipped roster holds six since lane A's
+    # `chain_hops_off_question` was rostered, so the "sixth" appended here is the seventh; the pin reads the length
+    assert ("the %d `state.lint.CHAIN_LINT_COUNTERS`" % len(LINT.CHAIN_LINT_COUNTERS)) in sixth[0]
 
 
 # ── LANE F (2026-09-17): THE COST CENSUS AND THE SPEND PANEL ──────────────────────────────────────

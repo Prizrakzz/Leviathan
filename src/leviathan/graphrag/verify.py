@@ -426,10 +426,98 @@ def _match_ledger_entry(entry: dict, evidence: list[dict], *, display: bool = Fa
     return out
 
 
+#: The sentence boundary every prose pass here walks (PASS 1's `_BOUND`): never a decimal point.
+_SENTENCE_BOUND_RX = re.compile(r"[.!?;](?=\s|$)|\n")
+
+
 def _ledger_documents(items: list[dict]) -> set:
     """The distinct DOCUMENTS a list of evidence items is: (source, date). Two chunks of one release are
     one document, so they never make a retry ambiguous."""
     return {(_norm(str(e.get("source") or "")), str(e.get("date") or "")[:10]) for e in items or []}
+
+
+# ══ 09-25 FIX ROUND 3, LANE VC (VC-2) -- AT AN ISSUED ADDRESS THE MENU'S OWN DATE IS THE DECLARATION'S IDENTITY ══
+# THE MEASURED DEFECT (09-25: rice fabricated_citation 4 + ledger_cascade 5, soyoil 1 + 1, the tariff's
+# unsupported_at_address x2 and fabricated 3 + cascade 3). The writer declares a menu citation by its INDEX
+# and its DATE exactly as the menu printed them ("[E38][T2] (usda_gain_rice, reported 2025-04-15)" ->
+# {ref 38, "USDA GAIN attache report (rice)", 2025-04-15}) and spells the PUBLISHER in its own gloss -- the
+# persona's SOURCE TRUST words (answer.py "T2 USDA attache GAIN") and the menu's [Tn] tag. HEAD's matcher
+# keys on the publisher's spelling (substring; round 2 added the display name by EQUALITY), so a correct
+# index and a correct date were convicted by a paraphrase, and at a board-issued address the same paraphrase
+# made the declaration "disputed" and handed its prose to the support test (the tariff's two strikes).
+# THE IDENTITY IS THE ADDRESS AND ITS DATE; THE SOURCE ONLY DISAMBIGUATES. A declaration at an issued address
+# NAMES that address when its declared date IS the address's own document date AND its source names no OTHER
+# publisher the turn holds AND no other document the turn holds carries that date (with a rival of the same
+# date the source string would have to choose between them, and a paraphrase cannot -- so that case keeps
+# round 2's dispute and the address's own support test). A source that names another document EXACTLY is
+# still the index slip (`_exact_ledger_documents`, decided before this is asked).
+# REJECTED (lexical): an alias table of "attache report" / "industry body" / "[T2]" spellings folded onto the
+# store's source ids -- a list of today's glosses standing in for the index and date the menu printed.
+def _date_named_documents(entry: dict, item: dict, evidence: list) -> set:
+    """VC-2: the ONE document a declaration's DATE names when its source names no document the turn holds and
+    its date is not the address's own: the documents carrying exactly that date, when there is exactly one --
+    else () (several share the date: a paraphrase cannot choose, so the address keeps its dispute)."""
+    when = str((entry or {}).get("date") or "")[:10]
+    if not when or when == str((item or {}).get("date") or "")[:10]:
+        return set()
+    docs = _ledger_documents([e for e in evidence or [] if str((e or {}).get("date") or "")[:10] == when])
+    return docs if len(docs) == 1 else set()
+
+
+def _declared_names_address(entry: dict, item: dict, evidence: list) -> bool:
+    """Does a DECLARED ledger entry name the issued address's document by its identity -- the address's own
+    document date, a source that names no other publisher, and no rival document of that date? (VC-2)"""
+    when = str((entry or {}).get("date") or "")[:10]
+    if not when or when != str((item or {}).get("date") or "")[:10]:
+        return False
+    own_src = _norm(str((item or {}).get("source") or ""))
+    src = str((entry or {}).get("source") or "").strip()
+    if src and any(_source_is(src, (e or {}).get("source"), display=True)
+                   and _norm(str((e or {}).get("source") or "")) != own_src for e in evidence or []):
+        return False                                   # the declaration names ANOTHER publisher
+    own = _ledger_documents([item])
+    return not any(str((e or {}).get("date") or "")[:10] == when and not (_ledger_documents([e]) & own)
+                   for e in evidence or [])
+
+
+# ══ 09-25 FIX ROUND 3, LANE VC (VC-4) -- ONE DOCUMENT, ONE ADDRESS: A REF THAT RESOLVES TO ANOTHER ADDRESS FOLDS ══
+# THE MEASURED DEFECT (09-25 quick corn/wheat, the chain reader's N10): the writer declared refs 1 AND 10 as
+# "USDA WASDE (official balance sheet, T1)" 2024-04-11, and `citation_resolved` carried E1 and E10 with the
+# SAME `source_key` -- one document at two addresses, against round 2's one-ledger-one-address contract. The
+# matcher (an index slip, or a ref past the list) resolves a declaration to the document it NAMES, but that
+# document already holds an address in the turn's one positional list (`EvidenceLedger`: the menu is deduped
+# by source_key, the block appends only new keys). So on a turn whose ledger issued addresses, a ref that
+# resolves to a document held at ANOTHER address FOLDS onto that address -- keyed on `source_key`, the
+# document's durable identity, never on its spelling: the prose handle is CORRECTED to the address
+# (`_refold_e_handles`, a handle token re-written, no word touched), the report keeps one resolution per
+# document, and a second declaration of the same document is not kept (its row would be the first's twin).
+def _refold_e_handles(text: str, fold: dict) -> tuple:
+    """(text with every [E] member whose index is a key of `fold` re-written to its address, count). A
+    RANGE token ("[E10-E12]") is left as written: re-writing one end of it would change what it spans."""
+    if not fold or not text:
+        return text, 0
+    n = 0
+
+    def _fix(m):
+        nonlocal n
+        tok = m.group(0)
+        inner = tok[1:-1]
+        if _H_RANGE_RX.match(inner.strip()):
+            return tok
+        parts, at, lead = [], 0, ""
+        for mm in _H_MEMBER_RX.finditer(inner):
+            k = mm.group(1)
+            lead = lead or k
+            if (k or lead or "E") == "E" and int(mm.group(2)) in fold:
+                parts.append(inner[at:mm.start(2)])
+                parts.append(str(fold[int(mm.group(2))]))
+                at = mm.end(2)
+                n += 1
+        if not parts:
+            return tok
+        return "[" + "".join(parts) + inner[at:] + "]"
+
+    return _HANDLE.sub(_fix, str(text)), n
 
 
 def _numbers_in(s: str) -> list[float]:
@@ -1735,13 +1823,56 @@ def _display_unit_of(call: dict) -> str:
     return str(_display_spec_of(table, metric)[1] or "")
 
 
+# ══ 09-25 FIX ROUND 3, LANE VC (VC-1) -- A STAMPED ROW'S SIDE FIGURES ARE ITS OWN TYPED MEMBERS ══════════
+# THE MEASURED DEFECT (09-25 quick palm/rape: number_unbacked 15 -- 22 correct numerals printed uncited, the
+# page's answer "+170,000 MT (+70.25%) [N12] ... +14,900 MT (+2.1%) [N11]" served with no receipt). The seat's
+# window_change rows carry the calculator's percent (`pct_change`, lane T's K5 half) and the LABEL prints it
+# beside the change ("(+70.25 %)", `citations._pct_words`); `_row_vals` / `_all_row_vals` read only
+# `row["value"]`, so the percent was a figure nobody served and the P9-B backstop convicted every handle in
+# its sentence. THE FIX READS THE ONE PRODUCER THE LABEL PRINTS FROM (`citations.row_side_figures`): each
+# side figure is a member of its call, TYPED by the unit the label prints it in -- the K7 display member's
+# discipline exactly (`display_backs`), so "70.25%" is backed by [N12]'s percent and "70.25 MT" is not. ONLY
+# on STAMPED calls (`display == "analyst"`, board turns): the member rides the seat row only under the board
+# kwarg anyway, and the stamp is the one fact this module already keys every board-only arm on, so a
+# board-off turn's vocabulary is HEAD's by two independent constructions.
+# REJECTED (lexical): exempting a figure because a "%" follows it, or because it sits inside parentheses
+# after a handle's figure -- a shape standing in for the fact that the row carries that member.
+def _side_members(call: dict) -> tuple:
+    """((values), unit tokens) groups for every side figure a STAMPED call's rows print, from
+    `citations.row_side_figures` (read defensively: an absent producer is no member) -- else ()."""
+    if not isinstance(call, dict) or call.get("display") != "analyst":
+        return ()
+    try:
+        from leviathan.graphrag import citations as _cit
+        fn = getattr(_cit, "row_side_figures", None)
+    except Exception:  # noqa: BLE001
+        fn = None
+    if not callable(fn):
+        return ()
+    by_unit: dict = {}
+    for r in (call.get("rows") or []):
+        try:
+            figs = fn(r) or ()
+        except Exception:  # noqa: BLE001 -- an unreadable row prints nothing beside its value
+            continue
+        for v, u in figs:
+            ut = _unit_tokens(u or "")
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                continue
+            if ut and fv == fv:
+                by_unit.setdefault(ut, []).append(fv)
+    return tuple((tuple(vs), ut) for ut, vs in by_unit.items())
+
+
 class _VCtx:
     """One `verify_citations` run's charge-site context: the calls, the served-scalars pool, the
     per-sentence declared unit grammar and the per-sentence BINDING (both memoised on the sentence). Every
     charge-site predicate takes it as an optional keyword, so a caller that passes nothing (a deck, a
     grader's repro) gets the same vocabulary with no pool -- the board-off reading."""
 
-    __slots__ = ("calls", "pool", "_g", "_b", "pool_hits", "disp", "disp_defs", "_gd", "stamped")
+    __slots__ = ("calls", "pool", "_g", "_b", "pool_hits", "disp", "disp_defs", "_gd", "stamped", "memb")
 
     def __init__(self, number_calls, served_scalars=None):
         self.calls = number_calls or []
@@ -1752,6 +1883,9 @@ class _VCtx:
         # FIX ROUND 2 (K7): {call index: ((scaled values), display-unit tokens)} for the STAMPED calls whose
         # card declares a display scale -- empty on every board-off turn (no stamp), so HEAD's reading.
         self.disp: dict = {}
+        # 09-25 VC-1: {call index: (((values), unit tokens), ...)} -- the side figures a STAMPED call's rows
+        # print (`_side_members`); empty on every board-off turn (no stamp), so HEAD's reading.
+        self.memb: dict = {}
         self.disp_defs = None                         # 28f: does any call carry the stamp? (lazy)
         self._gd: dict = {}                           # 28f: sentence -> grammar with its bound definitions
         self.stamped: frozenset = frozenset()          # K4: the [N] indices carrying the analyst stamp
@@ -1762,23 +1896,39 @@ class _VCtx:
                 _dm = _display_members(_c)
                 if _dm:
                     self.disp[_j] = _dm
+                _sm = _side_members(_c)
+                if _sm:
+                    self.memb[_j] = _sm
         self.stamped = frozenset(_st)
+
+    @property
+    def typed(self) -> bool:
+        """Does any stamped call carry a TYPED member (a K7 display member or a VC-1 side figure)?"""
+        return bool(self.disp or self.memb)
 
     def display_backs(self, s: str, b: int, v: float, dec, idxs=None, g=None) -> bool:
         """K7: is the numeral ending at `s[:b]` (value `v`, written to `dec` places) backed by the DISPLAY
         member of one of the calls `idxs` (every stamped call when None)? Only when the unit written right
         after it is that call's display unit, and at SCALE 1 (reader precision included) -- the member IS
-        the figure at its declared scale, so no bridge is stacked on it."""
-        if not self.disp:
+        the figure at its declared scale, so no bridge is stacked on it.
+        09-25 VC-1: or by one of those calls' SIDE figures (`_side_members` -- the calculator's percent the
+        label prints beside a change), under exactly the same typed test: the unit written after the
+        numeral is the member's unit."""
+        if not (self.disp or self.memb):
             return False
-        cands = list(self.disp.items()) if idxs is None else [(j, self.disp[j]) for j in idxs if j in self.disp]
+        js = list(dict.fromkeys(list(self.disp) + list(self.memb))) if idxs is None else list(idxs)
+        cands = []
+        for j in js:
+            if j in self.disp:
+                cands.append(self.disp[j])
+            cands.extend(self.memb.get(j, ()))
         if not cands:
             return False
         written = _unit_written_at(s, b, g)
         if not written:
             return False
         return any(_unit_equal(written, utoks) and _num_backed(v, list(vals), dec=dec)
-                   for _j, (vals, utoks) in cands)
+                   for (vals, utoks) in cands)
 
     def grammar(self, sent: str) -> _UnitGrammar:
         idx = tuple(_cited_number_idx(sent, self.calls))
@@ -2015,7 +2165,7 @@ def _unbound_handle(sent: str, idx: int, number_calls: list, ctx) -> bool:
                 continue
             # FIX ROUND 2 (K7): the DISPLAY member (typed) of [N`idx`] itself or of a group member of its
             # own row identity -- its own figure at the card's scale
-            if ctx.disp and ctx.display_backs(
+            if ctx.typed and ctx.display_backs(
                     _mask_handles(sent), _b, v, d,
                     [j for j in _mine_js if j == idx or (rid and str((number_calls[j - 1] or {}).get("_row_id")
                                                                    or "") == rid)],
@@ -2050,7 +2200,7 @@ def _unbound_handle(sent: str, idx: int, number_calls: list, ctx) -> bool:
                 continue
             if ctx.pool and ctx.pool_backs(sent, _a, _b, v, d, count=False):
                 continue                          # the bound group's ROW printed it (C4, binding-scoped)
-            if ctx.disp and ctx.display_backs(_mask_handles(sent), _b, v, d,
+            if ctx.typed and ctx.display_backs(_mask_handles(sent), _b, v, d,
                                               _group_members_n(groups[gi], number_calls), ctx.grammar(sent)):
                 continue                          # FIX ROUND 2 (K7): the bound group's DISPLAY member
             return False
@@ -2171,7 +2321,7 @@ def _sibling_backed(sent: str, idx: int, number_calls: list[dict], *, ctx=None) 
             continue
         if ctx.pool and ctx.pool_backs(sent, a, b, v, dec[0], key=sent):
             continue
-        if ctx.disp and ctx.display_backs(masked, b, v, dec[0], sib_js, ctx.grammar(sent)):
+        if ctx.typed and ctx.display_backs(masked, b, v, dec[0], sib_js, ctx.grammar(sent)):
             continue                              # FIX ROUND 2 (K7): a sibling's typed DISPLAY member
         return False
     return True
@@ -4567,7 +4717,7 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict], *, ctx=N
         # call is that call's figure, however rule (e) filed the ordinal.
         # FIX ROUND 2 (K7): or a figure written in the cited call's DISPLAY unit that its display member
         # backs ("36 % [N20]" on a 0.3556 row whose card displays x100 in %). Empty on unstamped calls.
-        if not ((ctx.disp and any(ctx.display_backs(stripped, b, v, d, (idx,), g)
+        if not ((ctx.typed and any(ctx.display_backs(stripped, b, v, d, (idx,), g)
                                   for (_a, b, v), d in zip(spans, sent_decs)))
                 or _own_ordinal(sent, idx, number_calls, pool)
                 or _unbound_handle(sent, idx, number_calls, ctx)):
@@ -4594,7 +4744,7 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict], *, ctx=N
         if (spans or _uv) and allv:
             # the pool is BINDING-SCOPED (C4, fix-round FATAL-4): its test reads the numeral at its offset in
             # the sentence AS WRITTEN, where the handle groups it binds to are
-            _at = _stripped_offsets(sent) if ctx.pool else None
+            _at = _stripped_offsets(sent) if (ctx.pool or ctx.stamped) else None
             for (a, b, v), d in zip(spans, sent_decs):
                 if _num_backed(v, allv, dec=d) or (row_vals and _num_matches([v], row_vals, [d])):
                     continue
@@ -4602,7 +4752,10 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict], *, ctx=N
                     continue
                 # FIX ROUND 2 (K7): a stamped call's DISPLAY member, typed by the unit written after the
                 # figure -- the rice "35.5568%" beside [N20] = 0.3556 (card: x100, "%")
-                if ctx.disp and ctx.display_backs(stripped, b, v, d, None, g):
+                if ctx.typed and ctx.display_backs(stripped, b, v, d, None, g):
+                    continue
+                # 09-25 VC-1: a figure the writer ADDRESSED to an evidence handle is that document's claim
+                if ctx.stamped and _evidence_addressed(sent, _at[a], _at[b - 1] + 1, ctx):
                     continue
                 return "number_unbacked"
             for v in _uv:
@@ -4626,6 +4779,26 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict], *, ctx=N
 # citation. The defect it was built for -- the tariff "higher year-on-year [N29] vs [N30]" handles struck
 # by a neighbour's numeral and leaving "vs." dangling -- is closed by the binding rule: those handles bind
 # no figure, so `_unbound_handle` keeps them and the sentence is served as written.
+
+def _evidence_addressed(sent: str, a: int, b: int, ctx) -> bool:
+    """09-25 FIX ROUND 3, LANE VC (VC-1's binding scope, the cocoa fact grade's F-N3) -- is the numeral at
+    `sent[a:b]` (offsets as written, handles included) bound ADJACENTLY -- the estate's "figure [handle]"
+    convention, `_bind`'s first and structural reading -- to a handle group whose members are ALL evidence
+    handles? Then it is the DOCUMENT's figure, which the [E] path counts and never charges (OWNER DECISION 13,
+    `e_numerals_unverified`), and no [N] handle in the same sentence is convicted by it. MEASURED on 09-25 cocoa:
+    "the ICCO's published 2024/25 stocks-to-grindings is 29.2% [E7], while the series read here gives 28.52%
+    [N1]" -- [N1] (28.52, its own figure) dropped number_unbacked for [E7]'s 29.2. Only on STAMPED calls (the
+    board turn), like every arm this module adds for the board; a figure bound by any weaker reading
+    ("segment", "backed", "window") keeps the P9-B backstop exactly as it was.
+    REJECTED (lexical): exempting a numeral because a "%" or the word "published" sits near an [E]."""
+    groups, _figs, bound = ctx.binding(sent)
+    for gi, fs in bound.items():
+        for f in fs:
+            if f[0] == a and f[1] == b and f[5] == "adjacent":
+                kinds = {k for m in groups[gi] for k, _j in _handle_members(m.group(0))}
+                return bool(kinds) and kinds == {"E"}
+    return False
+
 
 def _handle_groups(sent: str) -> list:
     """The sentence's handle tokens in written order, ADJACENT tokens (only blanks between) grouped: a group
@@ -5347,6 +5520,89 @@ def _bound_full_dates(text: str, h0: int, h1: int, s0: int, s1: int) -> list:
     return out
 
 
+# ══ 09-25 FIX ROUND 3, LANE VC (VC-3) -- A SENTENCE ABOUT A RECEIPT'S DATE IS BOUND BY THE RECEIPT'S IDENTITY ══
+# THE MEASURED DEFECT (09-25 quick palm/rape, the chain reader's N9): the board printed the chain's aged
+# receipt -- "a dated action 2008-06-01, older than the lag the model allows for it" at [E10], an event the
+# store dates to the MONTH -- and the writer restated the ROW: "Its only dated document is an action in June
+# 2008 [E10], far older than the lag the model allows." A sentence ABOUT a receipt (its date, its age) shares
+# no word with the receipt's TEXT by construction, so `no_lexical_overlap` cut the chain's only receipt (the
+# 09-24 corn/wheat R3 strike was the same class; the tariff's "the February 2025 action [E7]" the same again).
+# THE FIX IS THE RECEIPT'S IDENTITY, READ AT ITS OWN PRECISION: a MONTH-YEAR date written in the handle's own
+# clause ("in June 2008 [E10]") or right after it ("[E10], reported June 2008") -- the shape
+# `_bound_full_dates` reads for a day -- names the document when the address CARRIES that month (its
+# document date's month, an event date stored at day or month precision, a full date its own text states)
+# and no rival document the sentence could mean carries it: the identity the block printed beside the
+# address, held UNIQUE exactly as `_address_supports`' other identity arms are. A year-precision event, a
+# bare year and a season are never an identity (a year names no one document -- the twin drive's residue).
+# REJECTED (lexical): an allow-list of receipt-talk phrasings ("dated document", "older than the lag",
+# "outside the window") exempted from the overlap test -- a spelling standing in for the date the row carries.
+_MONTH_YEAR_RXS = (
+    re.compile(r"(?<![\w])(" + _MON_RX + r")\s*,?\s+((?:19|20)\d{2})(?!\d)", re.I),
+    re.compile(r"(?<![\d\-/])((?:19|20)\d{2})-(0[1-9]|1[0-2])(?![\d\-/])"),
+)
+
+
+def _month_dates(text: str) -> list:
+    """(start, end, (y, m)) for every MONTH-YEAR date written in `text` that is not part of a full date."""
+    full = [(a, b) for a, b, _ymd in _full_dates(text)]
+    out = []
+    for i, rx in enumerate(_MONTH_YEAR_RXS):
+        for m in rx.finditer(text or ""):
+            if any(a < m.end() and m.start() < b for a, b in full):
+                continue
+            try:
+                y, mo = (int(m.group(2)), _mon(m.group(1))) if i == 0 else (int(m.group(1)), int(m.group(2)))
+            except (TypeError, ValueError):
+                continue
+            if 1 <= mo <= 12:
+                out.append((m.start(), m.end(), (y, mo)))
+    return sorted(out)
+
+
+def _bound_month_dates(text: str, h0: int, h1: int, s0: int, s1: int) -> list:
+    """The MONTH-YEAR dates in text[s0:s1] bound to the handle at text[h0:h1], in `_bound_full_dates`' two
+    shapes (the handle's own clause before it; "[E1], reported <month year>" after it)."""
+    sent = text[s0:s1]
+    hs = [(m.start() + s0, m.end() + s0) for m in _HANDLE.finditer(sent)]
+    out = []
+    for a, b, ym in _month_dates(sent):
+        a, b = a + s0, b + s0
+        best, bd = None, None
+        for x0, x1 in hs:
+            dist = (x0 - b) if x0 >= b else (a - x1) + 0.5
+            if bd is None or dist < bd:
+                best, bd = (x0, x1), dist
+        if best != (h0, h1):
+            continue
+        if h0 >= b:
+            if re.search(r"[,;:]|--|[" + chr(0x2013) + chr(0x2014) + r"]", text[b:h0]):
+                continue
+        elif not re.fullmatch(r"\s*,?\s*(?:[A-Za-z]+\s+){0,2}", text[h1:a]):
+            continue
+        out.append(ym)
+    return out
+
+
+def _carries_month(item: dict, ym: tuple) -> bool:
+    """Does an evidence item carry the month `ym` = (y, m) at MONTH precision or finer -- its document date,
+    its event date stored at day or month precision, or a full date its own text states?"""
+    full, _yearless, prefixes = _item_dates(item)
+    return (tuple(ym) in prefixes) or any((y, mo) == tuple(ym) for y, mo, _d in full)
+
+
+def _month_identity(months, items: list, rivals: list) -> bool:
+    """VC-3: a bound month-year date the address's chunk union carries and NO rival document carries."""
+    ml = [tuple(m) for m in (months or ()) if m]
+    if not ml or not items:
+        return False
+    own_docs = _ledger_documents(items)
+    others = [e for e in rivals or [] if not (_ledger_documents([e]) & own_docs)]
+    for ym in ml:
+        if any(_carries_month(it, ym) for it in items) and not any(_carries_month(e, ym) for e in others):
+            return True
+    return False
+
+
 def _e_date_verdict(text: str, h0: int, h1: int, s0: int, s1: int, items: list, evidence: list, *,
                     address: bool = False):
     """(None, None) when the handle's bound full dates fit its item; ("readdress", new_items) when they
@@ -5395,7 +5651,7 @@ def _positional_support(sent: str, item: dict, evidence: list) -> bool:
     return all(len(st & _tokens((e or {}).get("text") or "")) <= own for e in evidence or [])
 
 
-def _address_supports(sent: str, items: list, evidence: list | None = None, *, dates=()) -> bool:
+def _address_supports(sent: str, items: list, evidence: list | None = None, *, dates=(), months=()) -> bool:
     """FIX ROUND 2 (CONTRACT K1 (a), AMENDED BY THE FIXER PASS, REVIEW_VC F1 + M4) -- does the document an
     ISSUED address names support the sentence? An address is issued only when the BLOCK printed it
     (`EvidenceLedger.issued`), so the question is whether the sentence is the one the block's row backs.
@@ -5422,9 +5678,19 @@ def _address_supports(sent: str, items: list, evidence: list | None = None, *, d
     month names and unit spellings (`_grammar_words`, RETIRED): measured on 1,099 unseen answers it left 56%
     of same-turn twins open and dropped true citations anchored on "September" or "percent". The menu-
     relative test is the structural one -- a document is named by being the closest the turn holds, or by
-    an identity the block printed."""
-    if not items or _check_evidence_handle(sent, items, quotes=False) is not None:
+    an identity the block printed.
+
+    09-25 FIX ROUND 3, LANE VC (VC-3): the DATED identities -- a bound full date the address carries at day
+    precision, or a bound MONTH-YEAR date it carries at month precision or finer (`_month_identity`), each
+    held unique against the rivals -- also bind a sentence that clause (i) refuses ONLY for sharing no word
+    with the chunk (`no_lexical_overlap`): a sentence ABOUT a receipt (its date, its age -- "an action in June
+    2008 [E10]") shares no word with the receipt's text by construction, and the date the block printed beside
+    the address is what names it -- provided the sentence states no claim magnitude the address's chunks do
+    not (it restates the receipt; it does not make a new claim under its date). A quoted span no chunk carries
+    is never rescued (clause (i)'s other verdicts stand), and no other identity arm moves ahead of clause (i)."""
+    if not items:
         return False
+    _ci = _check_evidence_handle(sent, items, quotes=False)
     st = _tokens(sent)
     own_docs = _ledger_documents(items)
     others = [e for e in evidence or [] if not (_ledger_documents([e]) & own_docs)]
@@ -5432,7 +5698,22 @@ def _address_supports(sent: str, items: list, evidence: list | None = None, *, d
     def _unique(pred) -> bool:
         return not any(pred(e) for e in others)
     dl = [d for d in (dates or ()) if d]
-    if dl and _unique(lambda e: any(_date_fits(ymd, _item_dates(e), day_only=True) for ymd in dl)):
+    _dated = bool(dl and _unique(lambda e: any(_date_fits(ymd, _item_dates(e), day_only=True) for ymd in dl)))
+    # 09-25 VC-3: a MONTH-YEAR date bound to the handle that the address carries at its own precision and no
+    # rival document carries (the receipt's dated event as the block printed it -- `_month_identity`)
+    _dated = _dated or bool(months and _month_identity(months, items, others))
+    if _ci is not None:
+        # ...and only a sentence that makes no claim of its own beyond the date: every claim magnitude it states
+        # is one the address's chunks state (vacuous for "an action in June 2008 [E10]"). A dated sentence that
+        # asserts figures the shown chunk does not carry ("duties of 10 to 15 percent in March 2025 [E46]"
+        # against a chunk saying only "retaliatory tariffs") is NOT restating the receipt, and the date the
+        # receipt carries cannot launder its figures (THREAT_MODEL C-1: a sentence matching neither chunk).
+        if _ci != "no_lexical_overlap" or not _dated:
+            return False
+        _sc = {round(abs(v), 9) for v in _claim_numbers_in(_HANDLE.sub("", sent))}
+        _tc = {round(abs(v), 9) for v in _claim_numbers_in(" ".join((e or {}).get("text") or "" for e in items))}
+        return _sc <= _tc
+    if _dated:
         return True
     iso = {str((e or {}).get("date") or "")[:10] for e in items}
     for d in iso:
@@ -5532,6 +5813,25 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
     Report keys added only when non-empty: `ledger_declared_mismatch`; `unit_mismatch` (K4: a numeral
     bound to a STAMPED call whose written unit family differs from the call's -- counted, never charged;
     lane A's name lint corrects the words).
+
+    == 09-25 FIX ROUND 3 (lane VC) -- every change keys on the same two board-only facts as round 2 ==========
+    (the analyst stamp on the calls, the `evidence_chunks` kwarg), so a board-off turn is HEAD's report byte
+    for byte (B19 re-proved on 1,109 unseen answers):
+      VC-1  a STAMPED call's side figures (`citations.row_side_figures`: the calculator's percent the label
+            prints beside a change) are typed members of that call (`_side_members`, read by `display_backs`);
+            a figure ADDRESSED to an all-evidence handle group is that document's, never a charge on an [N]
+            handle of the same sentence (`_evidence_addressed`).
+      VC-2  the ledger issues the menu's ordinals (lane C, `EvidenceLedger`); at an issued address a
+            declaration whose date is the address's own and whose source names no other publisher, with no
+            rival document of that date, NAMES the address (`_declared_names_address`: relabelled, never
+            disputed); a paraphrase whose date names exactly one OTHER document is that document's index slip
+            (`_date_named_documents`). Key: `ledger_address_identity`.
+      VC-3  a dated identity (a bound day the address carries at day precision, a bound month-year it carries
+            at month precision or finer -- `_month_identity`), unique against the rivals, binds a sentence the
+            lexical test refuses only for sharing no word with the receipt. Key: `receipt_identity_bound`.
+      VC-4  a declaration naming a document ANOTHER entry declares at that document's own address is a second
+            label, not an index slip (`ledger_index_upheld`); a ref resolved to a document held at another
+            ISSUED address folds onto it -- the prose handle corrected (`folded`, `folded_handles`).
     """
     # CYCLE-8 FIX 2(c): `repaired` / `repairs` are ALWAYS present (0 / []), never gated. See the
     # no-laundering note in PASS 2.
@@ -5603,6 +5903,11 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         _chunks = evidence_chunks if isinstance(evidence_chunks, dict) else {}
         _ledger_mismatch: dict = {}
         _addr_disputed: set = set()                 # declared refs whose declaration named ANOTHER document
+        _addr_identity: list = []                   # 09-25 VC-2: refs a paraphrased source relabelled, no dispute
+        _receipt_bound: list = []                   # 09-25 VC-3: declared refs bound by a dated identity
+        _folded: dict = {}                          # 09-25 VC-4: {ref: address} -- one document, one address
+        _index_kept: list = []                      # 09-25 VC-4: declared refs whose INDEX the ledger upheld
+        _matched_refs: set = set()                  # 09-25 VC-4: refs the matcher (not their address) resolved
         _unit_mismatch: list = []                   # K4: bound numerals written in another unit family
 
         # FIX ROUND 2, fixer pass (REVIEW_VC F1 (a), the K1 amendment): an address is ISSUED only when the
@@ -5638,6 +5943,12 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             _dv = _e_date_verdict(text, h0, h1, s0, s1, its, evidence, address=True)[0]
             return _dv, (tuple(_bound_full_dates(text, h0, h1, s0, s1)) if _dv is None else ())
 
+        def _months(text: str, h0: int, h1: int, s0: int, s1: int) -> tuple:
+            """09-25 VC-3: the MONTH-YEAR dates bound to the handle (`_bound_month_dates`) -- a month is never
+            a contradiction (the writer may be dating the event), only an identity when the address carries
+            it and no rival does (`_month_identity`)."""
+            return tuple(_bound_month_dates(text, h0, h1, s0, s1))
+
         def _address_items(k: int) -> list:
             """The chunk union an issued address k shows: its own item, then every other text the ledger
             showed under k (one document, one address; K1 (c))."""
@@ -5652,6 +5963,27 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     out.append(c)
                     seen.add(t)
             return out
+
+        def _declared_at_own_address(ref: str, named: set) -> bool:
+            """09-25 VC-4: does ANOTHER entry of the writer's ledger already declare the named document at that
+            document's OWN address? Then this entry's source and date are a second LABEL of a document the ledger
+            already places -- one document, one address -- never an index slip, and the index stands. MEASURED on
+            09-25 corn/wheat: refs 1 AND 10 both declared "USDA WASDE" 2024-04-11; the WASDE sits at address 10
+            and is declared there, so ref 1 is the prose's own [E1] -- the 2021-10-14 GAIN report its sentence
+            quotes ("corn feed use rose at wheat's expense ... in MY2021/22") -- with a mislabelled declaration,
+            which HEAD's matcher re-pointed at the WASDE (one document at two addresses, the wrong one cited).
+            A lone declaration naming another document keeps the round-2 index slip (the twin drive's DECL cell)."""
+            for d in structured.get("sources") or []:
+                r = str((d or {}).get("ref", "")).strip().strip("[]")
+                if r == str(ref) or not r.isdigit() or not (1 <= int(r) <= len(evidence)):
+                    continue
+                doc_r = _ledger_documents([evidence[int(r) - 1]])
+                if not (doc_r & named):
+                    continue
+                if (_exact_ledger_documents(d, evidence, display=True) & doc_r
+                        or _declared_names_address(d, evidence[int(r) - 1], evidence)):
+                    return True
+            return False
 
         _readdressed: list = []
         _resolved_undeclared: dict = {}
@@ -5717,6 +6049,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # FIX ROUND 2 (K1 (b)): a DECLARED entry at an ISSUED address resolves to that address -- the
             # ledger issued [Ek] for one document -- and a declaration that disagrees is corrected to it.
             _slip = False
+            _slip_by_date = False                         # 09-25 VC-2: the slip's document was named by its DATE
             if _issued(ref):
                 _k = int(ref)
                 _it = evidence[_k - 1] or {}
@@ -5734,7 +6067,19 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                 if str(s.get("source") or "").strip():
                     _named = _exact_ledger_documents(s, evidence, display=True)
                     _slip = bool(_named) and not (_named & _ledger_documents([_it]))
+                    if not _named:
+                        # 09-25 VC-2: a publisher in paraphrase names no document; its DATE, where it is not the
+                        # address's own and exactly ONE document the turn holds carries it, names that one (the
+                        # date the menu printed beside the document the writer meant) -- the index slip again
+                        _named = _date_named_documents(s, _it, evidence)
+                        _slip = bool(_named) and not (_named & _ledger_documents([_it]))
+                        _slip_by_date = _slip
+                    if _slip and _declared_at_own_address(ref, _named):
+                        _slip = False                     # 09-25 VC-4: the index is right, the label slipped
+                        _slip_by_date = False
+                        _index_kept.append(ref)
             if _issued(ref) and not _slip:
+                _declared = s
                 if not (_src_ok and _date_ok):
                     _ledger_mismatch[ref] = {
                         "declared": {"source": s.get("source"), "date": s.get("date")},
@@ -5743,12 +6088,23 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     s = {**s, "source": _it.get("source") if not _src_ok else s.get("source"),
                          "date": _it.get("date") if (not _date_ok) else s.get("date")}
                     report["corrected"] += 1
-                    _addr_disputed.add(ref)
+                    # 09-25 VC-2: the address's own DATE, as the menu printed it beside [Ek], is the
+                    # declaration's identity -- a publisher spelt in paraphrase names no other document and
+                    # disputes nothing (`_declared_names_address`); the correction above relabels it.
+                    if _declared_names_address(_declared, _it, evidence):
+                        _addr_identity.append(ref)
+                    else:
+                        _addr_disputed.add(ref)
                 resolved[ref] = _address_items(_k)
                 kept_sources.append(s)
                 report["resolved"][ref] = _resolved_payload(_it)
                 continue
-            matched = _match_ledger_entry(s, evidence, display=_addr_on)
+            # 09-25 VC-2: a slip the DATE named resolves to that one document (its paraphrased publisher is
+            # exactly what the source matcher cannot read); every other slip and unissued ref is HEAD's matcher
+            matched = ([e for e in evidence if _ledger_documents([e]) & _named] if _slip_by_date
+                       else _match_ledger_entry(s, evidence, display=_addr_on))
+            if matched and _addr_on:
+                _matched_refs.add(ref)                    # 09-25 VC-4: only a MATCHED ref may fold
             if not matched:
                 if _is_number_declaration(ref):           # ditto -- the schema just cost it its "N" prefix
                     kept_sources.append(s)
@@ -5785,6 +6141,73 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                                        "offset_kind": m0.get("offset_kind")}
         structured["sources"] = kept_sources
 
+        # 1a) 09-25 VC-4 -- ONE DOCUMENT, ONE ADDRESS (see `_refold_e_handles`). Only on a turn whose ledger
+        # issued addresses (the kwarg present): there the list is the ledger's positional list, deduped by
+        # `source_key`, so every document holds exactly one address. A ref the ledger loop resolved to a
+        # document held at ANOTHER address (an index slip through HEAD's matcher, a ref past the list whose
+        # declaration names a held document) folds onto that address: the resolution moves to it, a second
+        # declaration of the same document is not kept, and the prose handle is corrected to the address.
+        if _addr_on and _issued_set and resolved:
+            _addr_of: dict = {}
+            for _j, _e in enumerate(evidence, 1):
+                _sk = str((_e or {}).get("source_key") or "")
+                if _sk and _sk not in _addr_of:
+                    _addr_of[_sk] = _j
+            for _ref in list(resolved):
+                _its = resolved.get(_ref) or []
+                if not _its or _ref in cascade_refs or not str(_ref).isdigit() or _ref not in _matched_refs:
+                    continue                              # a ref resolved AT its address never moves
+                _ks = {_addr_of.get(str((_e or {}).get("source_key") or "")) for _e in _its}
+                if len(_ks) != 1:
+                    continue                              # no held address, or items of several documents
+                (_k2,) = tuple(_ks)
+                if _k2 and _k2 != int(_ref) and _issued(str(_k2)):
+                    _folded[_ref] = _k2                   # onto the address the page PRINTED for it
+            if _folded:
+                for _ref, _k2 in _folded.items():
+                    _t = str(_k2)
+                    if _t not in resolved:
+                        # the address's own chunk union PLUS every item the matcher found for the document --
+                        # a fold moves a resolution, it never loses a text the resolution was read against
+                        _union = list(_address_items(_k2)) if _issued(_t) else []
+                        _seen_t = {str((e or {}).get("text") or "") for e in _union}
+                        for _e in resolved[_ref]:
+                            if str((_e or {}).get("text") or "") not in _seen_t:
+                                _union.append(_e)
+                                _seen_t.add(str((_e or {}).get("text") or ""))
+                        resolved[_t] = _union
+                        report["resolved"][_t] = (report["resolved"].get(_ref)
+                                                  or _resolved_payload(resolved[_t][0]))
+                    resolved.pop(_ref, None)
+                    report["resolved"].pop(_ref, None)
+                _kept2: list = []
+                _refs_kept: set = set()
+                _declared_refs = {str(x.get("ref", "")).strip().strip("[]") for x in kept_sources}
+                for x in kept_sources:
+                    _r0 = str(x.get("ref", "")).strip().strip("[]")
+                    if _r0 in _folded:
+                        _t = str(_folded[_r0])
+                        if _t in _declared_refs or _t in _refs_kept:
+                            continue                      # the document's own address is declared already
+                        x = {**x, "ref": _folded[_r0]}
+                        _r0 = _t
+                    _refs_kept.add(_r0)
+                    _kept2.append(x)
+                structured["sources"] = kept_sources = _kept2
+                _fold_int = {int(r): k for r, k in _folded.items()}
+                _nfold = 0
+                for _fld in ("tldr", "mechanism"):
+                    if isinstance(structured.get(_fld), str) and structured.get(_fld):
+                        structured[_fld], _k = _refold_e_handles(structured[_fld], _fold_int)
+                        _nfold += _k
+                _kinds.clear()                            # the prose kinds, re-read off the corrected prose
+                for _m in _HANDLE.finditer((structured.get("tldr") or "") + "\n"
+                                           + (structured.get("mechanism") or "")):
+                    for _k, _i in _handle_members(_m.group(0)):
+                        _kinds.setdefault(str(_i), set()).add(_k or "E")
+                report["folded"] = {r: k for r, k in _folded.items()}
+                report["folded_handles"] = _nfold
+
         # 1b) D-HP-9/D-HP-10 -- UNDER HANDLE-PROSE AN [E] HANDLE IS POSITIONAL, NOT LEDGERED.
         # `[E{i}]` means `uniq[i-1]` in all three places (D-HP-1 (iii)), so an index inside the range the
         # GROUNDING LEDGER line stated is a resolved address by construction and needs no model-authored
@@ -5816,7 +6239,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                                             "offset_kind": _item.get("offset_kind")}
 
         # 2) sentence-scoped prose checks; strip violating handles BY POSITION (formatting untouched)
-        _BOUND = re.compile(r"[.!?;](?=\s|$)|\n")         # never a decimal point (needs trailing space/EOL)
+        _BOUND = _SENTENCE_BOUND_RX                        # never a decimal point (needs trailing space/EOL)
 
         def _sentence_span(text: str, pos: int) -> tuple[int, int]:
             start = 0
@@ -6019,7 +6442,9 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                             _its = _address_items(_i)
                             _gdv, _gdated = _dated_identity(text, m.start(), m.end(), s0, s1, _its)
                             if _gdv is None and _address_supports(text[s0:s1], _its,
-                                                                  _rivals(text, s0, s1, _i), dates=_gdated):
+                                                                  _rivals(text, s0, s1, _i), dates=_gdated,
+                                                                  months=_months(text, m.start(), m.end(),
+                                                                                 s0, s1)):
                                 _resolved_undeclared.setdefault(_r, _resolved_payload(_its[0]))
                                 quoting.setdefault((s0, s1), []).append((m.start(), m.end(), _its, None, False))
                     continue
@@ -6036,10 +6461,20 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                             # address -- the address resolves, and must support the sentence on its own
                             _r = (None if _address_supports(
                                 sent, resolved[ref], _rivals(text, s0, s1, int(ref)),
-                                dates=_dated_identity(text, m.start(), m.end(), s0, s1, resolved[ref])[1])
+                                dates=_dated_identity(text, m.start(), m.end(), s0, s1, resolved[ref])[1],
+                                months=_months(text, m.start(), m.end(), s0, s1))
                                   else "unsupported_at_address")
                         else:
                             _r = _check_evidence_handle(sent, resolved[ref], quotes=False)
+                            if _r == "no_lexical_overlap" and _issued(ref) and _address_supports(
+                                    sent, resolved[ref], _rivals(text, s0, s1, int(ref)),
+                                    dates=_dated_identity(text, m.start(), m.end(), s0, s1, resolved[ref])[1],
+                                    months=_months(text, m.start(), m.end(), s0, s1)):
+                                # 09-25 VC-3: a sentence ABOUT the receipt ("an action in June 2008 [E10]")
+                                # shares no word with its text by construction; the date the block printed
+                                # beside the issued address binds it (`_address_supports`' dated identity)
+                                _r = None
+                                _receipt_bound.append(ref)
                         if _r is None:
                             # 09-23 (BRIEF item 9): the handle is bound by its document's IDENTITY -- a full
                             # date bound to it must be a date the item carries (see `_e_date_verdict`).
@@ -6068,7 +6503,8 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                         _its = _address_items(int(ref))
                         _dv, _dated = _dated_identity(text, m.start(), m.end(), s0, s1, _its)
                         _r = (None if _address_supports(sent, _its, _rivals(text, s0, s1, int(ref)),
-                                                        dates=_dated)
+                                                        dates=_dated,
+                                                        months=_months(text, m.start(), m.end(), s0, s1))
                               else "unsupported_at_address")
                         if _r is None:
                             _r = _dv
@@ -6281,7 +6717,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                         if ctx.pool and ctx.pool_backs(sent, a, b, v, dec[0], key=sent):
                             continue
                         # FIX ROUND 2 (K7): a surviving handle's typed DISPLAY member backs it too
-                        if ctx.disp and ctx.display_backs(masked, b, v, dec[0], list(live), _g):
+                        if ctx.typed and ctx.display_backs(masked, b, v, dec[0], list(live), _g):
                             continue
                         unbacked.append((a, b))
                 if not unbacked:
@@ -6472,6 +6908,12 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             report["e_numerals_unverified"] = _e_numerals
         if _ledger_mismatch:                        # FIX ROUND 2 (K1 (b)): corrected declarations
             report["ledger_declared_mismatch"] = _ledger_mismatch
+        if _addr_identity:                          # 09-25 VC-2: named by address + date, relabelled only
+            report["ledger_address_identity"] = sorted(set(_addr_identity), key=lambda r: (len(r), r))
+        if _index_kept:                             # 09-25 VC-4: the index upheld over a mislabelled source
+            report["ledger_index_upheld"] = sorted(set(_index_kept), key=lambda r: (len(r), r))
+        if _receipt_bound:                          # 09-25 VC-3: bound by the receipt's dated identity
+            report["receipt_identity_bound"] = len(_receipt_bound)
         if _unit_mismatch:                          # FIX ROUND 2 (K4): counted, never charged
             report["unit_mismatch"] = _unit_mismatch
         # 09-23 (BRIEF item 9): a ledger entry EVERY citing sentence dated against its own document is not

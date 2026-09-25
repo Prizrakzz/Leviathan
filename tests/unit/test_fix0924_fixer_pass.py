@@ -282,9 +282,12 @@ def test_fixer_VC_M5_the_scope_join_is_the_query_layers_country_canonicalisation
 
 # ── VC F1: the ledger issues only what the block printed ────────────────────────────────────────────────────
 def test_fixer_VC_F1_the_ledger_issues_only_the_addresses_the_block_printed():
+    """09-25 (lane VC, VC-2): a MENU that printed its ordinals issues them too (tests/unit/test_vc_fix0925.py);
+    this pin is the no-menu ledger -- only what the block printed -- stated explicitly, never read off whether
+    the serving body happens to be loaded in the process."""
     menu = [{"source": "a", "date": "2020-01-01", "text": "t1", "source_key": "k1"},
             {"source": "b", "date": "2021-01-01", "text": "t2", "source_key": "k2"}]
-    led = cit.EvidenceLedger(menu)
+    led = cit.EvidenceLedger(menu, menu_printed=False)
     assert led.issued() == {}
     k = led.address({"source": "b", "date": "2021-01-01", "text": "t2 other chunk", "source_key": "k2"})
     k3 = led.address({"source": "c", "date": "2022-01-01", "text": "t3", "source_key": "k3"})

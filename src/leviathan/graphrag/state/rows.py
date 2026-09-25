@@ -424,8 +424,24 @@ def figure_text(value, *, unit: str = "", decimals: Optional[int] = None, lines:
     return f"{body} {unit}".strip() if unit else body
 
 
+#: HOW A PERIOD JOINS THE FIGURE IT DATES, PER PERIOD KIND (09-25 fix round, RT-4). A marketing year or a
+#: crop season prints as a bare label ("2025/26") -- digits and a slash with no word of its own -- and set
+#: after a COMMA it is an appositive a writer drops: the deep soybean page printed "ending stocks at 325
+#: Million Bushels [N3]" beside "10.72% of domestic use for 2026/27" and lost the fact that the sheet was
+#: 2025/26, off a token that read "325 Million Bushels, 2025/26". Joined by the kind's own preposition the
+#: period is the figure's complement ("325 Million Bushels for 2025/26"), one noun phrase a writer copies
+#: whole. The other kinds' words are already phrases ("week to 3 September 2026", "July 2026") and keep
+#: the comma. A caller that names no kind keeps HEAD's comma join byte for byte.
+#: THE JOIN IS THE WORDS BETWEEN THE FIGURE AND THE KIND'S OWN LABEL (09-25 N8 restore, VERIFY MINOR-B / lane
+#: CC's residual): a marketing year's label is a bare "2026/27" and takes the preposition alone ("for
+#: 2026/27"); a crop season's label (:func:`period_label_for`) is a NOUN, "2024/25 season", and a count noun
+#: takes its article -- the cocoa N1 token read "28.52 % of grindings for 2024/25 season", true and not
+#: English. The entry carries the article, so the kind's label is never re-spelt: "for the 2024/25 season".
+PERIOD_TOKEN_JOINS: dict = {"marketing_year": "for", "crop_season": "for the"}
+
+
 def figure_token(shown: str, *, unit: str = "", figure_basis: str = "", period_words: str = "",
-                 period_role: str = "") -> str:
+                 period_role: str = "", period_kind: str = "", grain_words: str = "") -> str:
     """THE FIGURE TOKEN (CONTRACT K2): ``"<shown> <unit> <figure_basis>, <period_words>[, <period_role>]"``
     -- every part omitted when empty -- the ONE string a writer copies when it copies a figure.
 
@@ -441,12 +457,22 @@ def figure_token(shown: str, *, unit: str = "", figure_basis: str = "", period_w
     ``figure_basis`` is a CARD field (lane T, digit-free by config_check); ``period_words`` is the row's
     period at the card's own precision (``RowIdentity.period_label``); ``period_role`` is the store-period
     or closed-year words (K23 / K24). Nothing is invented here: an empty part prints nothing, so a card
-    that declares no basis and a row with no period print HEAD's bare figure."""
+    that declares no basis and a row with no period print HEAD's bare figure.
+
+    **09-25 (RT-4 / RT-2), TWO KEYWORDS, BOTH EMPTY ON EVERY HEAD CALL:** ``period_kind`` joins the period by
+    its kind's own preposition (:data:`PERIOD_TOKEN_JOINS`: "325 Million Bushels for 2025/26"), and
+    ``grain_words`` puts a CELL row's grain on the figure itself ("0.9 z for one United States growing cell
+    (the driest of ten)", :meth:`RowIdentity.grain_words`) -- so the words that make a regional cell's figure
+    true travel with it into the sentence, exactly as the basis does."""
     head = " ".join(p for p in (str(shown or "").strip(), str(unit or "").strip(),
-                                str(figure_basis or "").strip()) if p)
+                                str(figure_basis or "").strip(), str(grain_words or "").strip()) if p)
     if not head:
         return ""
-    tail = [p for p in (str(period_words or "").strip(), str(period_role or "").strip()) if p]
+    pw, pr = str(period_words or "").strip(), str(period_role or "").strip()
+    join = PERIOD_TOKEN_JOINS.get(str(period_kind or ""))
+    if pw and join:
+        return ", ".join([head + " " + join + " " + pw] + ([pr] if pr else []))
+    tail = [p for p in (pw, pr) if p]
     return ", ".join([head] + tail)
 
 
@@ -484,6 +510,84 @@ def cell_rule_for(*, axis: str = "", collapse: str = "", scope: str = "", basin_
     if n > 1:
         return "one_of_cells", n
     return "", 0
+
+
+def cell_standing(values_at_period, headline) -> tuple:
+    """``(rank_high, rank_low, n)`` -- WHERE ONE CELL'S HEADLINE READING STANDS AMONG THE CELLS SERVED AT ITS
+    OWN PERIOD (09-25 fix round, RT-2 / D11): ``rank_high`` counts from the highest reading (1 = the highest
+    of the ``n``), ``rank_low`` from the lowest. Ties share the better rank. ``(0, 0, 0)`` for a headline
+    that is not a number or a cross-section of fewer than two readings -- one row is no standing.
+
+    THE DEFECT IT CLOSES: the deep soybean page printed "US dryness at 0.90036 z then [N164] and 0.918692 z
+    now [N165]" -- each the headline of a ten-cell block, sorted descending, so the DRIEST of ten cells, while
+    the ten-cell mean sat at -1.02 z and the board's own US row at -0.69 z. The label said "one of several
+    regional readings"; it never said WHICH one. The rank is the served rows' own order statistic, never a
+    guess about which cell a region alias names (that stays the D11 data docket). PURE: the caller hands in
+    the values the read served at the headline's period."""
+    try:
+        h = float(headline)
+    except (TypeError, ValueError):
+        return (0, 0, 0)
+    if h != h:
+        return (0, 0, 0)
+    vals: list = []
+    for v in (values_at_period or ()):
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if f == f:
+            vals.append(f)
+    if len(vals) < 2:
+        return (0, 0, 0)
+    return (1 + sum(1 for v in vals if v > h), 1 + sum(1 for v in vals if v < h), len(vals))
+
+
+def cell_standing_words(rank: int, n: int, extreme: str) -> str:
+    """"the driest of ten" / "the third driest of ten" -- one cell's standing among the ``n`` cells served at
+    its period, counted from the side ``extreme`` names (the card's DECLARED superlative for that side,
+    ``state_conventions.tail_words``). ``""`` when any part is missing: no standing is printed without the
+    series' own word for its extreme."""
+    try:
+        r, k = int(rank or 0), int(n or 0)
+    except (TypeError, ValueError):
+        return ""
+    ex = str(extreme or "").strip()
+    if r < 1 or k < 2 or r > k or not ex:
+        return ""
+    if r == 1:
+        return "the %s of %s" % (ex, words_for_int(k))
+    return "the %s %s of %s" % (ordinal_words(r), ex, words_for_int(k))
+
+
+_ORDINAL_WORDS = ("", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth",
+                  "tenth", "eleventh", "twelfth")
+
+
+def ordinal_words(n: int) -> str:
+    """An ordinal in WORDS for the small counts a cross-section carries ("third"); a larger one in the
+    numeral-free cardinal form the page's own counts use ("number twenty-one")."""
+    try:
+        k = int(n)
+    except (TypeError, ValueError):
+        return ""
+    if 0 < k < len(_ORDINAL_WORDS):
+        return _ORDINAL_WORDS[k]
+    return "number %s" % words_for_int(k) if k > 0 else ""
+
+
+def release_words(publisher: str, known_date: str) -> str:
+    """WHOSE RELEASE A VINTAGE ROW IS (09-25 fix round, RT-7): "the ICCO release of 29 May 2026" -- the card's
+    declared publisher (``registry.publisher_words``) and the row's own knowledge date, which on a vintage
+    card IS the release it was taken from. A document of the same publisher dated EARLIER is therefore an
+    earlier release of this series -- a vintage -- and the words let a writer say so instead of calling the
+    gap a "trust tier". ``""`` when either part is missing (fail closed: no release is named that the card
+    and the row do not both carry)."""
+    pub = str(publisher or "").strip()
+    day = day_words(str(known_date or "")[:10]) if str(known_date or "").strip() else ""
+    if not pub or not day:
+        return ""
+    return "%s release of %s" % (pub, day)
 
 
 def period_behind_words(pb: Optional[dict], *, asof_words: str = "") -> str:
@@ -1058,6 +1162,30 @@ class RowIdentity:
     #: all-class aggregate -- rice's "all classes, milled basis", a wheat class slug's "all classes".
     #: ``""`` otherwise. The render reads the rule; this module imports nothing.
     class_words: str = ""
+    # -- THE 09-25 TAIL (RT-2 / D11), defaulted so every HEAD caller builds HEAD's identity ---------------
+    #: WHERE THIS CELL'S HEADLINE STANDS AMONG THE ``cell_n`` CELLS SERVED AT ITS PERIOD (``cell_standing``,
+    #: counted from the side ``cell_extreme`` names) -- 1 = the extreme itself; 0 = unranked.
+    cell_rank: int = 0
+    #: THE CARD'S OWN SUPERLATIVE FOR THAT SIDE ("driest", ``state_conventions.tail_words``); ``""`` = none.
+    cell_extreme: str = ""
+
+    def cell_standing_words(self) -> str:
+        """"the driest of ten" where a ranked cell row carries its standing, else ``""``."""
+        if self.cell_rule != "one_of_cells":
+            return ""
+        return cell_standing_words(int(self.cell_rank or 0), int(self.cell_n or 0),
+                                   str(self.cell_extreme or ""))
+
+    def grain_words(self) -> str:
+        """THE GRAIN A CELL ROW'S FIGURE MUST CARRY (09-25, RT-2): "for one United States growing cell (the
+        driest of ten)" where the row is one ranked cell of a cross-section, else ``""`` -- a national, a
+        basin-mean or an unranked row puts nothing on its figure, and its head keeps its scope words."""
+        sw = self.cell_standing_words()
+        nouns = tuple(self.cell_noun or ()) if len(tuple(self.cell_noun or ())) == 2 else None
+        if not sw or not nouns:
+            return ""
+        scope = str(self.scope or "").strip()
+        return "for one %s%s (%s)" % ((scope + " ") if scope else "", nouns[0], sw)
 
     def scope_words(self) -> str:
         """The `` for <scope + cell words>`` clause, derived from the card's axis and the read's own
@@ -1072,6 +1200,11 @@ class RowIdentity:
             return " for one %s%s" % ((scope + " ") if scope else "", nouns[0])
         if nouns and self.cell_rule == "mean_of_cells":
             return " for the mean over the %s%s" % ((scope + " ") if scope else "", nouns[1])
+        if nouns and self.cell_rule == "one_of_cells" and self.cell_standing_words():
+            # 09-25 (RT-2): A RANKED CELL SAYS WHICH ONE -- by its standing among the cells served at its
+            # period, in the card's own superlative ("for one United States growing cell (the driest of
+            # ten)"); the region alias of that cell stays the D11 data docket.
+            return " " + self.grain_words()
         if nouns and self.cell_rule == "one_of_cells" and int(self.cell_n or 0) > 1:
             # ONE OF N CELLS, and N is the served rows' own count at the headline period (K3): the label
             # says only what the rows prove -- WHICH cell it is (the region alias) is docket D11.
@@ -1161,7 +1294,8 @@ class RowIdentity:
 def row_identity(*, contract: str, driver_id: str, st, card: dict, reading_words: str,
                  offset_applied: Optional[bool] = None, basin_surfaces=(), rows_at_period: int = 0,
                  commodity_words: str = "", stat_kind: str = "",
-                 period_role: str = "", class_words: str = "") -> RowIdentity:
+                 period_role: str = "", class_words: str = "", cell_rank: int = 0,
+                 cell_extreme: str = "") -> RowIdentity:
     """THE PRODUCER of :class:`RowIdentity` -- pure, over the served row ``st`` (a :class:`StateRow`)
     and its card's declared fields ``card`` (``render.card_fields`` plus the card facts the render reads
     beside them). ``reading_words`` is the declared series name; the render is the only caller that
@@ -1222,4 +1356,6 @@ def row_identity(*, contract: str, driver_id: str, st, card: dict, reading_words
         cell_noun=tuple(str(x) for x in (card.get("cell_noun") or ()))[:2],
         commodity_words=str(commodity_words or ""), cell_n=int(cell_n or 0),
         stat_kind=str(stat_kind or ""), period_role=str(period_role or ""),
-        class_words=str(class_words or ""))
+        class_words=str(class_words or ""),
+        cell_rank=(int(cell_rank or 0) if cell_rule == "one_of_cells" else 0),
+        cell_extreme=(str(cell_extreme or "") if cell_rule == "one_of_cells" else ""))

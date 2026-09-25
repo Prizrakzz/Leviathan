@@ -40,9 +40,9 @@ from typing import Optional
 
 from leviathan.graphrag.state.lagbands import LagBand
 from leviathan.graphrag.state.rows import (PERIOD_KIND_NOUNS, SIGN_WORDS, VINTAGE_ROLES, RowIdentity,
-                                           figure_text, figure_token, percentile_int, percentile_value,
-                                           period_behind_words, row_identity, shown_value,
-                                           status_word)
+                                           cell_standing, figure_text, figure_token, percentile_int,
+                                           percentile_value, period_behind_words, row_identity,
+                                           shown_value, status_word)
 
 # ---------------------------------------------------------------------------------------------------
 # THE MARKER (sec 6.1) -- minted ONCE here and imported by the seam gate at S6
@@ -255,6 +255,10 @@ ABSENCE_WHY: dict = {
     # band read the same observation, so there is one print over that band and never two moves.
     "band_inside_one_print": "both ends of that band read the same print of this series, whose own "
                              "cadence is longer than the band, so there is no move to read over it",
+    # 09-25 (RT-1): the traded delivery's own record starts AFTER the like state, so the price moved over
+    # its band is not on that record at all -- a measured fact about the tape, said by name.
+    "tape_after_like_date": "this market's own price record here begins after that like state, so no "
+                            "price move can be read over its band",
     # watch
     "no_calendar_rule": "no release rule is declared for this series",
     "rule_unverified": "the publisher states its next date rather than following a rule this page can "
@@ -485,7 +489,8 @@ def cache_clear() -> None:
     calls this, so one call clears the whole state lane's memo -- a deck or a process that re-read the
     conventions can no longer keep grading the book it read first."""
     # 09-23 FIX ROUND (review RA minor 7): every memo over the conventions / the registry, not two of them
-    for fn in (_reading_word_table, _phase_pair_table, globals().get("convention_lines"),
+    for fn in (_reading_word_table, _phase_pair_table, globals().get("_tail_word_table"),
+               globals().get("convention_lines"),
                globals().get("_hop_identity"), globals().get("_chain_generic_words")):
         try:
             fn.cache_clear()
@@ -506,6 +511,118 @@ def reading_words(table: str, metric: str) -> str:
     t, m = str(table or ""), str(metric or "")
     book = _reading_word_table()
     return ascii_text(book.get(f"{t}.{m}") or book.get(f"{t}.*") or "")
+
+
+@lru_cache(maxsize=1)
+def _tail_word_table() -> dict:
+    """The declared ``tail_words`` book (09-25 fix round, RT-2 / RT-3) -- ``state_conventions.yaml``'s own
+    top-level key, read here and nowhere else; lazily imported for the reason :func:`_reading_word_table`
+    is."""
+    try:
+        from leviathan.graphrag.state import lint as _lint
+        return dict((_lint.load_conventions() or {}).get("tail_words") or {})
+    except Exception:                                   # noqa: BLE001 -- no book is no words, never a raise
+        return {}
+
+
+def series_tail_words(table: str, metric: str) -> dict:
+    """WHAT EACH SIDE OF A READING MEANS FOR THIS SERIES, from the DECLARED book -- ``{"low": {"side",
+    "extreme"}, "high": {...}}``, or ``{}`` where the metric declares none (fail closed: no side words are
+    ever guessed for a series whose sign nobody declared)."""
+    ent = _tail_word_table().get(f"{str(table or '')}.{str(metric or '')}")
+    if not isinstance(ent, dict):
+        return {}
+    out: dict = {}
+    for side in ("low", "high"):
+        s = ent.get(side)
+        if isinstance(s, dict) and str(s.get("side") or "").strip():
+            out[side] = {"side": ascii_text(str(s.get("side") or "")),
+                         "extreme": ascii_text(str(s.get("extreme") or ""))}
+    return out if len(out) == 2 else {}
+
+
+def _measure_num(m):
+    """A served measure's value (``{"value": x}`` or a bare number), or ``None`` for a declined / absent one."""
+    if m is None:
+        return None
+    if isinstance(m, dict):
+        if m.get("declined"):
+            return None
+        m = m.get("value")
+    try:
+        v = float(m)
+    except (TypeError, ValueError):
+        return None
+    return v if v == v else None
+
+
+def reading_side(st) -> int:
+    """WHICH SIDE OF ITS OWN RECORD ONE ROW'S SERVED READING SITS ON -- ``+1`` high, ``-1`` low, ``0`` none.
+
+    ONE PRODUCER (09-25 fix round, RT-3): lane W's ``walk.reading_side`` (the chain's own measure -- the
+    sign of whichever of ``(pct - 50) / 50`` and ``z / 2.5`` makes the reading loud), read defensively; on a
+    tree without it, the watch lane's own HEAD rule (the z's sign, else the percentile against its
+    midpoint), so a side is never invented and never read two ways on one page."""
+    if st is None:
+        return 0
+    pct = _measure_num(getattr(st, "percentile", None))
+    z = _measure_num(getattr(st, "z", None))
+    try:
+        from leviathan.graphrag.state import walk as _W
+        fn = getattr(_W, "reading_side", None)
+        if fn is not None:
+            return int(fn(pct, z) or 0)
+    except Exception:                                   # noqa: BLE001 -- fall back to HEAD's rule
+        pass
+    if z is not None and z != 0:
+        return 1 if z > 0 else -1
+    if pct is not None:
+        return 1 if pct >= 50.0 else -1
+    return 0
+
+
+def cell_grain_words(table: str, metric: str, *, scope: str = "", values_at_period=(),
+                     headline=None) -> str:
+    """THE ONE PRODUCER OF A CELL READING'S GRAIN WORDS (09-25 fix round, RT-2 / D11) -- "for one United
+    States growing cell (the driest of ten)" -- for EVERY surface that prints one cell of a cross-section:
+    the board's own identity (:meth:`rows.RowIdentity.grain_words`), the citation label's axis words and the
+    cascade walk's era line (the two surfaces that printed the deep page's N164 / N165 as "US dryness").
+
+    Every word is derived: the standing is the served rows' own order statistic at the headline's period
+    (``rows.cell_standing``), counted from whichever end the headline sits nearer; the superlative is the
+    card's DECLARED word for that side (:func:`series_tail_words` ``extreme``); the noun is the card's declared
+    ``cell_noun``. ``""`` -- fail closed -- for a card on no cell axis, a cross-section of fewer than two
+    readings, or a metric whose side words nobody declared."""
+    cf = card_fields(str(table or ""), str(metric or ""))
+    if str(cf.get("country_axis") or "") != "region_cell":
+        return ""
+    nouns = tuple(cf.get("cell_noun") or ())
+    tw = series_tail_words(str(table or ""), str(metric or ""))
+    rh, rl, n = cell_standing(values_at_period, headline)
+    if len(nouns) != 2 or not tw or not n:
+        return ""
+    rank, side = (rh, "high") if rh <= rl else (rl, "low")
+    ident = RowIdentity(row_id="", contract="", driver_id="", series_key="", table=str(table or ""),
+                        metric=str(metric or ""), name="", axis="region_cell", scope=str(scope or ""),
+                        cell_rule="one_of_cells", cell_noun=nouns, cell_n=int(n), cell_rank=int(rank),
+                        cell_extreme=str(tw[side].get("extreme") or ""))
+    return ident.grain_words()
+
+
+def tail_side_words(st) -> Optional[tuple]:
+    """``("low" | "high", <the series' own words for that side>)`` for a row whose card declares tail words
+    and whose reading sits on a side, else ``None``. The side is COMPUTED (:func:`reading_side`); the words
+    are DECLARED (:func:`series_tail_words`)."""
+    if st is None:
+        return None
+    tw = series_tail_words(str(getattr(st, "table", "") or ""), str(getattr(st, "metric", "") or ""))
+    if not tw:
+        return None
+    s = reading_side(st)
+    if not s:
+        return None
+    key = "high" if s > 0 else "low"
+    return (key, tw[key]["side"])
 
 
 def _fold_ident(s) -> str:
@@ -825,13 +942,32 @@ def row_identity_for(row) -> Optional[RowIdentity]:
             or humanise(row.driver_id))
     _pb = dict(getattr(st, "period_behind", None) or {})
     _asof = str(getattr(st, "asof", "") or "")
+    # 09-25 (RT-7): A VINTAGE CARD'S ROW NAMES THE RELEASE IT IS (``release_role_words``) -- the store-period
+    # words (K23) keep precedence where lane C stamped them, so a row carries ONE period role.
+    _role = (period_behind_words(_pb, asof_words=(day_words(_asof) or _asof[:10]))
+             or release_role_words(table, str(getattr(st, "knowledge_date", "") or "")))
     return row_identity(contract=str(row.contract or ""), driver_id=str(row.driver_id or ""), st=st,
                         card=card, reading_words=name, offset_applied=_offset_applied(st),
                         basin_surfaces=basin_surfaces(),
                         commodity_words=series_commodity_words(_commodity, str(row.contract or "")),
-                        period_role=period_behind_words(_pb, asof_words=(day_words(_asof)
-                                                                         or _asof[:10])),
+                        period_role=_role,
                         class_words=family_class_words(table, _commodity))
+
+
+def release_role_words(table: str, known_date: str) -> str:
+    """THE ONE PRODUCER OF A VINTAGE ROW'S RELEASE WORDS (09-25 fix round, RT-7) -- "the ICCO release of 29
+    May 2026" -- for the board's row identity and the citation label alike: the card's declared publisher
+    (``registry.publisher_words``, vintage cards only) and the row's own knowledge date (``rows.release_words``).
+    ``""`` for every card that declares no publisher, so every such row keeps HEAD's identity."""
+    try:
+        from leviathan.graphrag.numbers import registry as _G
+        pub = _G.publisher_words(str(table or ""))
+    except Exception:                                   # noqa: BLE001 -- no card, no release words
+        pub = ""
+    if not pub:
+        return ""
+    from leviathan.graphrag.state.rows import release_words as _rw
+    return ascii_text(_rw(pub, known_date))
 
 
 @lru_cache(maxsize=256)
@@ -1301,9 +1437,13 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
             # the period at the card's own precision (with its vintage role) and the store-period words
             # where lane C stamped them -- one string, so a writer that copies the figure copies what
             # makes it true. A card declaring no basis and a row with no period print HEAD's figure.
+            # 09-25 (RT-4 / RT-2): the period joins the figure by its KIND's own preposition ("for 2026/27"),
+            # and a ranked CELL row carries its grain on the figure ("for one ... growing cell (the driest
+            # of ten)") -- both off the identity, never typed here.
             _tok = (figure_token(lvl, figure_basis=str(card_fields(q["table"], q["metric"])
                                                        .get("figure_basis") or ""),
-                                 period_words=ident.token_period_words(), period_role=ident.period_role)
+                                 period_words=ident.token_period_words(), period_role=ident.period_role,
+                                 period_kind=ident.period_kind, grain_words=ident.grain_words())
                     if ident is not None else lvl)
         else:
             _tok = lvl
@@ -1359,6 +1499,15 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
             parts.append(f"[N{h}] {extreme_verb(_pk)} the {pktxt} percentile in {month_words(pdate)}, "
                          f"the extreme of its lag window"
                          + (f" since {_since}" if _since else ""))
+        # 09-25 (RT-3, the cocoa FATAL): THE SIDE THE READING SITS ON, IN THE SERIES' OWN WORDS. The side is
+        # COMPUTED off the row's served percentile and z (``reading_side``, the one side producer); the words
+        # are the card's DECLARED low-side / high-side words (``state_conventions.tail_words``). A dry-day
+        # run at the 3rd percentile now says "shorter dry spells than usual, so wetter" beside its figure,
+        # so "dryness ... deep in its tail" cannot be read off it. A metric the book declares nothing for
+        # prints nothing here.
+        _tw = tail_side_words(st)
+        if _tw:
+            parts.append("on the %s side for this series: %s" % _tw)
     if st.run and not st.run.get("declined"):
         d = RUN_DIRECTION_WORDS.get(str(st.run.get("direction") or ""), "moving one way")
         ln = int(st.run.get("length") or 0)
@@ -3160,16 +3309,18 @@ def sb_chain_count(counts: dict, *, k: int, anchor_label: str = "", slots=(), na
     total = int(c.get("total") or 0)
     if not seq or not total:
         return ""
-    # **ONE DENOMINATOR, SAID OUT LOUD.** The first cut put the DISTINCT sequence count at the head and
-    # the RAW pool's own sub-counts behind it, so the line read "thirty-six sequences reach it --
-    # seventy-five of them read on their own series at more than one hop": two populations under one
-    # word, and the larger number was the smaller one's subset by grammar alone. The pool is
-    # ``sequences x the priced markets each carries into``, so the line now names BOTH and says which
-    # sub-count belongs to which -- the same discipline the fan index keeps between its count and its
-    # split.
-    parts = ["%s read their own series past one link"
-             % words_for_int(int(c.get("state_two_hops") or 0)),
-             "%s carry an action" % words_for_int(int(c.get("with_document") or 0))]
+    # **09-25 (RT-8, the chain read's N13): A PLAIN COUNT, NEVER A CENSUS.** The line carried the POOL's own
+    # arithmetic -- "one hundred sequences, five hundred thirteen ways in all with the far markets; two
+    # hundred seventy-one read their own series past one link; none carry an action" -- and the palm/rape
+    # writer printed it as a census: "In all, one hundred sequences run into these four markets; two hundred
+    # seventy-one of the five hundred thirteen paths read their own series past one link, and none carries an
+    # open action." The board SELECTS and COUNTS THE REST: the line now says how many chains of cause reach
+    # the market, how many the page carries and that the rest are counted and not followed link by link (the noun is
+    # the register table's own replacement for the instrument's "hop", ``register.desk_phrase``), and
+    # keeps only the clauses a ruling ordered (the held seats, the cross-market open actions, the aged-out
+    # actions, the pair with no chain) plus the markets the question did not name. The pool arithmetic rides
+    # the trace (``state_board.chain_counts``), where a census belongs.
+    parts: list = []
     unnamed = int(c.get("distinct_unnamed_markets") or 0)
     if unnamed:
         parts.append("they reach %s %s this question did not name"
@@ -3202,11 +3353,19 @@ def sb_chain_count(counts: dict, *, k: int, anchor_label: str = "", slots=(), na
     # chain ranking in on its own score is this page's ORDINARY state -- "none of them carried for a
     # reason other than rank" states the default back at a reader who was never told otherwise.
     held = sum(1 for s in (slots or ()) if str(s or "") and str(s) != "top")
-    seats = (", %s of them here for a reason other than rank" % words_for_int(held)) if held else ""
-    return ("%sCOUNT into %s: %s %s, %s %s in all with the far markets; %s; %s above%s."
+    seats = (", %s here for a reason other than rank" % words_for_int(held)) if held else ""
+    try:
+        from leviathan.graphrag import register as _reg
+        _link = _reg.desk_phrase("hop", 0)                          # "link" -- the table's word for a hop
+        _followed = "followed %s by %s" % (_link, _link)
+    except Exception:                                   # noqa: BLE001 -- the table's word, or the plain one
+        _followed = "followed"
+    _k = int(k or 0)
+    return ("%sCOUNT into %s: %s %s of cause, %s of them carried above%s; the rest are counted here, not "
+            "%s%s."
             % (CHAIN_HEAD_PREFIX, anchor_label or "this market", words_for_int(seq),
-               "sequence" if seq == 1 else "sequences", words_for_int(total),
-               "way" if total == 1 else "ways", "; ".join(parts), words_for_int(int(k or 0)), seats))
+               "chain" if seq == 1 else "chains", words_for_int(_k), seats, _followed,
+               ("; " + "; ".join(parts)) if parts else ""))
 
 
 def sb_fan(entry: dict, *, names_cap: int = 0) -> str:
@@ -3289,6 +3448,28 @@ def nearest_far_names(entry: dict, k: int = 2) -> list:
     return [board_label(c) for _, c in scored[: max(0, int(k))]]
 
 
+def condition_names(bd) -> dict:
+    """``{(contract, driver_id): words}`` -- EACH PATTERN CONDITION THAT WAS READ, NAMED BY THE SERIES IT READ.
+
+    09-24 (item 2, K3): the row identity's short name with the driver as its routing words -- the same
+    producer the SB-1 head uses. 09-25 (RT-3): a condition whose card declares its side words says which
+    side it reads on, so a quorum line can never list a wet dry-day run as a drought condition without the
+    page saying it is the wet side. ONE MAP, built by :func:`render_board` for the quorum rows and read by
+    the 09-25 close-out's drive (RW-1) off the same board -- moved here verbatim from ``render_board``, so
+    the served page and the drive name a reading one way."""
+    out: dict = {}
+    for _r in getattr(bd, "rows", ()) or ():
+        if _r.state is None or status_word(_r.state.status) != "ok":
+            continue
+        _id = row_identity_for(_r)
+        if _id is not None:
+            _tsw = tail_side_words(_r.state)
+            out.setdefault((str(_r.contract), str(_r.driver_id)), "%s, read here for %s%s"
+                           % (ascii_text(_id.short_words()), humanise(_r.driver_id),
+                              (", which reads on the %s side (%s)" % _tsw) if _tsw else ""))
+    return out
+
+
 def sb_convergence(row: dict, *, series_of: Optional[dict] = None,
                    names_of: Optional[dict] = None) -> str:
     """SB-C (sec 6.2, 3.5, B16): PROXIMITY IN WORDS, counts in words, and never "met", "fires" or "the
@@ -3334,6 +3515,18 @@ def sb_convergence(row: dict, *, series_of: Optional[dict] = None,
     measured = [_nm.get(d) or humanise(d) for d in fold["keep"]]
     opposed = [humanise(d) for d in fold["phase_opposed"]]
     unread = [humanise(d) for d in count["unread"]]
+    # **THE WALK'S TAIL VERDICTS REACH THE PAGE** (the 09-25 close-out, RW-1 = VERIFY MAJOR-1, the render
+    # half of lane W's W-2). The side-aware quorum moves a loud condition read in the tail OPPOSITE the one
+    # the card asks of it into ``against``, and one the card cannot place (a driver declared with no
+    # committed direction, or a reading in no tail) into ``unsided`` -- both read with ``.get``, present
+    # only where the walk computed them (``walk.convergence_rows(sides=...)``), so every row without them
+    # renders HEAD's words. Before this landed, 18 pattern rows on the ten 09-25 traces -- the cocoa West
+    # Africa deficit squeeze among them -- printed "(none of those drivers has a series read here)" beside
+    # a harmattan and a drought reading that WERE read, and never named them. Both lists are named the way
+    # a read condition is named (``names_of``: the series identity with RT-3's side words), ``humanise``
+    # where the caller passes no map. The rejected lexical form: a pattern- or driver-keyword rule.
+    against = [_nm.get(str(d)) or humanise(d) for d in (row.get("against") or ())]
+    unsided = [_nm.get(str(d)) or humanise(d) for d in (row.get("unsided") or ())]
     n_measured = count["n_measured"]
     n_distinct = count["n_distinct"]
     n_declared = int(row["n_declared"])
@@ -3352,10 +3545,41 @@ def sb_convergence(row: dict, *, series_of: Optional[dict] = None,
         # those drivers has a series read here; IOD negative names the phase opposite the one in force
         # ON THAT READING"). Where a member WAS read, the opposed clause below states it by name and
         # says why it is not counted, so the absence is stated once and never falsely.
-        lead = (f"none of the {words_for_int(n_declared)} {cond} it names is showing here "
-                f"(none of those drivers has a series read here"
-                + (" in the phase the pattern names)" if count["n_phase_opposed"] else ")"))
+        # AND IT DENIES A READ SERIES ONLY WHERE NONE WAS READ (the 09-25 close-out, RW-1): a condition
+        # read in the opposite tail, or read in no tail the card can place, WAS read -- so where the walk
+        # carries either, the parenthetical says what is true of all of them (none reads in the tail the
+        # pattern names) and the clauses below name each one with its reason. The phase-only case keeps
+        # NEW-3's words, which were already true.
+        if against or unsided:
+            why = "none of them reads in the tail the pattern names)"
+        else:
+            why = ("none of those drivers has a series read here"
+                   + (" in the phase the pattern names)" if count["n_phase_opposed"] else ")"))
+        lead = (f"none of the {words_for_int(n_declared)} {cond} it names is showing here ({why}")
     alias_clause, opposed_clause = fold_clause(fold)
+    # THE CONDITIONS READ ON THE OTHER SIDE ARE STATED BY NAME WITH THEIR REASON, exactly as the
+    # phase-opposed fold already states its members -- never struck, never counted (the count is the
+    # walk's side-aware quorum's and under-claims, the only safe direction for a quorum).
+    against_clause = ""
+    if against:
+        _one = len(against) == 1
+        against_clause = (f"; {words_for_int(len(against))} of them {'reads' if _one else 'read'} in the "
+                          f"tail opposite the one the pattern names ({_and_list(against)}), so "
+                          f"{'it counts' if _one else 'they count'} against the pattern here")
+    # THE MODEL IS NAMED BY THE DESK TABLE'S OWN REPLACEMENT FOR "the graph", READ THROUGH ITS ONE READER
+    # (`register.desk_phrase`, the idiom of AT-4's `answer._desk_fork_words`; the 09-25 N8 restore, VERIFY
+    # MINOR-A): the block and the desk lint teach ONE vocabulary and this clause types no second copy of it.
+    # Imported lazily, as `register_hits` imports it; a table that stops teaching the phrase fails loudly.
+    unsided_clause = ""
+    if unsided:
+        from leviathan.graphrag import register as _reg
+        _model = _reg.desk_phrase("the graph", 1)
+        _one = len(unsided) == 1
+        unsided_clause = (f"; {words_for_int(len(unsided))} of them {'carries' if _one else 'carry'} no "
+                          f"committed direction for this pattern in {_model}, or "
+                          f"{'sits' if _one else 'sit'} in the middle of "
+                          f"{'its own record' if _one else 'their own records'} ({_and_list(unsided)}), so "
+                          f"{'it is' if _one else 'they are'} not counted here")
     unread_clause = ""
     if unread and n_measured:
         # "ARE COUNTED HERE", NOT "ARE ON THIS PAGE" (review round 3, NEW-2). `n_distinct` is the number
@@ -3371,8 +3595,13 @@ def sb_convergence(row: dict, *, series_of: Optional[dict] = None,
                          f"read here ({_and_list(unread)}), so {words_for_int(n_distinct)} of the "
                          f"{words_for_int(n_declared)} are counted here")
     elif unread:
-        unread_clause = (f"; all {words_for_int(len(unread))} are named by the pattern with no series "
-                         f"read here ({_and_list(unread)})")
+        # THE ONE-NAME FORM (the 09-25 close-out, RW-1): "all one are named by the pattern" was broken English
+        # on sixteen rows of the ten 09-25 traces (HEAD fourteen); a single unread condition is the one the
+        # count here holds, and the sentence says so. Two or more keep HEAD's words.
+        unread_clause = ((f"; the one counted here is named by the pattern with no series read here "
+                          f"({_and_list(unread)})") if len(unread) == 1 else
+                         (f"; all {words_for_int(len(unread))} are named by the pattern with no series "
+                          f"read here ({_and_list(unread)})"))
     # THE COUNT AND THE NUMBER THE PATTERN ASKS FOR, IN PLAIN WORDS AND WITH NO FIRING CLAIM. Lane A's
     # requested shape was a VERDICT ("the pattern is in force / NOT in force") with the threshold struck
     # from prose. THE VERDICT IS REFUSED HERE AND THE REFUSAL IS THE ESTATE'S OWN: doctrine M-2 and
@@ -3385,7 +3614,7 @@ def sb_convergence(row: dict, *, series_of: Optional[dict] = None,
     # says how many the pattern asks for, and does the comparison in words. The reader draws the verdict.
     short = n_distinct < int(row["threshold"])
     return (f"- {pattern_label(row['name'])} on {board_label(row['contract'])}: "
-            f"{lead}{alias_clause}{opposed_clause}"
+            f"{lead}{alias_clause}{opposed_clause}{against_clause}{unsided_clause}"
             f"{unread_clause}; it asks for {words_for_int(row['threshold'])}, so the count here is "
             f"{'short of that number' if short else 'at or past that number'}; "
             + ("none of them carries a declared desk band" if not row["n_with_band"] else
@@ -3689,7 +3918,17 @@ def sb_amplifier(contract: str, inter: dict) -> str:
     unread = [humanise(i) for i in (inter.get("unmeasured") or ())]
     tail = (f"; {_and_list(unread)} {'carries' if len(unread) == 1 else 'carry'} no series read "
             f"here") if unread else ""
-    row = (f"  amplifier on {board_label(contract)}: {ids} are all among the largest moves here; "
+    # AND IT SAYS WHICH SIDE ITS READ IDS SIT ON (the 09-25 close-out, RW-1, the render half of lane W's
+    # W-2): the rank claim stays true -- the ids ARE among the largest moves -- but an id the walk read in
+    # the tail opposite the one the pattern asks of it (``inter["against"]``, present only where the
+    # side-aware quorum ran) is stated as such, right beside that claim, so "amplifies" is never read as
+    # a co-occurrence on the pattern's side. It sits BEFORE the effect clause, so the curated note keeps
+    # the neighbour it had at HEAD (the unread tail) and the assembled-row grading below reads the same
+    # last sentence. Absent key or empty tuple: HEAD's row, byte for byte.
+    against = [humanise(i) for i in (inter.get("against") or ())]
+    side = (f"; {_and_list(against)} {'reads' if len(against) == 1 else 'read'} on the side opposite "
+            f"the one the pattern names") if against else ""
+    row = (f"  amplifier on {board_label(contract)}: {ids} are all among the largest moves here{side}; "
            f"the graph "
            f"records the effect as {amplifier_effect(inter['effect'])}{tail}")
     if note and note != AMPLIFIER_NOTE_REPLACED and register_hits(row + note):
@@ -4054,6 +4293,83 @@ def sb_analog_nearest(a: dict, *, name: str = "", agree_n: int = 0) -> str:
                board_label(str((a or {}).get("contract") or "")), month_words(str(a.get("date") or ""))
                or "a date this page cannot place", words_for_int(int(agree_n or 0)),
                words_for_int(decl), "dimension" if decl == 1 else "dimensions"))
+
+
+def analog_stanza_fate(a: dict) -> tuple:
+    """``(fate, word)`` -- WHAT THE PAGE DOES WITH ONE LIKE-STATE STANZA (09-25 fix round, RT-1 / O-7 revised),
+    from the selection's and the outcome leg's OWN facts, pure:
+
+      * ``("withheld", "no_like_state")`` -- a produced pick agreeing with the present on NO dimension;
+      * ``("price", "")`` -- an outcome in the call's units read (HEAD's stanza);
+      * ``("own_units", "")`` -- no price outcome read, but the like state's own series (or a declared
+        consequence) did: printed, under the line that says it is not a price outcome;
+      * ``("withheld", <the price outcome's decline word>)`` -- no outcome of ANY kind read;
+      * ``("price", "")`` too for a hand-built deck row carrying no per-dimension record (HEAD's stanza).
+
+    The 09-25 re-smoke withheld all eight deep / max stanzas under the second-to-last branch because the price
+    outcome reads one listed delivery's own tape; the own-units branch is what lets the then/now leg inform a
+    call without pretending a Pacific path is a price move."""
+    a = dict(a or {})
+    if a.get("per_dim") is None:
+        return ("price", "")
+    if analog_agree_n(a) == 0:
+        return ("withheld", "no_like_state")
+    outs = list(a.get("outcomes") or ())
+    price = [o for o in outs if o.get("call_units")]
+    if any(not o.get("declined") for o in price):
+        return ("price", "")
+    if any(not o.get("call_units") and not o.get("declined") for o in outs):
+        return ("own_units", "")
+    return ("withheld", str((price[0].get("declined") if price else "") or "no_tape_slug"))
+
+
+#: WHAT A LIKE STATE'S OWN-SERIES OUTCOME IS NOT (09-25, RT-1) -- the not-a-price words, declared once and read
+#: by :func:`sb_analog_not_price` and by the watch's like-state item (the 09-25 close-out, RW-4), so the two
+#: surfaces that print an own-units outcome say what it is in one spelling.
+ANALOG_NOT_PRICE: str = "not a price outcome"
+
+
+def sb_analog_not_price(a: dict, *, name: str = "", price: Optional[dict] = None, others=()) -> str:
+    """THE STANZA THAT CARRIES NO PRICE MOVE SAYS SO, AND SAYS WHY (09-25 fix round, RT-1 / chain read N3).
+
+    Printed under the SB-A header where the like state read NO outcome in the call's units but read one in
+    its own: the like state's own series over its band (``analogs.own_units_outcome``) and / or its declared
+    children. The line names the traded delivery the call is on, the reason its price carries no move from
+    that date (``tape_after_like_date`` names the record's own first month -- a measured fact about the
+    tape, never a calendar constant; any other decline word takes its closed sentence), and what the moves
+    printed below ARE -- so a writer reads a Pacific path over two quarters as the Pacific's, never as a
+    price outcome. Letters and the dates the class already carries only (SB-A)."""
+    a = dict(a or {})
+    p = dict(price or {})
+    plabel = str(p.get("label") or "") or "this market's own price"
+    word = str(p.get("declined") or "")
+    if word == "tape_after_like_date" and p.get("record_from"):
+        why = "its record here starts in %s, after that date" % (month_words(str(p["record_from"]))
+                                                                  or str(p["record_from"]))
+    else:
+        # the decline's own closed sentence, where it speaks desk English on this letters-only class; a
+        # sentence the desk table charges (the generic read failure names "this row") is not copied into
+        # a line a writer reads as prose -- the plain fact is said instead
+        why = absence_why(word or "no_tape_slug")
+        try:
+            from leviathan.graphrag import register as _reg
+            if _reg.count_desk_register(why):
+                why = "its own price record here carries no reading over that band"
+        except Exception:                               # noqa: BLE001 -- the plain fact, never a raise
+            why = "its own price record here carries no reading over that band"
+    own = [o for o in (others or ()) if o.get("own_series")]
+    rest = [o for o in (others or ()) if not o.get("own_series")]
+    what: list = []
+    if own:
+        what.append("the path of %s itself" % str(own[0].get("label") or "the series this state was read on"))
+    if rest:
+        what.append("%s declared %s of it" % (words_for_int(len(rest)),
+                                               "consequence" if len(rest) == 1 else "consequences"))
+    return ("LIKE STATE %s on %s: %s carries no price move over the band from %s -- %s -- so the moves "
+            "printed below are %s over that band, %s"
+            % (name or humanise(str(a.get("driver_id") or "")), board_label(str(a.get("contract") or "")),
+               plabel, month_words(str(a.get("date") or "")) or "a date this page cannot place", why,
+               " and ".join(what) or "the like state's own readings", ANALOG_NOT_PRICE))
 
 
 def sb_analog_header(a: dict, *, chain_dims=(), chain_dim_names=None, chain_hop_names=None,
@@ -6409,6 +6725,37 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     # "peaked at the ninety-sixth" printed with no address and the writer re-digitised it beside the
     # CURRENT reading's handle (the 2024 page, twice). ONE series, ONE peak call, on the first row of the
     # series the render prints.
+    # **09-25 (RT-5, chain read N11): THE PEAK HANDLE RIDES AN SB-1 ROW AT EVERY TIER.** A rendered full
+    # chain whose hop "peaked at the ninety-ninth ... now reads the thirty-third" names a series the LOUD
+    # CUT did not print (quick palm/rape: the EU dry-day run, below the loud line) had no row to mint either
+    # standing on, so the writer re-digitised both with no address. The chain SELECTED that series, so the
+    # page prints its SB-1 row -- after the loud rows, one per series, only for an in-transit peak hop whose
+    # series no printed row carries (the 28g fold below mints on a series row that IS printed) -- and the
+    # hop line cites both handles. Role ``cited_state`` (never a ``chain*`` role, which the desk ratchet
+    # grades as SB-P), so the loud-cut coverage denominators do not move.
+    # Empty wherever ``bd.chains`` is not built, so a board-on / chain-off turn keeps HEAD's bytes.
+    _chain_cited: list = []
+    if _peak_hops:
+        _have_keys = {r.key for r in rendered}
+        _have_series: set = set()
+        for _r in rendered:
+            try:
+                _have_series.add((str(_r.contract or ""), _r.state.key.label()))
+            except Exception:                           # noqa: BLE001 -- an unlabelled key folds alone
+                continue
+        for _hk, _h in _peak_hops.items():
+            _hsk = (str(getattr(_h, "contract", "") or ""), str(getattr(_h, "series_key", "") or ""))
+            if _hk in _have_keys or not _hsk[1] or _hsk in _have_series:
+                continue
+            _crow = bd.row(*_hk) if hasattr(bd, "row") else None
+            if _crow is None or _crow.state is None or status_word(_crow.state.status) != "ok":
+                continue
+            _chain_cited.append(_crow)
+            _have_keys.add(_hk)
+            _have_series.add(_hsk)
+    _chain_cited_keys = {r.key for r in _chain_cited}
+    if _chain_cited:
+        rendered = list(rendered) + _chain_cited
     _own_rows = {r.key for r in rendered
                  if r.state is not None and status_word(r.state.status) == "ok"}
     _peak_by_series: dict = {}
@@ -6436,13 +6783,17 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                 _peak_series_minted.add(_row_sk)
         line, calls = sb_state(h, row, asof=bd.asof, age_clause=ages.get(row.key, ""), block=b,
                                peak_hop=_pk_hop)
+        _cited_row = row.key in _chain_cited_keys
         if line:
             _got = b.add(line, calls, label=f"{row.contract}/{row.driver_id}",
                          display=f"the state row for {row_words(row.contract, row.driver_id)}",
                          # THE RANK IS THE LOUD CUT'S OWN POSITION (S7 item 1), taken from `rendered`,
                          # which is `bd.order`-sorted -- never from the [N] index, which is call order and
                          # carries no rank at all (the utilisation census's own finding).
-                         role="state", rank=len(handles_by_row))
+                         # 09-25 (RT-5): a row printed because a rendered chain cites its series is NOT a
+                         # loud row, so it rides its own role and no loud-cut denominator counts it.
+                         role=("cited_state" if _cited_row else "state"),
+                         rank=(None if _cited_row else len(handles_by_row)))
             handles_by_row[row.key] = h
             # THE ROW'S WHOLE HANDLE SET (C2), read off the calls it committed by their own `stat` --
             # so a hop line can cite each figure at its own address. A row the fence corrected
@@ -6458,6 +6809,10 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                 b.row_handles[row.key] = _rh
                 # THE SERIES' FIRST PRINTED ROW, for a hop whose own driver id printed no row (28g).
                 _series_row.setdefault(_row_sk, row.key)
+        if _cited_row:
+            # 09-25 (RT-5): the chain line that cites this row already states its link, so it takes no
+            # edge line and no projection of its own -- the row is here for its handles.
+            continue
         if not int(cap.get("edge") or 0) or edge_n < int(cap["edge"]):
             b.add(sb_edge(row, block=b), label=f"edge {row.driver_id}",
                   display=f"the declared link for {row_words(row.contract, row.driver_id)}")
@@ -6917,16 +7272,7 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     # loop as well, so the two folds cannot disagree (review round 2, majors 4 and 5) and the WATCH
     # producer takes the same map for the same pattern's own sentence.
     conv, conv_cut = 0, []
-    # 09-24 (item 2, K3): EACH CONDITION THAT WAS READ IS NAMED BY THE SERIES IT READ, with its driver as
-    # the routing words -- the row identity's short name, the same producer the SB-1 head uses.
-    _names_of: dict = {}
-    for _r in bd.rows:
-        if _r.state is None or status_word(_r.state.status) != "ok":
-            continue
-        _id = row_identity_for(_r)
-        if _id is not None:
-            _names_of.setdefault((str(_r.contract), str(_r.driver_id)), "%s, read here for %s"
-                                 % (ascii_text(_id.short_words()), humanise(_r.driver_id)))
+    _names_of = condition_names(bd)
     for c in bd.convergence:
         if conv >= int(cap["convergence"]):
             conv_cut.append(c)
@@ -7006,6 +7352,16 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         _produced = a.get("per_dim") is not None
         _price = [o for o in (a.get("outcomes") or ()) if o.get("call_units")]
         _price_ok = [o for o in _price if not o.get("declined")]
+        # **09-25 (RT-1, chain read N3): THE LIKE STATE'S OUTCOME IN ITS OWN UNITS.** O-7 withheld every stanza
+        # whose PRICE outcome did not read, and the call-units outcome reads ONE listed delivery's own tape --
+        # so on the 09-25 re-smoke all eight deep/max stanzas were withheld for one reason (every pick predates
+        # that delivery's 2025-06 listing) and the then/now lane informed no call anywhere. A stanza now prints
+        # whenever ANY outcome read -- the like state's own series over its band (``analogs.own_units_outcome``)
+        # or its declared children -- under a line that SAYS it is not a price move and why; it is withheld
+        # only where no outcome of any kind exists, or the pick agrees on no dimension.
+        _other_ok = [o for o in (a.get("outcomes") or ()) if not o.get("call_units") and not o.get("declined")]
+        _fate, _ = analog_stanza_fate(a)
+        _own_units = _fate == "own_units"
         _withheld = ""
         if _produced and _agree == 0:
             _withheld = "no_like_state"
@@ -7013,6 +7369,8 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                   label=f"analog withheld {a['driver_id']}")
             b.add(sb_analog_nearest(a, name=_aname, agree_n=0), label=f"analog nearest {a['driver_id']}",
                   display=f"the like state for {row_words(a['contract'], a['driver_id'])}")
+        elif _own_units:
+            pass                                        # printed below, under its not-a-price line
         elif _produced and not _price_ok:
             _withheld = str((_price[0].get("declined") if _price else "") or "no_tape_slug")
             b.add(sb_absence("a price outcome of %s over the band from its like state"
@@ -7030,12 +7388,19 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                     and str(_tr.get("date") or "") == str(a.get("date") or "")):
                 _tr["withheld"] = _withheld or None
                 _tr["rendered"] = not _withheld
+                if _own_units:
+                    _tr["outcome_units"] = "own"            # 09-25 (RT-1): printed, and not a price move
         if _withheld:
             continue
         b.add(sb_analog_header(a, chain_dims=_chain_dims, chain_dim_names=_chain_dim_names,
                                chain_hop_names=_chain_hop_names, name=_aname),
               label=f"analog {a['driver_id']}",
               display=f"the like state for {row_words(a['contract'], a['driver_id'])}")
+        if _own_units:
+            b.add(sb_analog_not_price(a, name=_aname, price=(_price[0] if _price else None),
+                                      others=_other_ok),
+                  label=f"analog not price {a['driver_id']}",
+                  display=f"the like state for {row_words(a['contract'], a['driver_id'])}")
         outs = [o for o in (a.get("outcomes") or ()) if not o.get("declined")]
         # THE ANCHOR BOARD'S OWN CONSEQUENCE LEADS. Sorting on the label alone put "the palm monthly
         # benchmark" above "the soybean monthly benchmark" -- alphabetically -- so the most prominent
@@ -7045,6 +7410,10 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         # CONTRACT's own tape (the row's ``tape`` flag, set by its producer) leads the monthly benchmark.
         outs.sort(key=lambda o: (0 if o.get("call_units") else 1,
                                  0 if o.get("tape") else 1,
+                                 # 09-25 (RT-1): the like state's OWN series leads the non-price outcomes
+                                 # (it is minted only where no price outcome read, so HEAD's order holds
+                                 # on every stanza that has one)
+                                 0 if o.get("own_series") else 1,
                                  0 if str(o.get("commodity") or "") == a["contract"] else 1,
                                  0 if "benchmark" in str(o.get("label") or "") else 1,
                                  str(o.get("label") or "")))
@@ -7069,7 +7438,10 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
             b.add(sb_absence("the outcomes of this like state past this tier's outcome cut ("
                              + ", ".join(dropped) + ")", "render_cap"),
                   label="analog outcome render cap")
-        held = [o for o in (a.get("outcomes") or ()) if o.get("declined")]
+        # (09-25, RT-1: the price outcome's decline is already SAID on the not-a-price line above, with its
+        # reason and the record's own first month, so it is not printed a second time as a bare absence)
+        held = [o for o in (a.get("outcomes") or ()) if o.get("declined")
+                and not (_own_units and o.get("call_units"))]
         for word in sorted({str(o["declined"]) for o in held}):
             b.add(sb_absence("an outcome over that band", word), label="analog outcome absence")
         _arc = list(a.get("receipts") or ())

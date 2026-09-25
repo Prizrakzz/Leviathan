@@ -1355,3 +1355,75 @@ def test_the_upstream_causes_are_named_DEEPEST_FIRST():
     assert facts["tops"] == ("deepest", "middle", "shallow") and facts["depth"] == 4
     c = _only(bd, "upstream_convergence")[0]
     assert "the deepest four links up (deepest, middle" in c["what"]
+
+
+# -- THE 09-25 CLOSE-OUT, RW-4 (VERIFY MINOR-1): A LIKE STATE'S CONSEQUENCE, NEVER ITS OWN SERIES AHEAD OF ONE --
+def _rw4_stanza(driver_id, date, outcomes, contract="corn_cbot"):
+    return {"contract": contract, "driver_id": driver_id, "date": date, "declined": None,
+            "outcomes": list(outcomes)}
+
+
+def _rw4_price_declined(contract="corn_cbot"):
+    return {"label": "the CBOT corn December 2026 delivery", "call_units": True, "tape": True,
+            "declined": "tape_after_like_date", "record_from": "2025-06-04"}
+
+
+def _rw4_own(label="the tropical Pacific sea-surface temperature anomaly", far="2021-01-31"):
+    return {"label": label, "call_units": False, "own_series": True, "declined": None,
+            "far_date": far}
+
+
+def test_RW4_the_like_state_item_names_a_DECLARED_CONSEQUENCE_and_its_own_series_only_where_none_read():
+    """VERIFY MINOR-1, measured on the B4 harness: RT-1 mints the like state's OWN series over its band
+    (``analogs.own_units_outcome``, flagged ``own_series``) wherever no price outcome read, and the HEAD
+    interleave's like-state item then nominated it -- "after the like state dated 2020-04-30, the tropical
+    Pacific sea-surface temperature anomaly was read where the lag the model allows for it ends", the seed's
+    own series read again -- DISPLACING the consequence another stanza carried ("export pace on sorghum").
+    The rule reads the producer's own flag: (1) across stanzas a consequence item is never drawn behind an
+    own-series one, so under a one-row cap the consequence is the item; (2) inside a stanza a consequence
+    outcome is named where one read, whatever the list order; (3) the own series is the item only where no
+    consequence read, and then with RT-1's own not-a-price words; (4) a stanza with no own-series outcome
+    renders HEAD's sentence byte for byte. The ten 09-25 pages are unaffected (every one served the
+    non-obvious draw, which reads no analog outcome -- fix_round_0925/rw_work/rw4_measure.out)."""
+    bd = _board([_row(values=[0.0] * 84, conv=ONI_CONV, loud=False)], mode="deep")
+    el_nino = _rw4_stanza("El_Nino", "2020-04-30", [_rw4_price_declined(), _rw4_own()])
+    export = _rw4_stanza("export_pace", "2026-02-27", [
+        _rw4_price_declined(),
+        {"label": "export pace on sorghum", "call_units": False, "declined": None, "far_date": "2026-08-28"}])
+    # (1) the own-series stanza is FIRST in the analog order and still never displaces the consequence
+    got = [w for w in WA.watch_rows(bd, analogs=[el_nino, export], cap=1)]
+    assert [w["kind"] for w in got] == ["analog_trigger"], got
+    assert got[0]["what"] == ("after the like state dated 2026-02-27, export pace on sorghum was read where "
+                              "the lag the model allows for it ends"), got[0]["what"]
+    assert got[0]["label"] == "export pace on CBOT corn" and got[0]["dates"] == "2026-08-28"
+    both = [w for w in WA.watch_rows(bd, analogs=[el_nino, export], cap=8) if w["kind"] == "analog_trigger"]
+    assert [w["label"] for w in both] == ["export pace on CBOT corn", "El Nino on CBOT corn"], both
+    # (3) the own series, where it is the only outcome read, says it is the like state's own series and
+    # not a price outcome -- in RT-1's own words, read off one constant
+    own_line = both[1]["what"]
+    assert WA.OWN_SERIES_WORDS == "the like state's own series, " + R.ANALOG_NOT_PRICE
+    assert own_line == ("after the like state dated 2020-04-30, the tropical Pacific sea-surface temperature "
+                        "anomaly itself -- the like state's own series, not a price outcome -- was read where "
+                        "the lag the model allows for it ends"), own_line
+    sb = R.sb_watch(both[1])
+    assert R.classify(sb) == ("SB-W",) and R.register_hits(sb) == []
+    from leviathan.graphrag import register as REG
+    assert REG.desk_register_hits(sb) == [], REG.desk_register_hits(sb)
+    # (2) inside ONE stanza the consequence wins even where the own series sits first in the list
+    mixed = _rw4_stanza("El_Nino", "2020-04-30", [
+        _rw4_own(), {"label": "IOD positive on ICE cocoa", "call_units": False, "declined": None,
+                     "far_date": "2020-10-31"}], contract="cocoa")
+    one = [w for w in WA.watch_rows(bd, analogs=[mixed], cap=8) if w["kind"] == "analog_trigger"]
+    assert len(one) == 1 and "IOD positive on ICE cocoa was read where" in one[0]["what"], one
+    assert WA.OWN_SERIES_WORDS not in one[0]["what"]
+    # (4) HEAD's stanza -- a price outcome read, no own-series row -- keeps HEAD's sentence
+    head = _rw4_stanza("El_Nino", "2020-04-30", [
+        {"label": "the CBOT corn December 2026 delivery", "call_units": True, "tape": True,
+         "declined": None, "far_date": "2020-10-31"}])
+    h = [w for w in WA.watch_rows(bd, analogs=[head], cap=8) if w["kind"] == "analog_trigger"]
+    assert h[0]["what"] == ("after the like state dated 2020-04-30, the CBOT corn December 2026 delivery was "
+                            "read where the lag the model allows for it ends")
+    assert set(h[0]) == {"kind", "kind_words", "label", "what", "dates", "declined", "row"}, "no new key"
+    # a stanza with no outcome read at all names nothing, as at HEAD
+    none = _rw4_stanza("El_Nino", "2020-04-30", [_rw4_price_declined()])
+    assert not [w for w in WA.watch_rows(bd, analogs=[none], cap=8) if w["kind"] == "analog_trigger"]

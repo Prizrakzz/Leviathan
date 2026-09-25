@@ -54,7 +54,10 @@ def test_K2_K3_K5_the_leaf_vocabularies_grow_only_at_their_tails():
     f = ROWS.RowIdentity.__dataclass_fields__
     # the fixer pass appends `class_words` (the family rule's words) AT THE TAIL -- every earlier field keeps
     # its position
-    assert list(f)[-5:] == ["commodity_words", "cell_n", "stat_kind", "period_role", "class_words"]
+    # 09-25 (RT-2): `cell_rank` / `cell_extreme` are appended AFTER class_words -- every earlier field keeps
+    # its position, and the round-2 tail is read one step further from the end
+    assert list(f)[-7:-2] == ["commodity_words", "cell_n", "stat_kind", "period_role", "class_words"]
+    assert list(f)[-2:] == ["cell_rank", "cell_extreme"]
     assert "period_behind" in ROWS.StateRow.__dataclass_fields__
     assert ROWS.StateRow(key=ROWS.SeriesKey(ref="x")).period_behind == {}
 

@@ -774,4 +774,16 @@ TRACE_SPLAT_KEYS: tuple[str, ...] = (
     "rv_pair_uncomputed",        # ...or the leg REFUSED: {markets, reason}, the calculator's own sentence
                                  # (`numbers.agent.RV_PAIR_UNCOMPUTED_KEY`). EXACTLY ONE of the two rides a
                                  # turn whose leg ran, so minted + refused is the leg's own denominator.
+    # 09-25 FIX ROUND 3 (lane A, item A-4), APPENDED AT THE TAIL: THE NUMBERS SEAT'S FAILURE. MEASURED on the
+    # 09-25 tariff turn (job b372544e): the seat's one round stopped at max_tokens, the agent raised, the
+    # hybrid lane swallowed the exception into `{"calls": [], "error": ...}` -- and the message reached NO
+    # artifact, so a seat that ran 58 s and returned nothing read exactly like a seat that had nothing to
+    # find. ABSENT on every turn whose seat returned (a splat, never a column), so every healthy record keeps
+    # its exact columns (B11: `TRACE_RECORD_KEYS` untouched, no tail pin moves).
+    "numbers_error",             # {kind, error, ms}: the exception's class name, its message (the swallow's
+                                 # own 200 characters) and the seat's own wall time, stamped by
+                                 # `orchestrator.run_hybrid` on a guarded line when the seat RAISED or its
+                                 # join FAILED (kind = the join's exception, ms None). The spend the seat
+                                 # made before it raised rides `numbers_usage` on the same turn, from the
+                                 # caller-owned accumulator, wherever the agent declares `usage_sink`.
 )

@@ -87,7 +87,9 @@ def test_K7_the_tariff_N9_seat_su_ratio_row_prints_the_cards_display_spec_under_
     on = cit.from_number(dict(base, display="analyst"), 9)
     assert _val(off.label) == f"{cit._fmt(rows[0]['value'])} ratio" == "0.1072 ratio", \
         "off the stamp: HEAD's bytes (OWNER DECISION O-3 (b))"
-    assert _val(on.label) == "10.72 % of domestic use, 2026/27", on.label
+    # 09-25 CLOSE-OUT lane CC (B-3 / RT-4): the period joins the figure by the KIND the card declares
+    # (`rows.PERIOD_TOKEN_JOINS`), exactly as the board row's token does -- "for 2026/27", never the appositive
+    assert _val(on.label) == "10.72 % of domestic use for 2026/27", on.label
     assert on.label.rpartition(" = ")[0] == off.label.rpartition(" = ")[0], "the head (the pairing key) is one"
     assert (on.value, on.unit) == (off.value, off.unit) == ("0.107199613511830", "ratio"), \
         "Citation.value / .unit stay the ROW's pair -- a stand-in splice can never print 0.1072 %"
@@ -431,9 +433,10 @@ def test_fixer_F2_the_basis_rides_only_the_metrics_own_level():
                                             "knowledge_date": "2026-09-11"}],
                 commodity="soybeans_cbot", country="United States", period="2026", sb=True)
     ls = [cit.from_number(_stamped(c), i).label for i, c in enumerate((lvl, pct, sig), 1)]
-    assert "10.72 % of domestic use, 2026/27" in ls[0]
-    assert "= 23 percentile, 2026/27" in ls[1] and "of domestic use, 2026/27" not in ls[1].split(" = ", 1)[1]
-    assert "-0.72 sigma, 2026/27" in ls[2] and "sigma of domestic use" not in ls[2]
+    # 09-25 CLOSE-OUT lane CC (B-3 / RT-4): the marketing year joins every figure of the row by its kind ("for")
+    assert "10.72 % of domestic use for 2026/27" in ls[0]
+    assert "= 23 percentile for 2026/27" in ls[1] and "of domestic use" not in ls[1].split(" = ", 1)[1]
+    assert "-0.72 sigma for 2026/27" in ls[2] and "sigma of domestic use" not in ls[2]
 
 
 def test_fixer_M1_a_weekly_row_prints_its_week_and_the_marketing_year_as_its_role():
@@ -467,7 +470,8 @@ def test_fixer_M9_an_aggregate_is_named_by_the_cards_aggregate_words_and_takes_n
               commodity="soybeans_cbot", country="China", period="2025", agg="sum")
     c["query"]["agg"] = "sum"
     lab = cit.from_number(_stamped(c), 2).label
-    assert "export shipments CBOT soybeans China MY2025 = 12,357 1000 MT, 2025/26, the closed 2025/26 " \
+    # 09-25 CLOSE-OUT lane CC (B-3 / RT-4): the summed scope is a marketing year, joined by its kind ("for")
+    assert "export shipments CBOT soybeans China MY2025 = 12,357 1000 MT for 2025/26, the closed 2025/26 " \
            "year, every week summed" in lab
     assert "in the week" not in lab and "weekly exports" not in lab
     assert "weekly exports" in cit.from_number(c, 2).label
