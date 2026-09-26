@@ -767,6 +767,14 @@ def likeness(candidate_date: str, dims: list) -> Optional[dict]:
         zs = hist.get("z") or ()
         z_t = None if (i is None or i >= len(zs)) else TR.num_or_none(zs[i])
         z_now = TR.num_or_none(dim.get("z_now"))
+        # 09-26 (AN-4, D16): THE TWO READINGS THE GAP IS TAKEN BETWEEN RIDE THE RECORD, each only where it
+        # exists -- the chain reader could settle "sat like this" beside +1.8 degC only from served rows,
+        # because the record carried the gap and the sign verdict but neither reading. Facts, not terms:
+        # the distance below reads exactly what it read.
+        if z_t is not None:
+            rec["z_t"] = z_t
+        if z_now is not None:
+            rec["z_now"] = z_now
         if z_t is not None and z_now is not None:
             parts.append(abs(z_t - z_now))
             obs.append("z")
@@ -828,6 +836,150 @@ def likeness(candidate_date: str, dims: list) -> Optional[dict]:
             "dir_agree": dir_agree, "dir_seen": dir_seen,
             "run_gap": (sum(run_gaps) / float(len(run_gaps)) if run_gaps else None),
             "per_dim": tuple(per)}
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE LIKE-STATE ADMISSION (09-26 fix sitting, CONTRACT P10 / AN-1..AN-3) -- ONE predicate, two readers
+# ---------------------------------------------------------------------------------------------------
+#: WHY A SCORED CANDIDATE IS NOT A LIKE STATE, in the order :func:`like_state_admits` tests them. The
+#: tuple's own order is the contract's spelling; the TEST order is the predicate's (present run, then the
+#: side of the line, then HEAD's head rule), because the first two say the candidate is not a like state at
+#: all -- the pick skips it -- while ``not_head`` says only that the SHIPPED full-coverage rule would not
+#: have counted it, and the pick may still be drawn from it under the header's two-population sentence.
+LIKE_STATE_REFUSALS: tuple = ("not_head", "present_run", "other_side")
+
+#: WHICH HISTORY VECTOR A CONVENTION KIND'S DECLARED LINE IS READ ON -- ``band_semantics`` in
+#: ``state_conventions.yaml`` said as keys (``abs_bands`` grades the RAW value, ``z_bands`` the row's z,
+#: ``percentile_bands`` its rank in its own record), the same declaration ``feeders._convention_label``
+#: reads to label the row. A kind absent here (``pace_vs_prior_year``: a transform this history does not
+#: carry) has no reading at a candidate date, so its side is UNPROVEN there -- a hole, never a guess.
+SIDE_VECTOR: dict = {"abs_bands": "values", "z_bands": "z", "percentile_bands": "pct"}
+
+#: THE KINDS WHOSE BAND IS A DISTANCE FROM ZERO (``band_semantics``: ``|v| >= bands[i]``), so the line the
+#: reading sits past is on the READING'S OWN SIGN -- the rule ``watch._run_with_the_line`` already states for
+#: the same two kinds. Every other kind's band carries its own side (:func:`_past_line`).
+SIGN_FOLDED_KINDS: tuple = ("abs_bands", "z_bands")
+
+
+def side_line_of(st) -> Optional[dict]:
+    """THE DECLARED LINE THE SEED'S OWN LABEL READS PAST, and the side of it the reading sits on -- or
+    ``None`` (09-26, AN-2).
+
+    It is read off the row's OWN convention record (``feeders._convention_label``: ``kind``, the matched
+    ``band``, the ``label`` word and the graded ``reading``) -- the line the page prints ("past the strong
+    line at one and a half degC"). ``None`` where the row matched no line (a reading past NO declared line,
+    or a series with no convention at all), where the label declined, or where the kind grades a statistic
+    the analog history does not carry (:data:`SIDE_VECTOR`): the stanza then has no side PROOF and is
+    ``side_unproven`` -- never refused on a line nobody drew.
+
+    ``{"line", "label", "side", "kind"}`` (the contract's three keys plus the kind, which names the vector
+    the candidate's reading is taken off): ``line`` is SIGNED on the reading's side (``-1.5`` for a cool
+    reading past the strong line), ``side`` is ``"high"`` (the like reading must sit at or above ``line``)
+    or ``"low"`` (at or below it). No ENSO word, no phase word and no ref name is read here: the side is the
+    kind's declared semantics applied to the row's own reading."""
+    conv = getattr(st, "convention", None) if st is not None else None
+    if not isinstance(conv, dict) or conv.get("declined") or not conv.get("matched"):
+        return None
+    kind = str(conv.get("kind") or "")
+    band, reading = TR.num_or_none(conv.get("band")), TR.num_or_none(conv.get("reading"))
+    if kind not in SIDE_VECTOR or band is None or reading is None:
+        return None
+    # THE LINE IS SIGNED ON THE READING'S OWN SIDE WHERE THE BAND IS A DISTANCE FROM ZERO, and is the band
+    # itself where the band carries a side; the matched reading is PAST it either way (the label matched),
+    # so which side of the signed line it sits on is one comparison, never a table.
+    line = (abs(band) if reading >= 0.0 else -abs(band)) if kind in SIGN_FOLDED_KINDS else band
+    return {"line": float(line), "label": str(conv.get("label") or ""),
+            "side": "high" if reading >= line else "low", "kind": kind}
+
+
+def _side_value(hist: dict, i: Optional[int], kind: str) -> Optional[float]:
+    """THE SEED'S OWN GRADED STATISTIC AT A CANDIDATE, ON THE KNOWLEDGE AXIS -- or ``None``.
+
+    Every "then" this selector reads is the state KNOWABLE at the candidate's date (round 3, MAJOR B), and
+    the side of the line is one more: the raw value of the newest observation published by then
+    (``abs_bands``), or the z / prefix percentile the history already re-indexed onto that axis. A position
+    with nothing knowable behind it is a hole."""
+    if i is None:
+        return None
+    vec = SIDE_VECTOR.get(str(kind or ""))
+    if vec == "values":
+        j = _knowable_at(hist, i)
+        vals = hist.get("values") or ()
+        return None if (j is None or j >= len(vals)) else TR.num_or_none(vals[j])
+    if vec == "z":
+        zs = hist.get("z") or ()
+        return None if i >= len(zs) else TR.num_or_none(zs[i])
+    if vec == "pct":
+        ps = percentile_vector(hist)
+        return None if i >= len(ps) else TR.num_or_none(ps[i])
+    return None
+
+
+def present_from_of(st, hist: dict) -> Optional[str]:
+    """WHERE THE PRESENT EPISODE BEGINS FOR THE ADMISSION RULE (09-26, AN-1): the seed row's OWN printed run
+    start (``run.since_date``, "rising since November 2025") less ONE PERIOD OF THE SEED'S OWN RECORD -- the
+    observation before it in the history the selection reads, so a monthly card steps a month, an annual
+    card a year and a session card a session, with no cadence table. ``None`` where the row carries no run
+    (a declined streak): then no candidate is excluded as the present run, and the row says
+    ``present_run_unknown`` by carrying no boundary."""
+    run = getattr(st, "run", None) if st is not None else None
+    if not isinstance(run, dict) or run.get("declined"):
+        return None
+    since = str(run.get("since_date") or "")
+    if not since or axis_date(since) is None:
+        return None
+    dates = hist.get("dates") or ()
+    k = _index_on_or_before(dates, since)
+    if k is None:
+        return since
+    return str(dates[k - 1] if k >= 1 else dates[k])
+
+
+def like_state_admits(cand: dict, *, n_dims: int, head_idx, present_from: Optional[str],
+                      side_line: Optional[dict]) -> tuple:
+    """``(admitted, reason)`` -- IS THIS SCORED CANDIDATE A LIKE STATE? (09-26 fix sitting, CONTRACT P10.)
+
+    **ONE PREDICATE, READ BY THE HEAD COUNT AND BY THE PICK** (AN-3 / threat AN-d). The arm-A watch paired
+    HEAD's full-coverage count ("two like states in one hundred thirty-one observations") with a ranked-pool
+    pick readable on two of three dimensions ("nearest February 2025") -- two populations under one number.
+    Now :func:`select_analogs` asks THIS function of every scored candidate, once: the count is the
+    candidates it admits, ``head_nearest`` is the first one it admits in the scored order, and the pick
+    skips every candidate it refuses as ``present_run`` or ``other_side``.
+
+    THE TESTS, IN ORDER (the first that fails names the reason):
+
+      ``present_run``  the candidate is dated ON OR AFTER ``present_from`` (the seed's own run start less
+                       one period, :func:`present_from_of`): it is the PRESENT EPISODE, and its "outcome"
+                       would be the present path (AN-1: cocoa's October 2025 like state was the start of the
+                       warm run the page counts, and its price window was the present episode's own). A
+                       ``present_from`` of ``None`` excludes nothing.
+      ``other_side``   the seed's own graded reading at the candidate (``cand["side_value"]``,
+                       :func:`_side_value`) sits on the OTHER side of the declared line the seed's label
+                       reads past (AN-2: "sat like this" for February 2025, ONI below zero, beside +1.8 degC
+                       past the strong line). It is REFUSED ONLY ON A MEASURED READING: a ``side_line`` of
+                       ``None`` (no line proven) or a ``side_value`` of ``None`` (no knowable reading there)
+                       refuses nothing -- an exclusion has to be earned by a measurement, the rule every
+                       separation filter in this module keeps.
+      ``not_head``     HEAD's own head rule, unchanged: minted at the shipped crossing floor (``head_idx``),
+                       observable on every declared dimension, agreeing in sign on at least half of them.
+
+    ``cand`` carries ``index``, ``date``, ``dims_seen``, ``sign_agree`` and ``side_value``. Nothing here reads
+    a driver id, a phase word or a ref name."""
+    if present_from:
+        t, p = axis_date(cand.get("date")), axis_date(present_from)
+        if t is not None and p is not None and t >= p:
+            return (False, "present_run")
+    if side_line:
+        v = TR.num_or_none(cand.get("side_value"))
+        line = TR.num_or_none(side_line.get("line"))
+        if v is not None and line is not None:
+            same = (v >= line) if str(side_line.get("side") or "") == "high" else (v <= line)
+            if not same:
+                return (False, "other_side")
+    if not (cand.get("index") in (head_idx or ()) and int(cand.get("dims_seen") or 0) == int(n_dims)
+            and int(cand.get("sign_agree") or 0) * 2 >= int(n_dims)):
+        return (False, "not_head")
+    return (True, "")
 
 
 def _dims_first(dims: list, first_dim: Optional[str]) -> list:
@@ -904,28 +1056,52 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
                    lag_days: int = 0, min_run: Optional[int] = None,
                    first_dim: Optional[str] = None,
                    crossing_separation_months: int = 0,
-                   run_now: Optional[int] = None) -> dict:
+                   run_now: Optional[int] = None,
+                   present_from: Optional[str] = None,
+                   side_line: Optional[dict] = None) -> dict:
     """THE SELECTION (sec 4.2, relaxed per DESIGN C.1). Returns ``{'picked', 'n_candidates', 'declined',
     'detail', 'n_candidates_raw', 'n_candidates_pit', 'n_candidates_head', 'n_dropped_unreadable',
-    'dims_order', 'first_dim', 'record_span'}``.
+    'dims_order', 'first_dim', 'record_span', 'head_nearest'}`` -- plus ``refused``, ``side_line``,
+    ``present_from`` and ``side_unproven``, each only where it has something to say.
+
+    **09-26 (CONTRACT P10, AN-1..AN-3): EVERY SCORED CANDIDATE IS ASKED ONE QUESTION --
+    :func:`like_state_admits` -- AND BOTH THE COUNT AND THE PICK READ ITS ANSWER.** ``present_from`` (the
+    seed's own run start less one period, :func:`present_from_of`) and ``side_line`` (the declared line the
+    seed's label reads past, :func:`side_line_of`) are the caller's; both default to ``None``, which refuses
+    nothing, so every hand-stated deck call selects exactly what it selected (B12). Where they are given:
+
+      * a candidate refused ``present_run`` or ``other_side`` is NOT A LIKE STATE and leaves the pool the
+        pick is drawn from -- COUNTED on ``refused`` (``{"present_run": n, "other_side": n}``), so the
+        census still closes: ``n_candidates_pit = n_dropped_unreadable + sum(refused) + n_candidates``;
+      * ``n_candidates_head`` counts the candidates the predicate ADMITS -- HEAD's head rule AND the two new
+        tests -- so its meaning NARROWS and its key does not move (``watch.like_state_base_rate`` reads it);
+      * ``head_nearest`` is the FIRST ADMITTED candidate in the same scored order
+        (``{"date", "distance", "dims_seen", "agree_n"}``, ``None`` where none is admitted): the member of
+        the count a sentence may call "the nearest like state" (the watch's recurrence item, AN-3);
+      * ``side_unproven`` counts the pool candidates a line EXISTS for but whose own reading at that date
+        nobody could read -- admitted, because a refusal must be earned by a measurement.
 
     **THE FOUR COUNTS, AND THEY ARE FOUR BECAUSE THEY ANSWER FOUR QUESTIONS** (round 2, MAJOR 4):
 
       ``n_candidates_raw``   what :func:`crossings` minted under the RELAXED rule, before any filter;
       ``n_candidates_pit``   how many of those survived the two POINT-IN-TIME filters;
-      ``n_candidates``       how many of THOSE carry a readable state -- the pool this selector RANKS,
-                             and the number the stanza header describes;
-      ``n_candidates_head``  THE RARITY NUMERATOR, and it is HEAD's own: how many candidates the SHIPPED
-                             rule would have called like -- minted by its ``run >= <the TAIL of this
-                             seed's own vector>`` crossing rule, surviving the same two PIT filters,
-                             observable on EVERY declared dimension and agreeing in sign on at least
-                             half of them.
+      ``n_candidates``       how many of THOSE carry a readable state and are not refused by
+                             :func:`like_state_admits` as the present run or the other side of the
+                             seed's line -- the pool this selector RANKS and picks from, and the number
+                             the stanza header describes;
+      ``n_candidates_head``  THE RARITY NUMERATOR: how many candidates :func:`like_state_admits` ADMITS --
+                             HEAD's own rule (minted by its ``run >= <the TAIL of this seed's own
+                             vector>`` crossing rule, surviving the same two PIT filters, observable on
+                             EVERY declared dimension and agreeing in sign on at least half of them) AND,
+                             where the caller gives the boundaries, dated before the present run and on
+                             the seed's side of its declared line (09-26). With no boundary given it is
+                             HEAD's number exactly.
 
     A FIFTH NUMBER RIDES BESIDE THEM AND IT IS A SUBTRACTION, NOT A POOL: ``n_dropped_unreadable`` is
-    ``n_candidates_pit - n_candidates``, the candidates the EXISTENCE filter declined because no declared
-    dimension carries a readable z at their date (see :func:`likeness` for why that filter narrowed in
-    round 2). It is stated so the census closes by arithmetic --
-    ``raw = (raw - pit) + n_dropped_unreadable + n_candidates`` -- and so a decline that used to be
+    ``n_candidates_pit`` less the READABLE set, the candidates the EXISTENCE filter declined because no
+    declared dimension carries a readable z at their date (see :func:`likeness` for why that filter narrowed
+    in round 2). It is stated so the census closes by arithmetic --
+    ``pit = n_dropped_unreadable + sum(refused) + n_candidates`` -- and so a decline that used to be
     inferable is COUNTED.
 
     **THE RARITY NUMERATOR'S FLOOR IS HEAD'S OWN TAIL READ AND NOT THE ROW'S ``run_now``** (round 3,
@@ -1067,18 +1243,11 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
     _head_floor = head_run if min_run is None else int(min_run)
     head_idx = {c["index"] for c in crossings(seed_hist, convention=convention, min_run=_head_floor)}
     scored: list = []
-    n_head = 0
     for c in closed:
         like = likeness(c["date"], dims)
         if like is None:
             continue
         i = c["index"]
-        if (i in head_idx and like["dims_seen"] == len(dims)
-                and like["sign_agree"] * 2 >= len(dims)):
-            # HEAD's own admission, restated as ARITHMETIC over facts already computed: observable on
-            # every declared dimension, and agreeing in sign on at least half (``agree >= ceil(n/2)``,
-            # which for integers is ``2 * agree >= n``). It grades nothing and removes nothing.
-            n_head += 1
         # THE TIE-BREAK'S OWN "THEN" IS ON THE KNOWLEDGE AXIS TOO (round 3, MAJOR B). ``run_length`` is
         # a RANKING INPUT -- the second sort term below -- and the doctrine is absolute: a state used to
         # rank a candidate at ``t`` is the state KNOWABLE at ``t`` on every component. A position with
@@ -1089,25 +1258,64 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
     # ``n_dropped_unreadable`` IS THE EXISTENCE FILTER'S OWN COUNT (round 3, minor). The fifth exit --
     # candidates that survived both PIT filters and carry no readable z on any declared dimension -- was
     # derivable but never stated, and a decline nobody counts is a decline nobody audits. It is the one
-    # subtraction between ``n_candidates_pit`` and ``n_candidates``, so the census closes by arithmetic.
+    # subtraction between ``n_candidates_pit`` and the scored set, so the census closes by arithmetic.
     n_unreadable = n_pit - len(scored)
+    scored.sort(key=lambda s: (round(s["distance"], 9), abs(s["run_length"] - run_now),
+                               _desc_date(s["date"])))
+    # 09-26 (CONTRACT P10): ONE ADMISSION PREDICATE, ASKED ONCE PER SCORED CANDIDATE, IN THE SCORED ORDER.
+    # The head count is what it admits (HEAD's own admission -- observable on every declared dimension,
+    # agreeing in sign on at least half -- plus the present-run and side-of-the-line tests, restated as
+    # arithmetic over facts already computed; it grades nothing), ``head_nearest`` is the first it admits,
+    # and a candidate it refuses as ``present_run`` / ``other_side`` leaves the pool the pick is drawn
+    # from, COUNTED. ``not_head`` does NOT leave the pool: a pick readable on two of three dimensions is
+    # still the nearest reading, and the header prints it under its two-population sentence.
+    pool: list = []
+    n_head = 0
+    head_nearest = None
+    refused = {"present_run": 0, "other_side": 0}
+    n_side_unproven = 0
+    for s in scored:
+        side_value = (_side_value(seed_hist, s["index"], str(side_line.get("kind") or ""))
+                      if side_line else None)
+        ok, why = like_state_admits({**s, "side_value": side_value}, n_dims=len(dims),
+                                    head_idx=head_idx, present_from=present_from,
+                                    side_line=side_line)
+        if why in refused:
+            refused[why] += 1
+            continue
+        if side_line and side_value is None:
+            n_side_unproven += 1
+        if ok:
+            n_head += 1
+            if head_nearest is None:
+                head_nearest = {"date": s["date"], "distance": s["distance"],
+                                "dims_seen": s["dims_seen"], "agree_n": s["sign_agree"]}
+        pool.append(s)
     base = {"n_candidates_raw": n_raw, "n_candidates_pit": n_pit, "n_candidates_head": n_head,
             "n_dropped_unreadable": n_unreadable,
             "dims_declared": len(dims), "first_dim": (str(first_dim) if first_dim else None),
             "dims_order": tuple(str(d.get("id") or "") for d in (dims or ())),
-            "record_span": span}
-    if not scored:
+            "record_span": span, "head_nearest": head_nearest,
+            # EACH ONLY WHERE IT HAS SOMETHING TO SAY, so a call that passes neither boundary returns
+            # HEAD's keys plus ``head_nearest`` and nothing else.
+            **({"refused": dict(refused)} if any(refused.values()) else {}),
+            **({"side_line": dict(side_line)} if side_line else {}),
+            **({"present_from": str(present_from)} if present_from else {}),
+            **({"side_unproven": int(n_side_unproven)} if n_side_unproven else {})}
+    if not pool:
         # ONE WORD, A FINER REASON BESIDE IT. ``board.ANALOG_REASONS`` gains nothing; ``detail`` is a
         # field on the row and never a colon tail on the stamp, so ``board.DETAIL_REASONS`` is untouched
-        # too and the render half owes exactly the sentence it already owes.
+        # too and the render half owes exactly the sentence it already owes. ``refused`` (09-26) is the
+        # fourth finer reason: candidates were read and every one of them is the present episode or sits
+        # on the other side of the seed's line -- the absence word ("no past state on this series is like
+        # this one") is then TRUE, where "sat like this" over any of them would not be.
         detail = ("no_candidates" if n_raw == 0 else
-                  ("window_open" if n_pit == 0 else "unobservable"))
+                  ("window_open" if n_pit == 0 else
+                   ("unobservable" if not scored else "refused")))
         return {**base, "picked": (), "n_candidates": 0, "declined": "no_like_state",
                 "detail": detail}
-    scored.sort(key=lambda s: (round(s["distance"], 9), abs(s["run_length"] - run_now),
-                               _desc_date(s["date"])))
     picked: list = []
-    for _rank, s in enumerate(scored, start=1):
+    for _rank, s in enumerate(pool, start=1):
         if len(picked) >= max(0, int(analog_k)):
             break
         # A SEPARATION NOBODY COULD MEASURE EXCLUDES NOTHING (see :func:`_months_between`): ``None``
@@ -1131,7 +1339,8 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
                        # "this one the nearest". That is TRUE of the first pick and FALSE of the
                        # second, which a max-tier stanza pair renders side by side, so the claim rides
                        # on the rank rather than on the shape: 1 is the nearest, anything else is "one
-                       # of them". It is the position in `scored`, already sorted by distance here, so
+                       # of them". It is the position in the POOL (the scored set less the candidates
+                       # the admission refused, 09-26), already sorted by distance here, so
                        # no consumer re-derives an ordering from a distance it would have to re-rank.
                        "pool_rank": int(_rank),
                        # THE FLAG AND ITS FIGURE COME OFF **ONE** ARITHMETIC, and that is why the
@@ -1144,7 +1353,7 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
                        "months_to_asof": (None if m_asof is None else abs(int(m_asof))),
                        "near_asof": bool(m_asof is not None
                                          and abs(m_asof) < int(min_separation_months))})
-    return {**base, "picked": tuple(picked), "n_candidates": len(scored), "declined": None,
+    return {**base, "picked": tuple(picked), "n_candidates": len(pool), "declined": None,
             "detail": None}
 
 
@@ -1645,11 +1854,17 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
         band = r.lag_band
         conv = conv_doc.get(r.state.key.ref)
         lag_days = int(lag_days_fn(r) if lag_days_fn else _lag_days_of(r))
+        # 09-26 (CONTRACT P10, AN-1 / AN-2): THE TWO BOUNDARIES OF A LIKE STATE, READ OFF THE SEED ROW ITSELF --
+        # where its present run began (the run the block printed) and which side of which declared line
+        # its own label reads past. Neither is typed: a row with no run excludes no present episode, and a
+        # row past no line has no side to refuse on (``side_unproven``: the row carries no ``side_line``).
         sel = select_analogs(hists[r.key], dims=dims, asof=bd.asof, band=band,
                              analog_k=int(knobs.analog_k), convention=conv, lag_days=lag_days,
                              first_dim=first_dim,
                              run_now=(None if row_runs.get(r.key) is None
-                                      else int(row_runs[r.key])))
+                                      else int(row_runs[r.key])),
+                             present_from=present_from_of(r.state, hists[r.key]),
+                             side_line=side_line_of(r.state))
         seat = order.get(r.key, len(order))
         # THE SELECTION'S OWN COUNTS RIDE EVERY ROW, FIRED OR DECLINED, and they are DATA -- this
         # producer renders nothing. ``dims_declared``/``dims_seen``, ``sign_agree``/``sign_seen``,
@@ -1668,7 +1883,14 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
                   "first_dim": sel["first_dim"], "record_span": sel["record_span"],
                   "floor_year": floor_year, "price_dims": price_admitted,
                   # K15: the seed's OWN series, one dimension per series (the fold above)
-                  "series_key": r.state.key.label()}
+                  "series_key": r.state.key.label(),
+                  # 09-26 (CONTRACT P10): the admission's own facts, COPIED BY NAME like every field here --
+                  # ``head_nearest`` always (``None`` where nothing is admitted: the shape a produced row
+                  # carries, which is how the watch tells it from a hand-built one); the other four only
+                  # where the selection had something to say, so a row with nothing to say keeps its shape.
+                  "head_nearest": sel.get("head_nearest"),
+                  **{k: sel[k] for k in ("refused", "side_line", "present_from", "side_unproven")
+                     if sel.get(k)}}
         if sel["declined"]:
             out.append({"contract": r.contract, "driver_id": r.driver_id, "band": band,
                         "asof": bd.asof, "declined": sel["declined"], "seat": seat,
@@ -2095,9 +2317,35 @@ def _days_between(a: str, b: str) -> int:
     return (_dt.date.fromisoformat(str(b)[:10]) - _dt.date.fromisoformat(str(a)[:10])).days
 
 
+def _trace_per_dim(per) -> list:
+    """``per_dim`` for the trace (09-26, AN-4 / D16): per dimension its id, the two readings the gap is
+    taken between (``z_t`` at the like date, ``z_now`` at the as-of) and the sign verdict -- each only where
+    the selection measured it. The id is the RAW driver id, which is what a census joins on; the trace is
+    never a page."""
+    out: list = []
+    for r in (per or ()):
+        r = r or {}
+        d = {"id": str(r.get("id") or "")}
+        for k in ("z_t", "z_now"):
+            v = TR.num_or_none(r.get(k))
+            if v is not None:
+                d[k] = float(v)                         # unrounded, like every z the trace's row_states carry
+        if r.get("sign_agree") is not None:
+            d["sign_agree"] = bool(r.get("sign_agree"))
+        out.append(d)
+    return out
+
+
 def _analog_trace_row(a: dict) -> dict:
     """ONE analog row, compact, for the trace (K15): no arrays, no receipts' text -- the facts a census
-    needs to read a stanza decision offline."""
+    needs to read a stanza decision offline.
+
+    09-26 (AN-4, D16; CONTRACT P10): ``per_dim`` rides with each dimension's ``z_t`` / ``z_now`` /
+    ``sign_agree`` -- the instrument the chain reader's probe asked for twice, because D6 ("sat like this"
+    for a cool-side month) could only be settled from served rows -- and the admission's own facts ride
+    beside it (``head_nearest``, ``refused``, ``side_line``, ``present_from``, ``side_unproven``). Every new
+    key is APPENDED and present only where the row carries it, so a hand-built row keeps HEAD's trace shape
+    byte for byte."""
     per = a.get("per_dim")
     agree = (sum(1 for r in (per or ()) if (r or {}).get("sign_agree") is True) if per is not None
              else a.get("sign_agree"))
@@ -2111,7 +2359,11 @@ def _analog_trace_row(a: dict) -> dict:
                               # a row carrying neither keeps HEAD's trace shape byte for byte.
                               **({"own_series": True} if o.get("own_series") else {}),
                               **({"record_from": o.get("record_from")} if o.get("record_from") else {}))
-                         for o in (a.get("outcomes") or ())]}
+                         for o in (a.get("outcomes") or ())],
+            **({"per_dim": _trace_per_dim(per)} if per else {}),
+            **({"head_nearest": dict(a["head_nearest"])} if a.get("head_nearest") else {}),
+            **{k: (dict(a[k]) if isinstance(a[k], dict) else a[k])
+               for k in ("refused", "side_line", "present_from", "side_unproven") if a.get(k)}}
 
 
 def analog_leg(bd, rows) -> dict:

@@ -1011,6 +1011,11 @@ class Board:
     #: dict, so a key written into it earlier would be lost); :meth:`trace` folds both into ONE
     #: ``subject`` payload. EMPTY wherever :attr:`subject` is.
     subject_reach: dict = field(default_factory=dict)
+    #: THE POINT-IN-TIME ACTION LEDGER'S STAMP (the 09-26 fix sitting, lane W; CONTRACT P6 / P14):
+    #: ``{read, nodes, rows, ms, why}`` from ``feeders.action_ledger``, plus ``routing`` -- the receipt
+    #: routing read's own ``{read, triples, ms, why}`` -- where the chain leg read the store. Written by
+    #: ``walk._stage2`` on the CHAIN path only; EMPTY on every other turn, and :meth:`trace` omits it then.
+    action_ledger: dict = field(default_factory=dict)
 
     # ── anchors ─────────────────────────────────────────────────────────────────────────────────────
     @property
@@ -1247,6 +1252,10 @@ class Board:
             from leviathan.graphrag.state.walk import chain_trace_set
             out["chains"] = [c.to_dict() for c in chain_trace_set(self.chains)]
             out["chain_counts"] = dict(self.chain_counts)
+        # THE ACTION LEDGER'S STAMP (the 09-26 fix sitting, W-1), APPENDED LAST and OMITTED WHEN EMPTY: the read
+        # cost per turn (``ms`` over ``nodes`` regime nodes, ``rows`` kept) and why a read did not happen.
+        if self.action_ledger:
+            out["action_ledger"] = dict(self.action_ledger)
         return out
 
     @staticmethod

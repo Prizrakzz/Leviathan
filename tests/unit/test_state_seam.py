@@ -1730,7 +1730,7 @@ def test_S8R3_first_dim_TRANSLATES_the_receipt_hop_to_the_dimension_the_analog_l
         assert list(b["dims_order"])[0] == fd and b["first_dim"] == fd
 
 
-def test_S8R4_first_dim_walks_the_top_chain_in_TAIL_ORDER_to_a_DIMENSION_THE_LEG_RANKS(graph):
+def test_S8R4_first_dim_walks_the_top_chain_in_TAIL_ORDER_to_a_DIMENSION_THE_LEG_RANKS(graph, monkeypatch):
     """**ROUND-4 MAJOR 2 / DESIGN C.2 -- THE RECEIPT HOP ALONE WAS THE WRONG READ, ON THE CELL A
     SERVED TURN ACTUALLY IS.**
 
@@ -1844,6 +1844,27 @@ def test_S8R4_first_dim_walks_the_top_chain_in_TAIL_ORDER_to_a_DIMENSION_THE_LEG
         assert "read as the history of the chain named first" not in plainblk.text(), cell
     # THE PIN IS NOT VACUOUS: across the two cells at least one stanza saw the chain's dimension and
     # carries the mark (the receipt cell's two, measured 09-23).
+    # 09-26 (lane AN, CONTRACT P10) RE-BANK, THE CLAIM KEPT: the like-state admission moved both rendered El
+    # Nino picks off February 2026 (the other side of the fixture ONI's elevated line), and neither new pick
+    # (April 2020, February 2017) read the chain's weekly export-pace dimension at its date -- so on these
+    # cells every head is the NEGATIVE branch, asserted above. The POSITIVE branch is graded on the same
+    # receipt cell with the two admission boundaries switched off (HEAD's selection), where the rendered
+    # stanza that saw the chain's dimension still prints and must carry the mark.
+    if _marks_total[0] == 0:
+        monkeypatch.setattr(A, "present_from_of", lambda st, hist: None)
+        monkeypatch.setattr(A, "side_line_of", lambda st: None)
+        bd = _r3_board(graph, mode="max", receipts=_r3_receipts)
+        fd = S._first_dim(bd)
+        top = sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank)[0]
+        hops = list(top.hops)
+        rows = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=H.fixture_benchmark_fn(), first_dim=fd)
+        hop_names = {str(h.driver_id): R.chain_hop_name(h) for h in hops}
+        dim_names = R._chain_dim_name_map(bd, hops)
+        key = fd if fd in hop_names else dim_names.get(fd)
+        mark = "read as the history of the chain named first, on %s" % hop_names[key]
+        blk = R.render_board(bd, analogs=rows,
+                             anchor_label=", ".join(R.board_label(x) for x in bd.anchor_slugs))
+        _marks_total[0] += sum(1 for x in blk.lines if x.startswith("LIKE STATE ") and mark in x)
     assert _marks_total[0] >= 1, _marks_total
 
 
@@ -2040,10 +2061,32 @@ def _ranked_pool(rec):
             kn = A._add_days(c["date"], int(lag_days))
             if kn is None or kn > str(asof)[:10]:
                 continue
-        if A.likeness(c["date"], dims) is None:
+        like = A.likeness(c["date"], dims)
+        if like is None:
+            continue
+        # 09-26 (lane AN, CONTRACT P10) RE-BANK, THE CLAIM KEPT: the pool is the set the pick is drawn from, and
+        # a candidate the ONE admission predicate refuses as the present run or the other side of the seed's
+        # line is not in it. Re-walked through the producer's own predicate and the call's own boundaries
+        # (``present_from`` / ``side_line``, absent on a HEAD call, where it refuses nothing).
+        if _admission(rec, c, like, head_idx=set())[1] in ("present_run", "other_side"):
             continue
         out.append(str(c["date"]))
     return out
+
+
+def _admission(rec, c, like, *, head_idx):
+    """The ONE predicate the selection read for this candidate, over the call's own boundaries -- HEAD's head
+    rule alone where the producer (or a boundary) is absent."""
+    kw = rec["kw"]
+    fn = getattr(A, "like_state_admits", None)
+    if fn is None:
+        ok = (c["index"] in head_idx and like["dims_seen"] == len(rec["dims"])
+              and like["sign_agree"] * 2 >= len(rec["dims"]))
+        return ok, ("" if ok else "not_head")
+    sl = kw.get("side_line")
+    sv = A._side_value(rec["hist"], c["index"], str((sl or {}).get("kind") or "")) if sl else None
+    return fn({**c, **like, "side_value": sv}, n_dims=len(rec["dims"]), head_idx=head_idx,
+              present_from=kw.get("present_from"), side_line=sl)
 
 
 def test_ANALOG_the_COUNT_BESIDE_A_PICK_IS_A_POPULATION_THE_PICK_IS_A_MEMBER_OF(graph, monkeypatch):
@@ -2079,7 +2122,12 @@ def test_ANALOG_the_COUNT_BESIDE_A_PICK_IS_A_POPULATION_THE_PICK_IS_A_MEMBER_OF(
     # units is WITHHELD (its absence line prints), and this fixture's tape does not reach back to the picks
     # -- so the seam is handed the harness's own monthly BENCHMARK, the anchor's price in the call's units,
     # exactly as a caller that wires one does. The pin below grades the same stanza facts it always did.
-    for mode, dates in (("deep", ("2020-04-30",)), ("max", ("2020-04-30", "2026-02-28"))):
+    # 09-26 (lane AN, AN-2) RE-BANK, DECLARED: max's second pick moves February 2026 -> February 2017. The
+    # fixture ONI's reading (+0.98 degC) is past the elevated line at +0.5, and the knowable reading at
+    # February 2026 was on the other side of it; the selection now refuses it (``other_side``) and the pin's
+    # facts -- the count is the pool the pick is a member of, and the head count names its own population
+    # -- are unchanged.
+    for mode, dates in (("deep", ("2020-04-30",)), ("max", ("2020-04-30", "2017-02-28"))):
         del cap[:]
         sg = _sg(["soybeans_cbot"])
         bd = S.fill_stage1(graph=graph, sg=sg, asof=H.ASOF, mode=mode,
@@ -2120,7 +2168,7 @@ def test_ANALOG_the_COUNT_BESIDE_A_PICK_IS_A_POPULATION_THE_PICK_IS_A_MEMBER_OF(
         seen[mode] = heads
     # THE THREE STANZAS THE RULING NAMES, AND NOTHING ELSE CHANGED ABOUT THEM.
     assert "April 2020" in seen["deep"][0] and "April 2020" in seen["max"][0]
-    assert "February 2026" in seen["max"][1]
+    assert "February 2017" in seen["max"][1]
 
 
 def _head_dates(rec):
@@ -2150,8 +2198,9 @@ def _head_dates(rec):
         like = A.likeness(c["date"], dims)
         if like is None:
             continue
-        if (c["index"] in head_idx and like["dims_seen"] == len(dims)
-                and like["sign_agree"] * 2 >= len(dims)):
+        # 09-26 (lane AN) RE-BANK: the head set is what the ONE admission predicate admits (HEAD's rule where
+        # the call carries no boundary).
+        if _admission(rec, c, like, head_idx=head_idx)[0]:
             out.append(str(c["date"]))
     return out
 

@@ -1802,6 +1802,102 @@ def check_state_board() -> list[str]:
 
 # -- clause 18 (09-25 fix round, RT-2 / RT-3): the declared side words of a series ------------------
 def _check_tail_words() -> list[str]:
+    """CLAUSE 18 -- the declared row words: the ``tail_words`` book (09-25) and, since the 09-26 fix sitting
+    (R-5), every row-word book that sitting added (:func:`_check_row_word_books`). One clause, so the roster
+    count :func:`check_state_board` carries does not move."""
+    return _check_tail_word_book() + _check_row_word_books()
+
+
+#: THE 09-26 ROW-WORD BOOKS (R-5): ``book -> (closed key set or None for "keys are <kind>", paired sides that
+#: must differ, the one placeholder each value must carry exactly once or "")``. One declaration per book;
+#: the producer that reads each is named in the yaml's own comment.
+ROW_WORD_BOOKS: dict = {
+    "period_joins": (None, (), ""),
+    "direction_words": (None, ("up", "down"), ""),
+    "window_anchor_words": (frozenset({"run", "reading"}), ("run", "reading"), "{month}"),
+    "regime_words": (frozenset({"ledger"}), (), "%s"),
+    "scope_words": (frozenset({"home_for_global"}), (), ""),
+    "positioning_words": (frozenset({"same_way", "other_way", "record_extreme_lead"}),
+                          ("same_way", "other_way"), ""),
+    "slot_words": (frozenset({"answered_by_row"}), (), ""),
+}
+
+
+def _row_word_errs(where: str, w: str, placeholder: str = "") -> list:
+    errs: list = []
+    if not str(w or "").strip():
+        return ["%s has no words" % (where,)]
+    if placeholder and w.count(placeholder) != 1:
+        errs.append("%s must carry %r exactly once (%r)" % (where, placeholder, w))
+    body = w.replace(placeholder, "") if placeholder else w
+    if any(ch.isdigit() for ch in body) or "_" in body:
+        errs.append("%s carries a digit or an underscore (%r)" % (where, w))
+    if any(ord(ch) > 127 for ch in w):
+        errs.append("%s is not ASCII (%r)" % (where, w))
+    probe = body.replace("%", "")
+    hits = _register_hits(probe)
+    if hits:
+        errs.append("%s is not register-clean: %s" % (where, "; ".join(hits)))
+    # AND THE DESK REGISTER (R-2 d: "the four detectors + the register lint"): these words land on board rows,
+    # and an instrument word ("row", "hop", "board") in a book would be a leak the ratchet then counts
+    try:
+        from leviathan.graphrag import register as _reg
+        if _reg.count_desk_register(probe):
+            errs.append("%s carries a desk-register word (%r)" % (where, w))
+    except Exception:                                   # noqa: BLE001 -- the four detectors above still ran
+        pass
+    return errs
+
+
+def _check_row_word_books() -> list[str]:
+    """CLAUSE 18, THE 09-26 HALF (R-5): every row-word book the fix sitting added is PRESENT, its keys CLOSED
+    (``direction_words`` keys are declared ``conventions:`` ids; ``period_joins`` keys are ``rows.PERIOD_KINDS``
+    members; every other book its own closed set), each value ASCII, digit-free, underscore-free and
+    register-clean on all four detectors, a placeholder carried exactly once, and the paired sides DIFFERENT.
+    A missing book is an ERROR: its producer fails closed (no words), so a book deleted by accident would
+    otherwise be a silent loss of a clause the page is built on."""
+    errs: list[str] = []
+    doc = load_conventions() or {}
+    conv_ids = set((doc.get("conventions") or {}).keys())
+    try:
+        from leviathan.graphrag.state.rows import PERIOD_KINDS as _pk
+        period_kinds = set(_pk)
+    except Exception:                                   # noqa: BLE001 -- S0 ordering: no kinds, no key check
+        period_kinds = set()
+    for name, (keys, pair, ph) in ROW_WORD_BOOKS.items():
+        book = doc.get(name)
+        if not isinstance(book, dict) or not book:
+            errs.append("state_conventions.yaml: `%s` is missing or empty -- its producer would print no "
+                        "words" % (name,))
+            continue
+        if keys is not None and set(book) != set(keys):
+            errs.append("%s keys %r must be exactly %r" % (name, sorted(book), sorted(keys)))
+        if name == "direction_words":
+            for k, ent in sorted(book.items()):
+                if str(k) not in conv_ids:
+                    errs.append("direction_words %r is not a declared `conventions:` id" % (k,))
+                if not isinstance(ent, dict) or set(ent) != {"up", "down"}:
+                    errs.append("direction_words %r must declare exactly `up` and `down`" % (k,))
+                    continue
+                for side in ("up", "down"):
+                    errs += _row_word_errs("direction_words %r.%s" % (k, side), str(ent.get(side) or ""))
+                if str(ent.get("up") or "").strip().lower() == str(ent.get("down") or "").strip().lower():
+                    errs.append("direction_words %r declares the same words for both directions" % (k,))
+            continue
+        if name == "period_joins" and period_kinds:
+            for k in sorted(book):
+                if str(k) not in period_kinds:
+                    errs.append("period_joins %r is not a rows.PERIOD_KINDS member" % (k,))
+        for k, v in sorted(book.items()):
+            errs += _row_word_errs("%s %r" % (name, k), str(v if not isinstance(v, dict) else ""), ph)
+        if pair and all(str(book.get(p) or "") for p in pair):
+            a, b = (str(book.get(p) or "").strip().lower() for p in pair)
+            if a == b:
+                errs.append("%s declares the same words for %r and %r" % (name, pair[0], pair[1]))
+    return errs
+
+
+def _check_tail_word_book() -> list[str]:
     """CLAUSE 18. ``state_conventions.tail_words`` -- each entry a ``<table>.<metric>`` pair the board map
     reads, with BOTH a ``low`` and a ``high`` side, each carrying ``side`` words (and optional ``extreme``
     words), the two sides DIFFERENT, every phrase ASCII, digit-free, underscore-free and register-clean on

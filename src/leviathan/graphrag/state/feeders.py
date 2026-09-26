@@ -1510,6 +1510,9 @@ class KeyPlan(NamedTuple):
     src_row: Optional[dict] = None      # that row BEFORE the region swap -- the declared metric
     ts: Any = None                      # the registry card, or None where the map row names no card
     apply_offset: bool = False          # whether the fold licenses shifting the fetched array
+    #: W-5 (the 09-26 fix sitting): ``""`` on every plan HEAD built; :data:`SCOPE_HOME_FOR_GLOBAL` where a
+    #: fenced world scope resolved to the anchor contract's declared home (:func:`home_scope_for`).
+    scope_resolution: str = ""
 
 
 def series_key_for(ref: str, node, *, turn_kind: str = "") -> KeyPlan:
@@ -1525,6 +1528,23 @@ def series_key_for(ref: str, node, *, turn_kind: str = "") -> KeyPlan:
         return KeyPlan(key=None, status="unmapped_ref")
 
     commodity, country, skip = casc._scope_ex(node, row)
+    # W-5 (the 09-26 fix sitting, lane W; CONTRACT P14): A DRIVER THE GRAPH DECLARES FOR THE WORLD, ON A ROW
+    # WHOSE WORLD READ IS FENCED (the W0-7 ``global_token: skip`` fence -- the resolver's own closed reason),
+    # RESOLVES TO THE ANCHOR CONTRACT'S DECLARED HOME SCOPE AND SAYS SO: ``scope_resolution`` rides the plan
+    # and the row, and the render prints the declared clause beside the resolved scope. MEASURED on arm A:
+    # cotton's stocks-to-use and SRW's ending-stocks hops sat dark on the chain ("scope_unresolved:
+    # global-token-fenced") while the same page served the US series from the numbers seat. The home is the
+    # contract's own two declarations (:func:`home_scope_for`); an anchor with none stays fenced -- HEAD.
+    # ONLY ON A ROW OF ONE OF THE TURN'S OWN ANCHOR BOARDS (``node.anchor_row``, the walk's stage-1 node): a far /
+    # fan / census node keeps HEAD's fence -- MEASURED on the palm fixture, a resolved FAR row read US wheat
+    # stocks-to-use as the fan of palm's own ``ending_stocks`` (one driver id, two quantities).
+    # The rejected lexical form: a Global -> country token table.
+    scope_resolution = ""
+    if (country is casc.SKIP_NODE and skip == "global-token-fenced"
+            and bool(getattr(node, "anchor_row", False))):
+        home = home_scope_for(str(getattr(node, "contract", "") or ""))
+        if home:
+            country, scope_resolution = home, SCOPE_HOME_FOR_GLOBAL
     if country is casc.SKIP_NODE:
         return KeyPlan(key=None, status=f"scope_unresolved:{skip or 'region-unresolved'}",
                        table=row.get("table", ""), metric=row.get("metric", ""), row=row)
@@ -1564,7 +1584,7 @@ def series_key_for(ref: str, node, *, turn_kind: str = "") -> KeyPlan:
                    alias_ref=fold.alias_ref, offset_note=fold.note,
                    commodity=str(commodity or ""), country=str(country or ""),
                    row=row, row2=row2, read_row=read_row, src_row=src_row, ts=ts,
-                   apply_offset=fold.apply_offset)
+                   apply_offset=fold.apply_offset, scope_resolution=scope_resolution)
 
 
 def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = None,
@@ -1592,6 +1612,11 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     row, row2 = plan.row, plan.row2
     out = StateRow(key=plan.key or SeriesKey(ref=ref), asof=asof, coverage_tier="none_text_only")
     out.table, out.metric = plan.table, plan.metric
+    if plan.scope_resolution:
+        # W-5: THE ROW SAYS HOW ITS SCOPE WAS RESOLVED (``StateRow.scope_resolution``, lane R's field). Set
+        # only where a fenced world scope resolved to the anchor's declared home; every other row keeps
+        # HEAD's shape (the attribute is never written on it).
+        setattr(out, "scope_resolution", plan.scope_resolution)
     if row2 is not None:
         out.unit = str(row2.get("native_unit", "") or "")
         out.narrate_unit = str(row2.get("narrate_unit", "") or "")
@@ -2697,6 +2722,328 @@ def text_state(node, *, asof: str, evidence_query: str = "", receipts=None,
                      oldest_date=(dates[0] if dates else None),
                      top=ranked[:TOP_RECEIPTS],
                      status=("ok" if ranked else "no_receipts"))
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE POINT-IN-TIME ACTION LEDGER AND THE RECEIPT'S ROUTING (the 09-26 fix sitting, lane W; CONTRACT P6)
+# ---------------------------------------------------------------------------------------------------
+#: THE ORIGIN WORD A LEDGER ROW CARRIES (CONTRACT P6). A receipt the retrieval DREW carries no ``origin``
+#: key at all -- HEAD's shape, byte for byte -- and a row this ledger READ carries this word, so every
+#: reader (the walk's trace words, the render's regime words) can tell "this turn retrieved it" from "the
+#: record held it at the as-of" and never say the first about the second (threat W1-f).
+ACTION_LEDGER_ORIGIN: str = "action_ledger"
+#: THE PER-NODE ROW BOUND. The regime is the NEWEST realised action on a node (K6), so the ledger needs the
+#: node's newest dated actions and nothing older than the first realised one; the statement already keeps
+#: only rows that CAN be realised (a stored precision, an event dated on or before its own document), so a
+#: bound of twelve holds the newest realised action behind up to eleven newer same-node straddles (a month
+#: or a quarter reported inside itself). It bounds the ROWS a node can cost the turn -- one statement, one
+#: pooled borrow, at most ``slices x 12`` rows on the wire -- and it is stated, never tuned per turn.
+ACTION_LEDGER_LIMIT: int = 12
+#: THE STATEMENT'S OWN CEILING (``SET LOCAL statement_timeout`` inside its transaction), so a wedged read
+#: costs a turn this and never the pool's 300-second default.
+ACTION_LEDGER_TIMEOUT_MS: int = 8000
+#: THE CLOSED WORDS A LEDGER READ THAT DID NOT HAPPEN SAYS WHY (the stamp's ``why``; ``""`` when it read).
+ACTION_LEDGER_WHY: tuple = ("no_nodes", "no_asof", "no_pool", "read_error")
+#: THE ROUTING READ'S CHUNK (proposition ids per statement). Each id is ONE primary-key probe; the second read
+#: (a refusal candidate's id on every commodity node, ``evidence.all_nodes()`` -- 52 today) is the large one.
+ROUTED_READ_CHUNK: int = 20000
+#: A SOURCE ID NAMES A DECLARATION FILE ONLY WHEN IT IS LOWER-SNAKE (the store's own spelling of every
+#: source); any other value names no declaration and reads as "declares nothing".
+_SOURCE_ID_OK = frozenset("abcdefghijklmnopqrstuvwxyz0123456789_")
+
+
+def _ledger_record(rec: dict) -> dict:
+    """ONE ledger row in the RETRIEVAL RECEIPT SHAPE (``pgstore.pg_retrieve``'s ten keys, the same order)
+    plus ``origin`` -- so every reader of a drawn receipt reads a ledger row the same way."""
+    out = {k: rec.get(k) for k in ("date", "source", "source_key", "text", "event_date",
+                                   "event_date_precision", "date_kind", "char_start", "char_end",
+                                   "offset_kind")}
+    out["origin"] = ACTION_LEDGER_ORIGIN
+    return out
+
+
+def _pg_action_rows(pairs, *, asof: str, limit: int):
+    """THE ONE STATEMENT (``fetch_candidates_batch``'s VALUES + LATERAL idiom; pgstore's pool, table name and
+    projection READ, pgstore NOT edited). ``pairs`` is ``((driver slice, contract slice), ...)``. Per pair: the
+    driver slice's rows dated on or before the as-of whose event is dated on or before BOTH the as-of and the
+    row's own document date and carries a stored precision -- the only rows that can be a realised action
+    (``walk.realised`` fails closed on an empty precision) -- AND WHOSE OWN PROPOSITION THE STORE'S ROUTER ALSO
+    PUT ON THE CONTRACT'S SLICE (W-2's identity, the table's primary key ``md5(node|source_key|text)`` =
+    ``pgstore.prop_id``), newest event first, ``LIMIT limit``. MEASURED on the S3 slices (09-26): the
+    ``drivers/tariff`` slice holds 12,133 propositions about every market China or anyone else taxes, and its
+    twelve newest realised actions at 2026-09-26 are canola, cotton, sugar and African-trade actions -- a limit
+    taken BEFORE the identity would read none of the soybean link's own. The predicate ``node = q.node AND
+    date <= asof`` is the canonical ``(node, date)`` index; each identity probe is a primary-key lookup.
+    ``None`` when no mirror is configured (the offline harness).
+
+    A pair's THIRD member is the reporting country the node's regime is ANCHORED on (``walk._regime_anchor``:
+    the ``country=`` partition of the regime receipt the draw already holds; ``""`` for a source that
+    declares none) -- read off the store's own hive key with ``split_part``, never a pattern -- or ``None``
+    for no actor predicate."""
+    from leviathan.graphrag import pgstore as _pg
+    if not _pg.dsn():
+        return None
+    t = _pg.table_name()
+    params: dict = {"asof": str(asof)[:10], "k": int(limit)}
+    vals = []
+    for j, pr in enumerate(pairs):
+        n, cn, cc = (tuple(pr) + (None,))[:3]
+        params["n%d" % j], params["c%d" % j], params["a%d" % j] = n, cn, cc
+        vals.append("(%%(n%d)s::text, %%(c%d)s::text, %%(a%d)s::text)" % (j, j, j))
+    inner = ("SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, p.meta FROM " + t + " p "
+             "WHERE p.node = q.node AND p.date <= %(asof)s AND p.event_date IS NOT NULL "
+             "AND p.event_date <= %(asof)s AND p.event_date <= p.date "
+             "AND COALESCE(p.meta->>'event_date_precision', '') <> '' "
+             "AND (q.cc IS NULL OR split_part(split_part(p.source_key, '/country=', 2), '/', 1) = q.cc) "
+             "AND EXISTS (SELECT 1 FROM " + t + " r WHERE r.id = md5(q.cnode || '|' || p.source_key || '|' "
+             "|| p.text)) "
+             "ORDER BY p.event_date DESC, p.date DESC, p.id LIMIT %(k)s")
+    sql = ("WITH q(node, cnode, cc) AS (VALUES " + ",".join(vals) + ") "
+           "SELECT q.node, q.cnode, q.cc, x.id, x.source, x.source_key, x.date, x.event_date, x.text, x.meta, "
+           "0.0::float8 AS payload "
+           "FROM q CROSS JOIN LATERAL (" + inner + ") x")
+    c = _pg._acquire()
+    try:
+        with c.transaction():
+            with c.cursor() as cur:
+                cur.execute("SET LOCAL statement_timeout = %d" % int(ACTION_LEDGER_TIMEOUT_MS))
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+    finally:
+        _pg._release(c)
+    out: dict = {tuple(pr): [] for pr in pairs}
+    for r in rows:
+        out.setdefault((r[0], r[1], r[2]), []).append(_pg._project(r, False, off=3))
+    return out
+
+
+def _contract_slice_of(contract: str) -> str:
+    """THE CONTRACT'S OWN COMMODITY SLICE (``evidence.node_for``, the planner's ``_slice_of`` for a contract
+    node): the slice the router puts a proposition on when the proposition is about this market."""
+    try:
+        from leviathan.graphrag import evidence as _ev
+        return str(_ev.node_for(str(contract or "")) or "")
+    except Exception:                                   # noqa: BLE001 -- no hierarchy, no slice
+        return ""
+
+
+def _ledger_pit_ok(rec: dict, asof: str) -> bool:
+    """POINT IN TIME, ON BOTH DATES AT THEIR OWN PRECISION (threat W1-a). The document's own date is read
+    as the interval its ``date_kind`` declares (``walk.document_interval``: a month or a year FLOOR is the
+    whole month or year) and must CLOSE on or before the as-of -- a document floored to March 2024 was
+    written somewhere in March and is not knowable on 1 March; and the event's interval at its precision
+    must close on or before the as-of too. A date that cannot be placed is not knowable: fail closed."""
+    from leviathan.graphrag.state import walk as _w
+    cut = str(asof or "")[:10]
+    if not cut:
+        return False
+    div = _w.document_interval(rec)
+    if len(div) != 2 or not div[1] or div[1] > cut:
+        return False
+    iv = _w.event_interval(rec.get("event_date"), str(rec.get("event_date_precision") or ""))
+    return len(iv) == 2 and bool(iv[1]) and iv[1] <= cut
+
+
+def _ledger_order_key(rec: dict) -> tuple:
+    """NEWEST FIRST BY THE EVENT, NEVER BY PUBLICATION (threat W1-d): the event interval's END at its
+    precision, then the document date, then the document's own key -- so a 2026 retrospective of a 2018
+    duty sorts at 2018."""
+    from leviathan.graphrag.state import walk as _w
+    iv = _w.event_interval(rec.get("event_date"), str(rec.get("event_date_precision") or ""))
+    return (iv[1] if len(iv) == 2 else "", str(rec.get("date") or "")[:10],
+            str(rec.get("source_key") or ""))
+
+
+def action_ledger(nodes, *, asof: str, reader=None, limit: int = ACTION_LEDGER_LIMIT,
+                  anchors: Optional[dict] = None) -> tuple:
+    """THE DATED ACTIONS THE STORE HOLDS, AT THE AS-OF, INDEPENDENT OF ANY QUERY TEXT (CONTRACT P6, W-1).
+
+    ``nodes`` is ``{(contract, driver_id): (slice, ...)}`` for every regime row -- the SAME slice(s) the
+    step-5 retrieval read for that row (the planner's own node identity; never a new routing). ONE
+    statement per turn (``reader(pairs, asof=, limit=) -> {(slice, contract slice): [record]}`` or ``None``;
+    the default is the pooled pg statement :func:`_pg_action_rows`), each pair a node's slice with its
+    contract's own slice (:func:`_contract_slice_of`) -- the RECEIPT IDENTITY (W-2, threat W1-c) is applied
+    INSIDE the read, before the bound: a row is read only where its own proposition sits on the contract's
+    slice too, so another market's action on a shared driver slice is never this link's ledger. Each node
+    keeps the rows that are point-in-time at their own precision (:func:`_ledger_pit_ok`) AND realised
+    (``walk.realised``, K6: the event's whole interval closed on or before its own document's date -- a
+    forecast or a scheduled action is never an action, threat W1-b), deduped on ``walk.receipt_merge_key``
+    (the document key + the event interval + the text), newest EVENT first, at most ``limit``.
+
+    ``anchors`` (``{(contract, driver_id): reporting country}``, ``walk._regime_anchor``'s answer) binds each
+    node's read to the ACTOR its draw already holds -- MEASURED on the store, a shared driver slice carries
+    every actor's action on the same market -- and a node absent from it is not read at all. ``None`` (the
+    default) reads every node with no actor predicate.
+
+    Returns ``({(contract, driver_id): [record, ...]}, stamp)``: each record is the retrieval receipt
+    shape plus ``origin`` (:data:`ACTION_LEDGER_ORIGIN`); ``stamp`` = ``{read, nodes, rows, ms, why}``.
+    No configured mirror, no nodes or a failed read -> ``({}, {"read": False, ..., "why": <closed
+    word>})`` -- NEVER an exception and never a guess (threat W1-j)."""
+    from leviathan.graphrag.state import walk as _w
+    nodes = {tuple(k): tuple(v or ()) for k, v in dict(nodes or {}).items()}
+    stamp = {"read": False, "nodes": len(nodes), "rows": 0, "ms": 0.0, "why": ""}
+    if anchors is not None:
+        nodes = {k: v for k, v in nodes.items() if k in anchors}
+    cslice = {k: _contract_slice_of(k[0]) for k in nodes}
+    cc = {k: (None if anchors is None else str(anchors.get(k) or "")) for k in nodes}
+    pairs = tuple(dict.fromkeys((s, cslice[k], cc[k]) for k, v in nodes.items() for s in v if s and cslice[k]))
+    if not pairs:
+        stamp["why"] = "no_nodes"
+        return {}, stamp
+    if not str(asof or "")[:10]:
+        stamp["why"] = "no_asof"
+        return {}, stamp
+    t0 = time.perf_counter()
+    try:
+        raw = (reader or _pg_action_rows)(pairs, asof=str(asof)[:10], limit=int(limit))
+    except Exception:                                   # noqa: BLE001 -- a ledger read never breaks a turn
+        stamp["ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
+        stamp["why"] = "read_error"
+        return {}, stamp
+    stamp["ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
+    if raw is None:
+        stamp["why"] = "no_pool"
+        return {}, stamp
+    out: dict = {}
+    for key, sl in nodes.items():
+        seen: set = set()
+        keep: list = []
+        for s in sl:
+            for rec in (raw.get((s, cslice[key], cc[key])) or ()):
+                if not isinstance(rec, dict) or not _ledger_pit_ok(rec, asof) or not _w.realised(rec):
+                    continue
+                ident = _w.receipt_merge_key(rec)
+                if ident in seen:
+                    continue
+                seen.add(ident)
+                keep.append(_ledger_record(rec))
+        keep.sort(key=_ledger_order_key, reverse=True)
+        if keep:
+            out[key] = keep[:max(0, int(limit))]
+    stamp["read"] = True
+    stamp["rows"] = sum(len(v) for v in out.values())
+    return out, stamp
+
+
+def routed_prop_id(slice_name: str, receipt) -> str:
+    """THE STORE'S OWN IDENTITY OF ONE PROPOSITION ON ONE SLICE -- ``pgstore.prop_id`` (READ, never re-typed):
+    ``md5(node|source_key|text)``, the table's primary key. A proposition is ROUTED to a slice exactly when
+    the loader wrote this row, i.e. when the router matched that slice's forms in THAT SENTENCE."""
+    from leviathan.graphrag import pgstore as _pg
+    g = (receipt.get if isinstance(receipt, dict) else (lambda k, _r=receipt: getattr(_r, k, None)))
+    return _pg.prop_id(str(slice_name or ""), {"source_key": g("source_key"), "text": g("text")})
+
+
+def _pg_routed_rows(ids):
+    """THE ROUTER'S OWN FACT, READ (W-2): which proposition ids (:func:`routed_prop_id`) the store holds --
+    one primary-key probe per id, :data:`ROUTED_READ_CHUNK` ids per statement. ``None`` when no mirror is
+    configured."""
+    from leviathan.graphrag import pgstore as _pg
+    if not _pg.dsn():
+        return None
+    t = _pg.table_name()
+    ids = list(ids)
+    present: set = set()
+    for i in range(0, len(ids), ROUTED_READ_CHUNK):
+        part = ids[i:i + ROUTED_READ_CHUNK]
+        c = _pg._acquire()
+        try:
+            with c.transaction():
+                with c.cursor() as cur:
+                    cur.execute("SET LOCAL statement_timeout = %d" % int(ACTION_LEDGER_TIMEOUT_MS))
+                    cur.execute("SELECT id FROM " + t + " WHERE id = ANY(%(ids)s)", {"ids": part})
+                    present.update(str(r[0]) for r in cur.fetchall())
+        finally:
+            _pg._release(c)
+    return present
+
+
+def routed_propositions(ids, *, reader=None) -> tuple:
+    """``(frozenset(present ids), stamp)`` -- which propositions (:func:`routed_prop_id`) the store holds on
+    the slice their id names (W-2's store fact). ``stamp`` = ``{read, props, ms, why}``; unread -> an empty
+    set and ``read False`` with a closed word (:data:`ACTION_LEDGER_WHY`), never an exception."""
+    ids = tuple(dict.fromkeys(str(x) for x in (ids or ()) if x))
+    stamp = {"read": False, "props": len(ids), "ms": 0.0, "why": ""}
+    if not ids:
+        stamp["why"] = "no_nodes"
+        return frozenset(), stamp
+    t0 = time.perf_counter()
+    try:
+        got = (reader or _pg_routed_rows)(ids)
+    except Exception:                                   # noqa: BLE001 -- a routing read never breaks a turn
+        stamp["ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
+        stamp["why"] = "read_error"
+        return frozenset(), stamp
+    stamp["ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
+    if got is None:
+        stamp["why"] = "no_pool"
+        return frozenset(), stamp
+    stamp["read"] = True
+    return frozenset(str(x) for x in got), stamp
+
+
+@functools.lru_cache(maxsize=256)
+def source_target_contracts(source: str):
+    """THE SOURCE'S OWN DECLARATION OF WHICH MARKETS ITS DOCUMENTS ARE ABOUT -- ``configs/sources/<source>
+    .yaml`` ``target_commodities`` (contract slugs, the collector's declared scope) as a frozenset, or
+    ``None`` where the source declares none (no file, no field, or an id that is not a file name). It is a
+    DECLARED SOURCE FIELD (threat W2-b): the source id is looked up whole and never split into words."""
+    sid = str(source or "").strip()
+    if not sid or any(ch not in _SOURCE_ID_OK for ch in sid):
+        return None
+    try:
+        import yaml
+
+        from leviathan.graphrag import extract as _ex
+        p = _ex._CFG.parent / "sources" / ("%s.yaml" % sid)
+        if not p.exists():
+            return None
+        cfg = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except Exception:                                   # noqa: BLE001 -- an unreadable declaration declares nothing
+        return None
+    tc = cfg.get("target_commodities") if isinstance(cfg, dict) else None
+    if not isinstance(tc, (list, tuple)) or not tc:
+        return None
+    return frozenset(str(x) for x in tc if str(x or ""))
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE ANCHOR'S DECLARED HOME SCOPE (the 09-26 fix sitting, lane W, W-5; CONTRACT P14)
+# ---------------------------------------------------------------------------------------------------
+#: THE ONE ``scope_resolution`` WORD THIS FEEDER SETS: a driver the graph declares for the WORLD, on a map
+#: row whose world read is fenced (``global_token: skip``, the W0-7 fence), resolved to the anchor
+#: contract's declared home scope. The render prints it with ``scope_words.home_for_global`` (lane R).
+SCOPE_HOME_FOR_GLOBAL: str = "home_for_global"
+
+
+def home_scope_for(contract: str) -> str:
+    """THE ANCHOR CONTRACT'S DECLARED HOME, in the store's own surface form -- ``""`` where none is declared.
+
+    TWO DECLARATIONS MEET, AND BOTH ARE THE CONTRACT'S OWN: ``commodity_hierarchy.yaml`` ``origin`` (the
+    benchmark's reference origin, read through ``hierarchy.contract_to_node``) names the home, and the
+    contract's own geography (``configs/geographies/<contract>_regions.yaml``, read through
+    ``query._geo``) must carry that origin as one of its ``country`` entries -- the entry is what gives the
+    store's spelling (``cascade._primary_title``'s own transform: snake to title, the PSD fold). An origin
+    that is ``global``, or that is not a country the contract's geography declares (``EU`` on MATIF), is no
+    home: the row stays fenced, exactly HEAD's. No token table: a word is never mapped to a country here."""
+    slug = str(contract or "").strip()
+    if not slug:
+        return ""
+    try:
+        from leviathan.graphrag import hierarchy as _hi
+        from leviathan.graphrag.numbers import query as _q
+        spec = _hi.contract_to_node(slug)
+        origin = str((spec or ("", ""))[1] or "").strip().lower()
+        if not origin or origin == "global":
+            return ""
+        geo = _q._geo(slug) or {}
+        declared = {str(c or "").strip().lower() for r, c in geo.items() if r != "_primary" and c}
+        if origin not in declared:
+            return ""
+        titled = origin.replace("_", " ").title()
+        return getattr(_casc(), "_PSD_COUNTRY_FOLD", {}).get(titled, titled)
+    except Exception:                                   # noqa: BLE001 -- no declaration is no home, never a raise
+        return ""
 
 
 # ---------------------------------------------------------------------------------------------------

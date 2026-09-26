@@ -414,3 +414,65 @@ phase_pairs:
     convention: iod_climate
     positive: {driver: IOD_positive, words: "the positive phase"}
     negative: {driver: IOD_negative, words: "the negative phase"}
+
+# =====================================================================================================
+# THE 09-26 FIX SITTING'S ROW WORDS (lane R, R-5) -- EVERY NEW WORD A BOARD ROW PRINTS, DECLARED ONCE
+# =====================================================================================================
+# Each book below has ONE reader (state/render.py `_book` / `book_words`, or state/rows.py for
+# `period_joins`) and is graded by state/lint.py clause 18: closed keys, ASCII, digit-free,
+# underscore-free, register-clean on all four detectors, and the paired sides different. No row word
+# this sitting adds is a literal in render.py (the 09-25 close-out's MINOR-A lesson). A missing book is
+# a missing clause on the row -- never a guessed word.
+
+# THE PERIOD JOIN of a figure token (rows.PERIOD_TOKEN_JOINS reads this book; it was a literal in
+# rows.py): a marketing year's label is bare ("for 2026/27"); a crop season's label is a count noun
+# ("2024/25 season") and takes its article ("for the 2024/25 season", the 09-25 close-out MINOR-B).
+# Keys are rows.PERIOD_KINDS members; a kind with no entry joins by the plain comma.
+period_joins:
+  marketing_year: "for"
+  crop_season: "for the"
+
+# THE DIRECTION WORDS a row's CONVENTION reads its run by (CONTRACT P5, V-1): the served scalar of a
+# run carries RUN_DIRECTION_WORDS' word plus this entry for its own convention, so the verifier holds a
+# writer's direction word to the direction the block printed. ONLY the conventions whose rows a writer
+# names with a directional word, measured on the arm pages: palm/rape (09-26) printed "itself loosening
+# [N62]" on a FALLING EU stocks-to-use run (fact grade F2). up = the series rising. Keys are
+# `conventions:` ids.
+direction_words:
+  psd_ending_stock_su_ratio: {up: "loosening", down: "tightening"}
+
+# WHAT A PROJECTED WINDOW IS COUNTED FROM (CONTRACT P8, W-6 / AN-5): walk.effect_window's own anchor
+# ("run" = the run's start, "reading" = the reading's own date) with "{month}" the anchor date in month
+# words. The SB-J line and the watch's window clause both print THIS, so one reading's two windows name
+# their anchors (D11: max and rice printed two windows for one reading with no anchor on one of them).
+window_anchor_words:
+  run: "the run's start in {month}"
+  reading: "this reading's own date in {month}"
+
+# THE REGIME WORDS for an action the point-in-time ACTION LEDGER read (CONTRACT P6, W-1 threat W1-f):
+# the record's own newest dated action on the link as known at the page's date -- never "that this turn
+# retrieved", which is the DRAW's law and stays the words of a draw-sourced receipt. ONE %s: the action
+# at its own precision and the document that reports it.
+regime_words:
+  ledger: "the newest dated policy action the record holds on this link as known at this page's date is %s; the model treats a policy as in force until a later dated action on the same link"
+
+# THE SCOPE CLAUSE (CONTRACT P14, W-5): a driver the model declares for the WORLD whose world series is
+# fenced here, read on the anchor market's own declared home scope -- the row's identity prints that
+# scope ("for United States") and this clause says why it is not the world's.
+scope_words:
+  home_for_global: "the model declares this driver for the world and the world series is fenced here, so this is the reading of the market's own home"
+
+# THE POSITIONING WORDS (CONTRACT P9, R-2 / A-4), OWNER RULING 1 (2026-09-18) -- the mapping the walk's
+# own note prints: a crowd sitting the SAME way the sequence argues makes the reversal abrupt; a crowd
+# the OTHER way cushions it. `record_extreme_lead` introduces the positioning card's own `mechanism`,
+# quoted whole, on a positioning row at its own record's end; lane A's gate searches the block for it.
+positioning_words:
+  same_way: "which makes the reversal abrupt"
+  other_way: "which cushions this sequence"
+  record_extreme_lead: "at the end of its own record, and the positioning card reads an extreme position this way:"
+
+# THE READER SENTENCE OF A SLOT WORD (CONTRACT P13, R-4 a): the subject slot answered by the subject
+# pick's own served row (walk SLOT_STATES "answered_by_row"), printed on that row. Desk-register clean
+# ("row" is the instrument's word, measured: the first phrasing counted one desk-register hit).
+slot_words:
+  answered_by_row: "this is the reading the question's subject resolves to, answered by this reading itself because its declared links into the price are one step"

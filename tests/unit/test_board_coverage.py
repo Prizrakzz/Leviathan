@@ -1258,13 +1258,20 @@ def test_R0923_chain_referenced_counts_TWO_LINKS_NARRATED_AS_A_CHAIN_and_nothing
     yes = ("**The crude-to-crush chain, in hop order.** Crude peaked in April 2026 and now reads the "
            "68th [N54], through 10 September 2026, declared to push crush the same way, and the readings "
            "agree.")
-    assert _R.chain_referenced_in(ch, _vf.sentences(yes))
+    # RE-BANKED 09-26 (fix sitting, R-1 / D3, CONTRACT P3 -- DECLARED): a link is named by its OWN address or a
+    # WHOLE reader name unique to it on the board; the single identity words ("crude", "crush") are no longer a
+    # naming route -- the one-token match is the class that read the cotton page's "Indian monsoon" as the
+    # Indian Ocean dipole and withheld its backstop. The same sentence with its own address and the crush
+    # margin's whole name reads referenced; the one-word spelling alone does not.
+    assert not _R.chain_referenced_in(ch, _vf.sentences(yes), hop_handles=[(54,), (), ()])
+    yes_whole = ("Brent crude peaked in April 2026 and now reads the 68th [N54], declared to push the board "
+                 "crush margin the same way, and the readings agree.")
+    assert _R.chain_referenced_in(ch, _vf.sentences(yes_whole), hop_handles=[(54,), (), ()])
     # 09-23 FIX ROUND (review RA M3): NO KEYWORD GATE. The first cut also required the head noun "chain"
     # or the end market's words in a two-sentence window -- tuned on the ten pages it was graded on. The
-    # rule is now the structure alone: ONE sentence naming two distinct links, by words or by address.
-    # A sentence that names two links of the chain names two links of the chain, however it is phrased.
-    listed = ("Price-supportive: the tight stocks-to-use ratio at high confidence, the crush margin at high "
-              "confidence, and the managed-money net length at the 97th percentile.")
+    # rule is now the structure alone: ONE sentence naming two distinct links, by address or whole name.
+    listed = ("Price-supportive: the tight stocks-to-use ratio at high confidence, the board crush margin at "
+              "high confidence, and the managed-money net length at the 97th percentile.")
     assert _R.chain_referenced_in(ch, _vf.sentences(listed))
     one = "The chain the model puts first runs from crude oil into a market this question did not name."
     assert not _R.chain_referenced_in(ch, _vf.sentences(one)), "one link of a three-link chain"
@@ -1276,6 +1283,7 @@ def test_R0923_chain_referenced_counts_TWO_LINKS_NARRATED_AS_A_CHAIN_and_nothing
     split = "Crude is firm. The crush margin is wide."
     assert not _R.chain_referenced_in(ch, _vf.sentences(split))
     # the identity words are DERIVED from the chain's own names: generic book words never identify a hop
+    # (09-26: the function stays for its other readers; it is no longer a naming route -- see above)
     idw = _R.chain_hop_identity_words(ch)
     assert "crude" in idw[0] and "crush" in idw[1]
     assert not ({"record", "price", "against"} & (idw[0] | idw[1] | idw[2])), idw

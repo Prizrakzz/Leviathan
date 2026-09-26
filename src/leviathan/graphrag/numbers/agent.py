@@ -2358,6 +2358,26 @@ def _budget_line(max_calls: int | None) -> str:
 _THINKING_MAX_TOKENS = 6000
 _NARROWED_MAX_TOKENS = 12000
 
+# THE 09-26 FIX SITTING (lane T, item T-1 / A-4b): THE CEILING IS A RUNG LADDER, and its rungs are the two
+# floors above -- no third number. MEASURED on the arm-A capture (2026-09-26, the six eval jobs' CloudWatch
+# `[numbers-thinking]` lines, 62 rounds, every one attributed to its turn by its usage row): 3 rounds stopped
+# on max_tokens at 6,000 (tariff treatment round 1, tariff control round 2, palm/rape control round 1) and the
+# two largest rounds that FINISHED were 5,327 (the tariff CONTROL's round 1 -- the very prompt the treatment
+# truncated on) and 5,077 (the palm/rape TREATMENT's round 1 -- the very prompt the control truncated on).
+# The need therefore STRADDLES the 6,000 wall on the same prompt from cell to cell; the next rung, 12,000, is
+# 2.25x the largest round that finished. A truncated round re-runs ONCE, at the next rung, on the SAME
+# messages (`answer_numbers(rung_ladder=True)`); a second truncation still raises -- never a silent partial.
+_NUMBERS_RUNGS: tuple = (_THINKING_MAX_TOKENS, _NARROWED_MAX_TOKENS)
+
+
+def _next_rung(ceiling: int) -> Optional[int]:
+    """T-1: the lowest rung of `_NUMBERS_RUNGS` STRICTLY above ``ceiling`` -- the ceiling a truncated round
+    re-runs at -- or None when the round already ran at (or above) the top rung, which is exactly the turn
+    that must still raise. Read off the ladder, never a multiplier: a caller ceiling between two rungs climbs
+    to the next one, and one at the top climbs nowhere."""
+    above = [r for r in _NUMBERS_RUNGS if r > int(ceiling)]
+    return min(above) if above else None
+
 
 def _numbers_max_tokens(max_tokens: int, *, thinking: bool, budget_line: str) -> int:
     """LANE S: the ONE producer of this lane's output ceiling, so the two floors cannot be applied
@@ -2414,7 +2434,7 @@ def _numbers_max_tokens(max_tokens: int, *, thinking: bool, budget_line: str) ->
 
 
 def _budget_stamp(max_calls: int, rounds_used: int, calls: list, *, capped: bool,
-                  max_tokens: int) -> dict:
+                  max_tokens: int, rungs: Optional[list] = None) -> dict:
     """LANE S: the ONE producer of the `numbers_budget` record, so the dict SHAPE is written once and
     the three turn-ending returns below cannot describe the same turn in three different shapes.
 
@@ -2434,10 +2454,19 @@ def _budget_stamp(max_calls: int, rounds_used: int, calls: list, *, capped: bool
     additive-only law the trace column and the eval projection both rest on. It rides the record for
     the reason `rounds_used` does: the truncation that made the headroom sitting necessary was
     invisible in every artifact except one stdout line, and a record stating which ceiling was in
-    force is what makes the NEXT rung a measurement instead of a guess."""
-    return {"max_calls": int(max_calls), "rounds_used": int(rounds_used),
-            "lookups": len(calls or []), "capped": bool(capped),
-            "max_tokens": int(max_tokens)}
+    force is what makes the NEXT rung a measurement instead of a guess.
+
+    `rungs` (THE 09-26 FIX SITTING, lane T, T-1) is the RUNG LADDER's record -- one {max_tokens, stop, out}
+    per create the ladder ran (the truncated round, then its one re-run) -- APPENDED LAST and PRESENT ONLY
+    WHEN THE LADDER FIRED, so every turn it did not fire (every turn with `rung_ladder` off) keeps the five-key
+    shape above to the byte. `max_tokens` then states the ceiling the turn ENDED under (the climbed rung), and
+    `rungs` states the one it started under."""
+    stamp = {"max_calls": int(max_calls), "rounds_used": int(rounds_used),
+             "lookups": len(calls or []), "capped": bool(capped),
+             "max_tokens": int(max_tokens)}
+    if rungs:
+        stamp["rungs"] = [dict(r) for r in rungs]
+    return stamp
 
 
 def tool_schema(reg: NumbersRegistry) -> dict:
@@ -4042,7 +4071,8 @@ def tables_queried(calls: list) -> list[str]:
 def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU, reg: Optional[NumbersRegistry] = None,
                    query_fn=None, max_calls: int = 6, max_tokens: int = 1500, on_call=None,
                    families: Optional[list] = None, futures_newest_first: bool | str = False,
-                   pair_spread: bool = False, closed_year: bool = False) -> dict:
+                   pair_spread: bool = False, closed_year: bool = False,
+                   usage_sink: Optional[list] = None, rung_ladder: bool = False) -> dict:
     """Run the agent loop. `client` = an anthropic.Anthropic (real = billed); `query_fn(sql)->rows` overrides Athena
     (tests). Returns {answer, calls:[{query, rows}]} — calls carry the exact provenance behind every number.
     `on_call(n_calls, table)` (default None = byte-identical) fires after each executed lookup — the SSE
@@ -4076,7 +4106,21 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     board flag only): a destination-grain export-sales read whose newest week belongs to a marketing year
     the STORE shows closed stamps that row `period_role` and mints ONE companion read of the same series
     over that year through the query layer's own `agg="sum"` (`esr_closed_year_legs`). Both kwargs build
-    nothing into the prompt; both default False -> HEAD's turn to the byte."""
+    nothing into the prompt; both default False -> HEAD's turn to the byte.
+
+    THE 09-26 FIX SITTING (lane T, CONTRACT P12) appends two more, and neither builds anything into a prompt:
+    `usage_sink` (T-2, D8 / MINOR-4): the CALLER's list. Each round's usage row -- the SAME dict
+    `usage_rounds` appends, under the SAME census gate (`_cost_census_on()`) -- is appended to it the moment
+    the round's response arrives, BEFORE any sentinel can raise, so a seat that fails still leaves its spend
+    with the caller (`orchestrator.run_hybrid` carries it onto `numbers_usage` on its exception path only; on
+    a clean return `numbers_usage` holds the same rows). None -> nothing is appended anywhere new.
+    `rung_ladder` (T-1, A-4b): on the ARMED thinking lane only, a round that stops on `max_tokens` re-runs
+    ONCE, on the SAME `convo` (the truncated content is never appended), at `_next_rung` of the ceiling it
+    ran under; the climbed ceiling holds for the rest of the turn, the ladder fires at most once per turn,
+    and a second truncation RAISES the sentinel whose message BEGINS with the first truncation's message
+    verbatim. Both creates print their `[numbers-thinking]` line and both are priced (one `usage_rounds`,
+    one sink, across the ladder). The caller threads True ONLY on a board turn (the `_ps` dict, orchestrator
+    seam S-1); False -> HEAD's raise at the first truncation, byte for byte."""
     # D-AM-5's seat seam, THIRD instance (2026-08-23, the A/B seat wave's lever): env fills the DEFAULT
     # only, exactly like GRAPHRAG_SYNTH_MODEL (answer.py:8766) and GRAPHRAG_DISPATCH_MODEL (dispatch.py:662)
     # -- an explicit caller model always wins, env unset is byte-identical. The docstring's no-env doctrine
@@ -4205,6 +4249,10 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # `max_calls`) so the stamp reports what the loop did rather than what it was allowed to do -- a
     # turn that answers in one round records 1, whatever budget it was handed.
     _rounds = 0
+    # T-1 (09-26): the RUNG LADDER's record (see `_budget_stamp`) and the FIRST truncation's message, which a
+    # second truncation raises at its head. [] / "" on every turn the ladder never fires.
+    _rungs: list[dict] = []
+    _first_trunc = ""
     for _ in range(max_calls):
         _rounds += 1
 
@@ -4216,47 +4264,75 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             if _out_cfg is not None:
                 kw["output_config"] = _out_cfg
             return client.messages.create(**kw)
-        resp = pv.with_retry(_one) if pv else _one()
-        if _cost_census_on():
-            # LANE C / COST_LATENCY STEP 1: one row per AGENT ROUND, read off the response this loop
-            # already holds. Inside a try because this file's standing law is that an instrument never
-            # breaks an answer -- a provider whose usage object lacks a field yields 0 for that field and
-            # the round is still recorded, and a usage object that raises costs the census one row, never
-            # the turn. Field names and the `or 0` idiom are the print's own, three lines below.
-            try:
-                _cu = getattr(resp, "usage", None)
-                usage_rounds.append({
-                    "model": model,
-                    "in": getattr(_cu, "input_tokens", 0) or 0,
-                    "out": getattr(_cu, "output_tokens", 0) or 0,
-                    "cache_read": getattr(_cu, "cache_read_input_tokens", 0) or 0,
-                    "cache_write": getattr(_cu, "cache_creation_input_tokens", 0) or 0,
-                })
-            except Exception:  # noqa: BLE001 -- a census can never fail a lookup round
-                pass
-        if _thinking is not None:
-            # ARMED-LANE ONLY (unset stays byte-identical). Review wf_e16bbcd3 objections 2+3:
-            # (2) the truncation sentinel -- extract.py:557's doctrine ("NEVER silently accept a
-            # truncated structured result") reaches this raw create too: with thinking billing into
-            # the same 6,000 ceiling, a max_tokens stop has no tool_use block and the `if not uses`
-            # exit would serve the empty text as a FINAL answer, invisibly. Fail closed instead.
-            # (3) the usage line -- this lane has no usage_sink, so the armed arm's thinking spend
-            # and cache behaviour are otherwise unmeasurable from any artifact; one stdout line per
-            # create reaches the eval logs and settles whether 6,000 was the right ceiling.
-            _u = getattr(resp, "usage", None)
-            # LANE C: `cache_write` joins the line. COST_LATENCY section 1.4 names its absence "the
-            # single largest blind spot" -- the 26 lines this print produced on the pre-arm smoke are
-            # what made the arm's biggest cost term a MODEL rather than a measurement, and the comment
-            # above already claims this line "settles whether 6,000 was the right ceiling".
-            print("[numbers-thinking] stop=%s in=%s out=%s cache_read=%s cache_write=%s" % (
-                getattr(resp, "stop_reason", None),
-                getattr(_u, "input_tokens", None), getattr(_u, "output_tokens", None),
-                getattr(_u, "cache_read_input_tokens", None),
-                getattr(_u, "cache_creation_input_tokens", None)), flush=True)
-            if getattr(resp, "stop_reason", None) == "max_tokens":
-                raise RuntimeError(
-                    "numbers-thinking turn TRUNCATED at max_tokens=%d -- refusing to serve a "
-                    "partial selection as final (extract.py:557's doctrine)" % max_tokens)
+        # T-1 (09-26): ONE pass per round, unless the round truncates on the armed lane with the ladder lit --
+        # then exactly one more pass, on the SAME `convo` (nothing of the truncated response is appended), at
+        # the next rung. Every pass is priced and printed; the loop leaves by `break` or by the sentinel.
+        while True:
+            resp = pv.with_retry(_one) if pv else _one()
+            if _cost_census_on():
+                # LANE C / COST_LATENCY STEP 1: one row per AGENT ROUND, read off the response this loop
+                # already holds. Inside a try because this file's standing law is that an instrument never
+                # breaks an answer -- a provider whose usage object lacks a field yields 0 for that field and
+                # the round is still recorded, and a usage object that raises costs the census one row, never
+                # the turn. Field names and the `or 0` idiom are the print's own, three lines below.
+                # T-2 (09-26): the SAME row lands in the caller's `usage_sink`, here, before the sentinel
+                # below can raise -- so a truncated or failing seat's spend survives with its caller.
+                try:
+                    _cu = getattr(resp, "usage", None)
+                    _urow = {
+                        "model": model,
+                        "in": getattr(_cu, "input_tokens", 0) or 0,
+                        "out": getattr(_cu, "output_tokens", 0) or 0,
+                        "cache_read": getattr(_cu, "cache_read_input_tokens", 0) or 0,
+                        "cache_write": getattr(_cu, "cache_creation_input_tokens", 0) or 0,
+                    }
+                    usage_rounds.append(_urow)
+                    if usage_sink is not None:
+                        usage_sink.append(_urow)
+                except Exception:  # noqa: BLE001 -- a census can never fail a lookup round
+                    pass
+            if _thinking is not None:
+                # ARMED-LANE ONLY (unset stays byte-identical). Review wf_e16bbcd3 objections 2+3:
+                # (2) the truncation sentinel -- extract.py:557's doctrine ("NEVER silently accept a
+                # truncated structured result") reaches this raw create too: with thinking billing into
+                # the same 6,000 ceiling, a max_tokens stop has no tool_use block and the `if not uses`
+                # exit would serve the empty text as a FINAL answer, invisibly. Fail closed instead.
+                # (3) the usage line -- the armed arm's thinking spend and cache behaviour reach the eval
+                # logs through this one stdout line per create (the census rows above are the priced half,
+                # and since 09-26 they reach the caller's `usage_sink` too).
+                _u = getattr(resp, "usage", None)
+                # LANE C: `cache_write` joins the line. COST_LATENCY section 1.4 names its absence "the
+                # single largest blind spot" -- the 26 lines this print produced on the pre-arm smoke are
+                # what made the arm's biggest cost term a MODEL rather than a measurement, and the comment
+                # above already claims this line "settles whether 6,000 was the right ceiling".
+                print("[numbers-thinking] stop=%s in=%s out=%s cache_read=%s cache_write=%s" % (
+                    getattr(resp, "stop_reason", None),
+                    getattr(_u, "input_tokens", None), getattr(_u, "output_tokens", None),
+                    getattr(_u, "cache_read_input_tokens", None),
+                    getattr(_u, "cache_creation_input_tokens", None)), flush=True)
+                if len(_rungs) == 1:
+                    # T-1: THIS pass is the ladder's one re-run -- its rung joins the record whatever it did.
+                    _rungs.append({"max_tokens": int(max_tokens), "stop": getattr(resp, "stop_reason", None),
+                                   "out": getattr(_u, "output_tokens", None)})
+                if getattr(resp, "stop_reason", None) == "max_tokens":
+                    _trunc = ("numbers-thinking turn TRUNCATED at max_tokens=%d -- refusing to serve a "
+                              "partial selection as final (extract.py:557's doctrine)" % max_tokens)
+                    if _rungs:
+                        # T-1: the ladder already fired this turn -- its one re-run is spent. RAISE, with the
+                        # FIRST truncation's message verbatim at the head (what `numbers_error` keeps: the
+                        # orchestrator cuts at the message's tail, never its head) and this truncation's own
+                        # round and ceiling after it, so the record states both rungs.
+                        raise RuntimeError("%s; re-run once at max_tokens=%d, and round %d TRUNCATED at it"
+                                           % (_first_trunc, max_tokens, _rounds))
+                    _up = _next_rung(max_tokens) if rung_ladder else None
+                    if _up is None:
+                        raise RuntimeError(_trunc)      # ladder off, or no rung above: HEAD's raise, byte for byte
+                    _rungs.append({"max_tokens": int(max_tokens), "stop": "max_tokens",
+                                   "out": getattr(_u, "output_tokens", None)})
+                    _first_trunc = _trunc
+                    max_tokens = _up                    # the climbed ceiling holds for the rest of the turn
+                    continue
+            break
         uses = [b for b in resp.content if getattr(b, "type", None) == "tool_use"]
         if not uses:
             text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
@@ -4266,7 +4342,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             # can still grow (the ESR aggregate legs, the pattern-records leg). `capped=False`: this
             # branch is reached because the model produced TEXT, i.e. it stopped on its own.
             result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls, capped=False,
-                                                     max_tokens=max_tokens)
+                                                     max_tokens=max_tokens, rungs=_rungs)
             if unit_guard_fires:
                 # U3: the unit guard's refusal is MODEL-FACING ONLY -- it never enters `calls`, so it
                 # reaches no citation and no reader directly. This key is therefore the only way to see
@@ -4354,7 +4430,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                         # would under-report `lookups` by exactly the injected aggregate legs.
                         result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls,
                                                                  capped=False,
-                                                                 max_tokens=max_tokens)
+                                                                 max_tokens=max_tokens, rungs=_rungs)
                         return result
                     # generic breakdown with no available aggregate: the plain national-total decline stands.
                     preface += _esr_destination_preface(dest)
@@ -4501,7 +4577,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             # LANE S: re-taken at the LAST possible moment, beside the usage census and for its reason --
             # the ESR and pattern-records branches above append to `calls`, so `lookups` is only true here.
             result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls, capped=False,
-                                                     max_tokens=max_tokens)
+                                                     max_tokens=max_tokens, rungs=_rungs)
             return result
         convo.append({"role": "assistant", "content": resp.content})
 
@@ -4851,7 +4927,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     capped_result = {"answer": "(stopped: max tool calls reached)", "calls": calls,
                      "tables_queried": tables_queried(calls),
                      "numbers_budget": _budget_stamp(max_calls, _rounds, calls, capped=True,
-                                                     max_tokens=max_tokens)}
+                                                     max_tokens=max_tokens, rungs=_rungs)}
     # LANE C: the two turn-scoped censuses ride the CAPPED return for the reason the comment above gives
     # about the budget stamp -- a capped turn is the BUSIEST turn, so it is exactly the one whose spend
     # and whose alias resolutions must not be missing from the read. Both are absent-when-empty, so this

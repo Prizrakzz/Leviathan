@@ -3782,7 +3782,11 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             # ORDER). `ask_head` is the tuple of handles the block's ASK head printed (empty -> no
             # clause); `horizon_row` is True only when the block carries the horizon-answering chain's
             # outcome. Both ride INSIDE the `state_board` branch, so a board-less turn cannot see them.
-            ask_head: tuple = (), horizon_row: bool = False) -> str:
+            ask_head: tuple = (), horizon_row: bool = False,
+            # 09-26 FIX SITTING (lane A, A-4; CONTRACT P9): THE RECORD-EXTREME CLAUSE, appended at the TAIL
+            # after `horizon_row` for the same pinned reason -- the handles of the block lines that print lane
+            # R's record-extreme lead on a positioning row; empty -> no clause, HEAD's bytes (B1).
+            positioning_asymmetry: tuple = ()) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -4012,6 +4016,10 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             base = base + " " + _sn.ask_head_mandate(ask_head)
         if horizon_row:
             base = base + " " + _sn.MANDATE_HORIZON_ROW
+        # 09-26 (A-4, CONTRACT P9): the positioning card's own asymmetry words, beside the position -- ONLY when
+        # the block printed them (`positioning_asymmetry` = the handles of the lines carrying R's lead)
+        if positioning_asymmetry:
+            base = base + " " + _sn.positioning_asymmetry_mandate(positioning_asymmetry)
     if watch_selection:                                            # S7b LANE W: the fifth movement's
         # SELECTION LICENCE, landed by the sec 6.1 seam protocol and appended as ONE constant lane W
         # owns (`state.watch.WATCH_SELECTION_CLAUSE`). It rides the SAME gate the board's mandate
@@ -4909,6 +4917,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _page_markets: tuple = tuple(getattr(sg, "seeds", None) or ())
     # 09-24 (K8): the ASK HEAD's handles as the block printed them; `()` -> no ask clause.
     _ask_printed: tuple = ()
+    # 09-26 (A-4, CONTRACT P9): the handles of the block lines that print the record-extreme lead; `()` -> no
+    # clause (every board-off turn, and every board turn whose block printed none)
+    _pos_printed: tuple = ()
     if _board is not None:
         _board_n_start = len(extra_number_calls or []) + 1
         _ledger = _evidence_ledger(_uniq, menu_printed=_menu_on)   # 09-25 AT-3: the decision the menu rendered from
@@ -4943,6 +4954,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             except Exception:  # noqa: BLE001 -- an unreadable ledger leaves the menu's own list
                 pass
         _ask_printed = _ask_head_printed(_s2_kw.get("ask_rows"), _sb.get("block"))
+        _pos_printed = _positioning_asymmetry_printed(_sb.get("block"))
         if _sb.get("block") and _quant_on:
             volatile_blocks = volatile_blocks + [_sb["block"]]
             _board_block_shipped = True
@@ -5457,6 +5469,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                               horizon_row=bool(_state_board_block_on(vp)
                                                and _horizon_row_on(_board, (_sb or {}).get("block")
                                                                    if _board is not None else "")),
+                              # 09-26 A-4 (P9): the record-extreme clause, only when the block printed it
+                              positioning_asymmetry=(_pos_printed if _state_board_block_on(vp) else ()),
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
                               prose_mode=mode_name,               # LANE E: the tier the CEILING is
                               #                                     priced for; read ONLY inside the
@@ -6374,6 +6388,31 @@ def _ask_head_printed(ask_rows, block) -> tuple:
         if at >= 0:
             found.append((at, tok))
     return tuple(t for _a, t in sorted(found))
+
+
+def _positioning_asymmetry_printed(block) -> tuple:
+    """CONTRACT P9 (09-26, A-4): the [N] handles of the block lines that carry lane R's record-extreme lead
+    (`render.POSITIONING_ASYMMETRY_LEAD` -- the ONE spelling the producer prints and this gate reads, the
+    `CW_MARKER_PREFIX` law), in block order, each handle once; ``()`` when the constant is absent (R not
+    landed), empty, or no line carries it -- so the mandate clause never orders words the block did not
+    print (the +10-hallucination class, the `_ask_head_printed` idiom)."""
+    try:
+        from leviathan.graphrag.state import render as _sr  # lazy: phase-2 only, gate-guarded
+        lead = str(getattr(_sr, "POSITIONING_ASYMMETRY_LEAD", "") or "")
+    except Exception:  # noqa: BLE001 -- no producer, no clause
+        return ()
+    if not lead.strip() or not block:
+        return ()
+    out: list = []
+    for ln in str(block).splitlines():
+        if lead not in ln:
+            continue
+        for m in _N_HANDLE_RX.finditer(ln):
+            for i in _n_handle_members(m.group(0)):
+                tok = "[N%d]" % i
+                if tok not in out:
+                    out.append(tok)
+    return tuple(out)
 
 
 def _horizon_row_on(board, block) -> bool:
@@ -11974,19 +12013,51 @@ def _chain_backstop(structured: dict | None, board, number_calls, *, coverage,
         from leviathan.graphrag import verify as _vf
         text = f"{structured.get('tldr') or ''}\n{structured.get('mechanism') or ''}"
         sents = _vf.sentences(text)
-        for c in chains:
+        # 09-26 FIX SITTING (lane A, item A-3; CONTRACT P3, D3): A LINK IS NAMED BY ITS OWN ADDRESS OR A WHOLE
+        # NAME UNIQUE TO IT ON THE BOARD. The cotton page lost its whole chain stanza to the one-token match
+        # "Indian" (the Indian monsoon read as the Indian Ocean dipole) -- through GUARD (1), whose adjacent
+        # count read 1 on that token. Lane R's producers now name a link only by its own addresses or a whole
+        # board-unique name (R-1), so guard (1) reads the adjacency of ADDRESSED links. Guard (3) is the "never
+        # a second telling" net, and it WITHHOLDS where EITHER reading says the writer told a chain:
+        #   (i)  HEAD's any-order read -- two links of a rendered chain named in one sentence, by R's own naming
+        #        route (the existing pin `test_0923_the_backstop_withholds_when_the_writer_narrated_ANY_rendered_
+        #        chain`: the 09-23 deep page cites two hop addresses in one sentence OUT of chain order, and a
+        #        guard reading adjacency alone printed a second telling there -- the A3-c threat, MEASURED);
+        #   (ii) the addressed ADJACENT read with the P3 inputs -- the hop's own [N] addresses, the [E] the block
+        #        printed on that hop's chain document / receipt rows (`_chain_hop_receipts`), the board's rendered
+        #        chains as the uniqueness population -- selected by a signature probe on `hop_receipts`.
+        # A tree where R has not landed keeps HEAD's call exactly ((ii) is absent). DECLARED DEVIATION from P3's
+        # "guard (3) calls the adjacent producer" (BUILD_A sec 3): adjacency alone is a NARROWER withhold and
+        # was refuted on the pin above; the union keeps the contract's addressed read and the net.
+        # REJECTED: stop-listing "Indian" / "monsoon"; a word-length floor.
+        _adj = getattr(_sr, "chain_referenced_adjacent_in", None)
+        _addressed = callable(_adj) and _takes_kwarg(_adj, "hop_receipts")
+        _receipts = _chain_hop_receipts(board, chains) if _addressed else []
+        for _ci, c in enumerate(chains):
             hh = []
             for h in (getattr(c, "hops", None) or ()):
                 rh = (handles or {}).get((str(getattr(h, "contract", "") or ""),
                                           str(getattr(h, "driver_id", "") or ""))) or {}
                 hh.append(tuple(int(v) for v in rh.values() if isinstance(v, int) and v > 0))
-            if _sr.chain_referenced_in(c, sents, hop_handles=hh):
+            _told = _sr.chain_referenced_in(c, sents, hop_handles=hh)
+            if not _told and _addressed:
+                _told = _adj(c, sents, hop_handles=hh, page_markets=tuple(page_markets or ()),
+                             hop_receipts=(_receipts[_ci] if _ci < len(_receipts) else None),
+                             peer_chains=tuple(chains))
+            if _told:
                 return census                      # the writer narrated a chain in its own words
         fn = getattr(_sr, "chain_page_sentence", None)
         if not callable(fn):
             census["backstop_withheld"] += 1
             return census
-        sentence = str(fn(ch, handles) or "").strip()
+        # 09-26 (CONTRACT P11, R-4 b): the [N] the served prose already cites, so the board's sentence keeps
+        # the hop the writer leans on among its named nodes -- passed only where lane R's producer declares
+        # `cited` (signature probe); HEAD's two-argument call otherwise.
+        if _takes_kwarg(fn, "cited"):
+            _cited = sorted({i for m in _N_HANDLE_RX.finditer(text) for i in _n_handle_members(m.group(0))})
+            sentence = str(fn(ch, handles, cited=tuple(_cited)) or "").strip()
+        else:
+            sentence = str(fn(ch, handles) or "").strip()
         if not sentence:
             census["backstop_withheld"] += 1
             return census
@@ -12000,6 +12071,40 @@ def _chain_backstop(structured: dict | None, board, number_calls, *, coverage,
     except Exception:  # noqa: BLE001 -- a correction must never be the thing that breaks an answer
         return census
     return census
+
+
+@functools.lru_cache(maxsize=32)
+def _takes_kwarg(fn, name: str) -> bool:
+    """Does ``fn`` declare the keyword ``name``? Read off its SIGNATURE once (the `_verify_takes_served_scalars`
+    idiom): a lane's producer that has not landed yet gets HEAD's call exactly, never a TypeError."""
+    import inspect as _inspect                          # lazy: read once per (fn, name)
+    try:
+        return name in _inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def _chain_hop_receipts(board, chains) -> list:
+    """PER RENDERED CHAIN (``chains``, in the render's own rank order), per hop: the [E] addresses the BLOCK
+    printed on that hop's chain document / receipt rows -- read off the board's own render manifest
+    (``Board.rendered_rows``: role ``chain_document`` / ``chain_receipt``, the chain's 1-based ``rank`` in that
+    order, and the ``hop_index`` lane R stamps on them), the handles parsed by the estate's [E] grammar
+    (`_E_HANDLE_RX`). A chain or hop the manifest says nothing for gets an empty tuple; a board with no manifest
+    gets empty tuples throughout (every hop then names itself by its [N] addresses and whole names only)."""
+    rows = list(getattr(board, "rendered_rows", ()) or ())
+    out: list = []
+    for i, c in enumerate(chains or (), start=1):
+        per = [set() for _ in (getattr(c, "hops", None) or ())]
+        for m in rows:
+            if not isinstance(m, dict) or m.get("role") not in ("chain_document", "chain_receipt"):
+                continue
+            k = m.get("hop_index")
+            if m.get("rank") != i or not isinstance(k, int) or not (0 <= k < len(per)):
+                continue
+            for e in _E_HANDLE_RX.finditer(str(m.get("line") or "")):
+                per[k].update(int(x) for x in _e_handle_members(e.group(0)))
+        out.append([tuple(sorted(x)) for x in per])
+    return out
 
 
 def _chain_row_handles(board, number_calls, page_markets=()) -> dict:
@@ -14867,6 +14972,7 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None, ser
         return census
     calls = list(number_calls or [])
     cache: dict = {}
+    lics: dict = {}               # 09-26 A-1: one noun licence per bound call, read once per turn
     bindp = getattr(_vf, "bind_periods", None)
     # 09-25 (A-2): THE RUN EACH BOARD ROW PRINTED, keyed by the row identity the calls carry (`_row_id`) --
     # read ONCE per turn off the served-scalars pool (C4, the figures the block printed), else off the
@@ -14890,6 +14996,7 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None, ser
                     binds = []
                 census["sentences"] += 1
                 edits: list = []          # (start, end, replacement, counter)
+                nedits: list = []         # 09-26 A-1: the noun licence's edits, applied only where free
                 bound_handles: set = set()
                 # -- figure bindings: corrections 1-4 ------------------------------------------------
                 # V hands back ONE entry per (figure, member); a figure V could not pin to one member of
@@ -14910,6 +15017,15 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None, ser
                     bound_handles.add(k)
                     noun = _nbl_span(b.get("noun_span")) or _nbl_handle_noun_span(sent, span[0])
                     edits += _nbl_name_edits(sent, noun, idn, calls[k - 1])
+                    # 5. THE NOUN LICENCE (09-26, A-1): the SAME bound noun span, read against the row's own
+                    #    card vocabulary -- corrected only on a proven contradiction, and only where the figure
+                    #    IS the row's own (V's `backed`, the unit correction's F-8 rule): a figure the call does
+                    #    not carry (a desk line's "25th", a mis-addressed "0.83 M ha") says nothing of the row's
+                    #    noun. ``tail`` = the words between the figure and its handle (gate G1).
+                    if b.get("backed", True) is not False:
+                        _tl = sent.find("[", span[1])
+                        nedits += _nbl_noun_edits(sent, noun, _nbl_licence_for(calls[k - 1], idn, k, lics, board),
+                                                  tally=census, tail=(span[1], _tl if _tl >= 0 else len(sent)))
                     # 3. UNIT FAMILY -- ONE classifier on both sides (V's `unit_family`, the one that
                     #    classified the written unit), so a written "%" and a served "%" can never read
                     #    as two families because two lanes spell the family differently.
@@ -14953,8 +15069,17 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None, ser
                     idn = _nbl_identity(calls[mem[0] - 1], cache, mem[0])
                     if idn is None:
                         continue
-                    edits += _nbl_name_edits(sent, _nbl_handle_noun_span(sent, m.start()), idn,
-                                             calls[mem[0] - 1])
+                    _hn = _nbl_handle_noun_span(sent, m.start())
+                    edits += _nbl_name_edits(sent, _hn, idn, calls[mem[0] - 1])
+                    # 09-26 (A-1, fence A1-b): a handle written against another handle ("[N16][N20]") backs ONE
+                    # phrase with TWO rows -- the noun it follows is not this row's alone, so the licence reads
+                    # nothing there
+                    if not _nbl_handle_touches(sent, m.start(), m.end()):
+                        nedits += _nbl_noun_edits(sent, _hn, _nbl_licence_for(calls[mem[0] - 1], idn, mem[0],
+                                                                              lics, board), tally=census)
+                # 09-26 (A-1, fence A1-e): corrections 1-4 are emitted first and WIN an overlap; a noun edit
+                # overlapping one of them (or an earlier noun edit) is not applied, and every skip is COUNTED
+                edits = edits + _nbl_free_noun_edits(edits, nedits, census)
                 if not edits:
                     continue
                 # APPLY right to left; an edit overlapping one already applied is not applied twice.
@@ -14966,7 +15091,7 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None, ser
                         continue
                     new = new[:a] + rep + new[e:]
                     last = a
-                    census[counter] += 1
+                    census[counter] = census.get(counter, 0) + 1
                 if new != sent:
                     toks[si] = new
                     changed = True
@@ -14974,7 +15099,45 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None, ser
                 structured[field] = "".join(toks)
     except Exception as exc:  # noqa: BLE001 -- named and stamped, never raised onward
         census["outcome"] = f"lint_failed:{type(exc).__name__}"
+    # 09-26 (A-1, CONTRACT P1 / P14): the noun licence's three counters ride the census TAIL, in their
+    # declared order, and ONLY when non-zero -- a turn the licence said nothing on keeps HEAD's census shape
+    for _k in _NBL_NOUN_KEYS:
+        _v = census.pop(_k, 0)
+        if _v:
+            census[_k] = _v
     return census
+
+
+def _nbl_handle_touches(sent: str, a: int, b: int) -> bool:
+    """True when the handle at ``sent[a:b]`` is written against another citation handle -- only blanks between
+    it and an [N] / [E] bracket on either side (the estate's own handle grammar, `_N_HANDLE_RX` /
+    `_E_HANDLE_RX`), so the phrase before them is backed by more than one row."""
+    after = sent[b:].lstrip()
+    before = sent[:a].rstrip()
+    if _N_HANDLE_RX.match(after) or _E_HANDLE_RX.match(after):
+        return True
+    return any(m.end() == len(before) for rx in (_N_HANDLE_RX, _E_HANDLE_RX) for m in rx.finditer(before))
+
+
+def _nbl_licence_for(call, idn: dict, k: int, lics: dict, board=None) -> dict:
+    """The noun licence of the k-th call, read ONCE per turn (``lics`` is the lint's own per-turn memo)."""
+    if k not in lics:
+        lics[k] = _noun_licence(call, idn, board=board) if isinstance(call, dict) else {}
+    return lics[k]
+
+
+def _nbl_free_noun_edits(edits: list, nedits: list, census: dict) -> list:
+    """The noun edits that overlap NO correction 1-4 edit and no earlier noun edit (fence A1-e: correction 1
+    is emitted first and wins); each one skipped is counted ``noun_overlap_skipped``. Identical noun edits
+    (one span bound by two figures of one row) are one edit, never a skip."""
+    kept: list = []
+    for ne in sorted(set(nedits), key=lambda x: (x[0], x[1])):
+        a, e = ne[0], ne[1]
+        if any(not (e <= x[0] or a >= x[1]) for x in list(edits) + kept):
+            census["noun_overlap_skipped"] = census.get("noun_overlap_skipped", 0) + 1
+            continue
+        kept.append(ne)
+    return kept
 
 
 def _nbl_decimals(numeral) -> int:
@@ -15098,10 +15261,15 @@ def _nbl_name_edits(sent: str, noun, idn: dict, call=None) -> list:
                 if pm is None or (" %s " % pm.group(1).lower()) not in short_fold:
                     break
                 start = a0 + pm.start()
+            # 09-26 FIX SITTING (lane A, item A-2; CONTRACT P2): THE SYMMETRIC TRAILING ABSORPTION -- the words
+            # the writer put AFTER the routing words that are the printed name's own closing run are absorbed,
+            # so "Crude oil against its own five-year record reads" becomes the printed name once, never
+            # "the Brent crude price against its own five-year record against its own five-year record".
+            end = _nbl_trailing_end(sent, a0 + m.end(), b0, short)
             rep = short
-            if not re.search(r"[A-Za-z0-9]", sent[:start]) and rep[:1].islower():
+            if _nbl_sentence_start(sent, start) and rep[:1].islower():
                 rep = rep[:1].upper() + rep[1:]
-            out.append((start, a0 + m.end(), rep, "routing_corrected"))
+            out.append((start, end, rep, "routing_corrected"))
     # 2. COMMODITY -- a STRICT leading part of the series' commodity ("sunflower" of "sunflower oil") written
     #    without the rest, IN FRONT OF THE ROW'S OWN NAME. A one-word commodity has no strict part.
     node = _nbl_commodity_node(call, idn)
@@ -15121,6 +15289,466 @@ def _nbl_name_edits(sent: str, noun, idn: dict, call=None) -> list:
             out.append((a0 + m.start(), a0 + m.end(), span_text[m.start():m.end()] + " "
                         + " ".join(parts[j:]), "commodity_corrected"))
             break
+    return out
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-26 FIX SITTING (lane A, item A-2; CONTRACT P2) -- THE TRAILING RUN AND THE MARKUP-AWARE CAPITAL.
+# MEASURED (arm A, deep 2026 :12, CHAIN_ANALOG_READ D10): the raw draft "Crude oil against its own five-year
+# record reads 0.51 z [N119]" was corrected to "the Brent crude price against its own five-year record against
+# its own five-year record reads", and the replacement stayed lower-case after the bold paragraph head. Two
+# causes, both in correction 1: the leading loop absorbed a modifier the printed name carries, but nothing
+# absorbed the writer's words AFTER the routing words that ARE the printed name's own closing run; and the
+# capital test read the bold head's letters ("**The crush demand-pull leg.** ") as the sentence's text.
+# REJECTED: a dedupe regex on "against its own five-year record"; any de-duplication of repeated words.
+def _nbl_word_spans(text: str, a: int, b: int) -> list:
+    """``[(start, end, folded_word)]`` for every letter/digit word of ``text[a:b]``, offsets into ``text`` --
+    the SAME fold ``short_fold`` reads the printed name with (``[a-z0-9]+``, lower-cased), so the writer's
+    words and the printed name's words are compared by one reader."""
+    return [(a + m.start(), a + m.end(), m.group(0).lower()) for m in re.finditer(r"[A-Za-z0-9]+", text[a:b])]
+
+
+def _nbl_trailing_end(sent: str, end: int, limit: int, short: str) -> int:
+    """Where correction 1's edit ENDS once the writer's own trailing copy of the printed name is absorbed.
+
+    The words after the routing match (``sent[end:limit]``, ``limit`` = the bound noun span's end, i.e. before
+    the figure / handle the binding names) are read in order; the edit extends over the LONGEST run of them
+    that equals a SUFFIX of the replacement's own folded word sequence -- the next words of the printed name
+    continuing to its END (a partial run that stops short of the name's end is no copy of it) -- and that run
+    must be a RUN: two or more words, because one shared word ("record" of "... five-year record" before the
+    writer's "record highs") is a coincidence the lint cannot tell from the writer's own noun, and absorbing
+    it would eat the writer's word. The first absorbed word must follow the match with nothing but
+    punctuation / space between (the run is contiguous with the routing words it continues). Returns ``end``
+    unchanged when no such run exists."""
+    names = re.findall(r"[a-z0-9]+", str(short or "").lower())
+    if len(names) < 2 or limit <= end:
+        return end
+    words = _nbl_word_spans(sent, end, limit)
+    if not words or re.search(r"[A-Za-z0-9]", sent[end:words[0][0]]):
+        return end
+    got = [w for _a, _b, w in words]
+    for j in range(1, len(names) - 1):                      # suffix names[j:], longest first, >= 2 words
+        suf = names[j:]
+        if len(suf) <= len(got) and got[:len(suf)] == suf:
+            return words[len(suf) - 1][1]
+    return end
+
+
+def _nbl_sentence_start(sent: str, start: int) -> bool:
+    """IS ``start`` WHERE THE SENTENCE BEGINS, read through its markdown? True when ``sent[:start]`` with the
+    markdown emphasis markers (``*``, ``_``) removed carries no letter or digit (HEAD's arm: a bullet or a
+    blank opener) or ENDS WITH a sentence terminator by the estate's own splitter (``register._SENT_KEEP``,
+    the one the lint splits sentences with) -- so "**The crush demand-pull leg.** crude oil ..." opens a
+    sentence at "crude", while "**Crude:** crude oil ..." (a bold label and a colon) does not. Because the
+    lint's own pieces are split on ``_SENT_KEEP``, a terminator can only sit inside a piece where markup
+    kept the splitter from seeing it; that is exactly the case this reads."""
+    pre = str(sent[:max(0, int(start))]).translate({ord("*"): None, ord("_"): None})
+    if not re.search(r"[A-Za-z0-9]", pre):
+        return True
+    return any(m.end() == len(pre) for m in reg._SENT_KEEP.finditer(pre))
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-26 FIX SITTING (lane A, item A-1; CONTRACT P1) -- THE NOUN LICENCE: THE CARD'S NOUNS ATTACH TO A SERVED ROW.
+# MEASURED (arm A, rice, TWO FATALS): "deliverable US long-grain stocks at 1.28 MMT [N130]" over USDA PSD US
+# ending stocks, ALL CLASSES, MILLED basis (the words are the tenderable_collapse card's own mechanism, "A drop
+# in deliverable US long-grain stocks against CBOT specs ..."), and "India's exportable supply sits at ... 25 MMT
+# [N63]" over PSD India EXPORTS (a flow). Correction 1 corrects the routing driver's DISPLAY words only; the
+# writer copied the routing card's MECHANISM noun instead, and nothing bound the noun phrase to the row.
+# THE FIX BINDS THE ROW IDENTITY OVER THE BOUND NOUN SPAN, ON A PROVEN CONTRADICTION ONLY, every vocabulary
+# read off a card at call time: the row's own licensed words (the identity the block printed, the metric's card
+# `label` / `desc`, the family's class and basis), the CLASS words the family declares for other classes, the
+# BASIS words its sibling cards declare, the sibling metric LABELS of the row's own card (KIND: a flow printed
+# as another line of the sheet), and the ROUTING driver's card text (CONCEPT: the driver's noun printed as the
+# series). An unfamiliar word with no contradiction is LEFT AS WRITTEN and counted. REJECTED: a noun list
+# ("deliverable", "exportable", "supply", "long-grain"); banning mechanism words from prose; a regex on a noun.
+_NBL_NOUN_KEYS: tuple = ("noun_corrected", "noun_unlicensed_kept", "noun_overlap_skipped")
+
+
+def _nbl_tokens(text) -> frozenset:
+    """The CONTENT words of a text by the estate's one content-word reader (``verify._tokens``), on the ASCII
+    fold -- the licence and the span are read by one reader, so a word can never be licensed on one side of a
+    comparison and unreadable on the other."""
+    try:
+        from leviathan.graphrag.verify import _tokens as _content
+    except Exception:  # noqa: BLE001 -- no reader, no licence (and no correction)
+        return frozenset()
+    try:
+        from leviathan.graphrag.state.render import ascii_text as _ascii
+        t = _ascii(str(text or ""))
+    except Exception:  # noqa: BLE001
+        t = str(text or "")
+    return frozenset(_content(t))
+
+
+def _nbl_registry():
+    try:
+        from leviathan.graphrag.numbers import registry as _rg
+        return _rg, _rg.load_registry()
+    except Exception:  # noqa: BLE001 -- no registry, no card vocabulary
+        return None, None
+
+
+@functools.lru_cache(maxsize=64)
+def _nbl_causal_node(contract: str, driver_id: str) -> tuple:
+    """``(mechanism, blurb)`` of ONE causal node read off its own contract's curated card -- the fallback for a
+    call whose board row is not in hand (the lint's `board` is None on a replay). ``("", "")`` when the card or
+    the node is absent. Read-only: the curated YAMLs are generator-owned and never written here."""
+    try:
+        from leviathan.causal import schema as _cs
+        from leviathan.graphrag import graph as _g
+        p = _g._CAUSAL_DIR / (str(contract) + ".yaml")
+        if not p.exists():
+            return ("", "")
+        c = _cs.load(p)
+        for d in (getattr(c, "drivers", None) or ()):
+            if str(getattr(d, "id", "") or "") == str(driver_id):
+                return (str(getattr(d, "mechanism", "") or ""), str(getattr(d, "blurb", "") or ""))
+    except Exception:  # noqa: BLE001 -- an unreadable card routes no words
+        pass
+    return ("", "")
+
+
+def _nbl_routing_texts(call, idn: dict, board=None) -> tuple:
+    """THE TEXT OF THE DRIVER THAT ROUTED THIS ROW -- its display words as the block printed them
+    (``call_identity``'s ``routing_words``), and the routing node's own card ``mechanism`` and ``blurb``: the
+    board row that carries the call's ``_row_id`` (``contract|driver_id|series_key``), else the causal node
+    (contract, driver_id) read off its card. ``()`` on a seat call (no row identity, no routing driver)."""
+    rid = str((call or {}).get("_row_id") or idn.get("row_id") or "")
+    rw = str(idn.get("routing_words") or "").strip()
+    if not rid or "|" not in rid:
+        return ()
+    contract, driver_id = rid.split("|")[0], rid.split("|")[1]
+    mech, blurb = "", ""
+    for r in (getattr(board, "rows", None) or ()) if board is not None else ():
+        if (str(getattr(r, "contract", "") or "") == contract
+                and str(getattr(r, "driver_id", "") or "") == driver_id):
+            mech, blurb = str(getattr(r, "mechanism", "") or ""), str(getattr(r, "blurb", "") or "")
+            break
+    if not (mech or blurb):
+        mech, blurb = _nbl_causal_node(contract, driver_id)
+    return tuple(t for t in (rw, mech, blurb) if t)
+
+
+def _nbl_family_class_vocab(rg, reg, table: str, commodity: str) -> tuple:
+    """``(own_class_words, family_words, other_class_runs, own_basis, other_basis)`` of ONE row's published
+    family, read off the cards (CONTRACT K22 through ``registry.class_scope``):
+      * own class words -- the words the identity PRINTS for the family's class rule
+        (``render.family_class_words``, the board row's and the footer's one producer); ``""`` where the
+        family declares no class rule (nothing to substitute, so no CLASS correction can be written);
+      * family words -- the family node's display words ("rice"), licensed beside the class words;
+      * other class runs -- the QUALIFIER word runs the family declares for OTHER classes: every declared
+        sheet whose commodity is the family's node id (K22: the families are keyed by the hierarchy node) and
+        whose ``serves`` names a class ("long-grain rice", "medium- and short-grain rice"), with the family's
+        own trailing words removed ("long grain"). A member's node NAME is not read as a class: it mixes
+        geography and class ("french wheat") and is no declaration of one;
+      * own basis -- the family's declared ``basis`` ("milled basis"); other basis -- a DIFFERENT ``basis``
+        another card declares for the same family (none on today's cards: BASIS is inert until one does).
+    Nothing is typed: each phrase is a declaration on a card."""
+    if rg is None or reg is None or not commodity:
+        return ("", "", (), "", ())
+    try:
+        cs = rg.class_scope(table, commodity, reg=reg) or {}
+    except Exception:  # noqa: BLE001
+        cs = {}
+    fam = str(cs.get("family") or "")
+    if not fam:
+        return ("", "", (), "", ())
+    try:
+        from leviathan.graphrag.citations import _family_words
+        fam_words = str(_family_words(fam) or fam)
+    except Exception:  # noqa: BLE001
+        fam_words = fam.replace("_", " ")
+    fam_fold = set(re.findall(r"[a-z0-9]+", fam_words.lower()))
+    # the class words the identity PRINTS for this row -- the ONE producer the board row and the footer label
+    # share (`render.family_class_words`: "all classes, milled basis" on rice, "all classes" on a wheat class
+    # slug, "" on a family with no class rule), never a second spelling of them here
+    try:
+        from leviathan.graphrag.state.render import family_class_words as _fcw
+        own_class = str(_fcw(table, commodity) or "").strip()
+    except Exception:  # noqa: BLE001 -- no producer, no class words (and no CLASS correction)
+        own_class = ""
+    own_basis = str(cs.get("basis") or "").strip()
+    other_class: list = []
+    other_basis: list = []
+    for _tid, ts in (getattr(reg, "tables", None) or {}).items():
+        for fid, fspec in ((getattr(ts, "commodity_families", None) or {}).items()):
+            b = str(getattr(fspec, "basis", "") or "").strip()
+            if str(fid) == fam and b and b != own_basis and b not in other_basis:
+                other_basis.append(b)
+        for _sid, sp in ((getattr(ts, "sheets", None) or {}).items()):
+            serves = str(getattr(sp, "serves", "") or "").strip()
+            if str(getattr(sp, "commodity", "") or "") != fam or not serves or serves == "all_classes":
+                continue
+            q = [w for w in re.findall(r"[a-z0-9]+", serves.lower())]
+            while q and q[-1] in fam_fold:
+                q.pop()
+            if q and q not in other_class:
+                other_class.append(q)
+    return (own_class, fam_words, tuple(tuple(q) for q in other_class), own_basis, tuple(other_basis))
+
+
+def _noun_licence(call: dict, idn: dict, *, board=None) -> dict:
+    """THE ROW'S OWN VOCABULARY, read off the cards -- never typed (CONTRACT P1). Keys:
+      "licensed":    frozenset of content words (``verify._tokens``' reader) of the row identity --
+                     ``call_identity``'s name / short / unit_words / scope_words / commodity_words /
+                     period_words, the metric's card ``label`` AND ``desc`` (numbers.registry), the commodity's
+                     display node, and the class / basis words below;
+      "class":       {"own": the row's class words, "other": the qualifier word runs the SAME family declares
+                     for OTHER classes / members};
+      "basis":       {"own": the family's declared basis, "other": the basis words the family's sibling cards
+                     declare};
+      "siblings":    the row's TABLE's other metric labels (every card label on the same table except this
+                     metric's), each as its WHOLE folded word run -- KIND reads a line of the sheet by its whole
+                     label, never by one word a label happens to carry;
+      "routing":     the text of the driver that ROUTED this row (display words, card mechanism, blurb);
+                     ``()`` on a seat call;
+      "replacement": ``call_identity(call)["short"]`` (the name the block PRINTED for the row);
+      "label":       the metric's DECLARED card label (the KIND / CONCEPT (b) replacement); "" where the card
+                     declares none, and then no label-word correction is written (a raw metric id never reaches
+                     prose);
+      "named":       the licensed words that NAME the row (its label / name / short / unit / desc words, minus
+                     its scope and commodity words) -- the anchor that says the writer named the row itself;
+      "scope":       the content words of the row's scope.
+    A CALL THAT SERVED NO ROW LICENSES NOTHING: the noun binds to a SERVED row's identity, and a call with no
+    served value (an empty read) is no row a sentence can name -- its licence is empty.
+    Never raises: an unreadable card is an empty licence, and an empty licence proves no contradiction."""
+    out = {"licensed": frozenset(), "class": {"own": "", "other": ()}, "basis": {"own": "", "other": ()},
+           "siblings": (), "routing": (), "replacement": "", "label": "", "named": frozenset(),
+           "scope": frozenset()}
+    if not isinstance(call, dict) or not (call.get("rows") or []):
+        return out
+    try:
+        q = (call or {}).get("query") or {}
+        table, metric = str(q.get("table") or ""), str(q.get("metric") or "")
+        try:
+            _hl = getattr(cit, "_headline", None)
+            _ca = getattr(cit, "_card_address", None)
+            if callable(_hl) and callable(_ca):
+                ct, cm = _ca(call, _hl(call)[0])
+                table, metric = str(ct or table), str(cm or metric)
+        except Exception:  # noqa: BLE001 -- the query's own pair
+            pass
+        commodity = str(q.get("commodity") or "")
+        rg, reg = _nbl_registry()
+        ts = (getattr(reg, "tables", None) or {}).get(table) if reg is not None else None
+        mets = dict(getattr(ts, "metrics", None) or {}) if ts is not None else {}
+        spec = mets.get(metric)
+        label = str(getattr(spec, "label", "") or "") if spec is not None else ""
+        desc = str(getattr(spec, "desc", "") or "") if spec is not None else ""
+        basis_card = str(getattr(spec, "basis_words", "") or "") if spec is not None else ""
+        own_class, fam_words, other_class, own_basis, other_basis = _nbl_family_class_vocab(
+            rg, reg, table, commodity)
+        try:
+            from leviathan.graphrag.state.render import commodity_node as _cn
+            node = str(_cn(commodity) or "") if commodity else ""
+        except Exception:  # noqa: BLE001
+            node = ""
+        ident = [str(idn.get(k) or "") for k in ("name", "short", "unit_words", "scope_words",
+                                                  "commodity_words", "period_words")]
+        lic = set()
+        for t in ident + [label, desc, basis_card, own_class, fam_words, own_basis, node]:
+            lic |= _nbl_tokens(t)
+        scope = _nbl_tokens(idn.get("scope_words"))
+        com = (_nbl_tokens(idn.get("commodity_words")) | _nbl_tokens(node) | _nbl_tokens(own_class)
+               | _nbl_tokens(fam_words))
+        named = set()
+        for t in (label, desc, idn.get("name"), idn.get("short"), idn.get("unit_words")):
+            named |= _nbl_tokens(t)
+        named -= scope | com
+        # the card's own noun for one row of a cell axis ("growing cell", tables.yaml `cell_noun`, K3)
+        for t in (getattr(ts, "cell_noun", None) or ()) if ts is not None else ():
+            lic |= _nbl_tokens(t)
+        # KIND reads the sibling LABELS WHOLE, as word runs: a line of the sheet is named by its whole label
+        # ("production", "beginning stocks"), never by one word a label happens to carry ("reading" of
+        # "drought reading is preliminary", "cells" of "member cells behind ...")
+        own_lab = tuple(re.findall(r"[a-z0-9]+", label.lower()))
+        sib: list = []
+        for mk, ms in mets.items():
+            lw = tuple(re.findall(r"[a-z0-9]+", str(getattr(ms, "label", "") or "").lower()))
+            if mk == metric or not lw or lw == own_lab or lw in sib:
+                continue
+            sib.append(lw)
+        out.update({"licensed": frozenset(lic),
+                    "class": {"own": own_class, "other": other_class},
+                    "basis": {"own": own_basis, "other": other_basis},
+                    "siblings": tuple(sib),
+                    "routing": _nbl_routing_texts(call, idn, board),
+                    "replacement": str(idn.get("short") or "").strip(),
+                    "label": label.strip(),
+                    "named": frozenset(named), "scope": frozenset(scope)})
+    except Exception:  # noqa: BLE001 -- an unreadable licence proves nothing
+        pass
+    return out
+
+
+def _nbl_find_run(words: list, run) -> list:
+    """Every index i where ``words[i:i+len(run)]`` (folded words) equals ``run``."""
+    n = len(run)
+    return [i for i in range(0, len(words) - n + 1) if n and tuple(words[i:i + n]) == tuple(run)]
+
+
+def _nbl_compound_edge(sent: str, start: int, end: int) -> bool:
+    """True when ``sent[start:end]`` cuts a hyphenated compound the writer wrote ("stocks" of "stocks-to-use",
+    "spell" of "dry-spell") -- a word run that begins or ends INSIDE the writer's own compound is no noun of
+    its own, and replacing it would split one term into two."""
+    before = sent[max(0, start - 2):start]
+    after = sent[end:end + 2]
+    return bool((len(before) == 2 and before[1] == "-" and before[0].isalnum())
+                or (len(after) == 2 and after[0] == "-" and after[1].isalnum()))
+
+
+def _nbl_fold_all(words) -> list:
+    """Every word through the estate's ONE plural fold (`_desk_stem`, the desk register's own reader), so a
+    writer's "export" is the licence's "exports" and "stock" its "stocks" -- the licence and the span are
+    compared on one fold, never on a spelling list."""
+    return [_desk_stem(w) for w in (words or ())]
+
+
+def _nbl_noun_edits(sent: str, noun, licence: dict, tally: dict | None = None, tail=None) -> list:
+    """Edit tuples ``(start, end, replacement, "noun_corrected")`` over ONE bound noun span, ONLY on a proven
+    contradiction (CONTRACT P1), each replaced by that dimension's own word from the row. Words are compared on
+    the estate's plural fold (`_desk_stem`).
+
+    THE PHRASE'S HEAD is the span's last content word some card speaks for (the row's licence, the routing
+    card's text, or the closing word of a whole sibling label of the row's own card) -- so the verb the writer
+    put between the noun and its figure ("stand at", "reads") is never read as the noun.
+
+    TWO GATES, read before any dimension (each measured on the eighty -- BUILD_A sec 1):
+      G1 THE FIGURE NAMES ITS ROW AFTERWARDS: where the words between the bound figure and its handle
+         (``tail``) carry a word that NAMES the row (its label / name / unit, "... at the 16th percentile of its
+         own record"), the words before the figure are not the figure's noun, and nothing is read;
+      G2 THE WRITER NAMED THE ROW: where the span itself carries a word that names the row, CONCEPT (b) and
+         KIND read nothing (the writer's other words there are modifiers of the row's own name).
+
+      CLASS       a qualifier run the family declares for ANOTHER class ("long-grain"), written in the span,
+                  on a row whose family declares its own class rule -> that run := the row's class words.
+      BASIS       a basis another card of the family declares, not the row's -> that span := the row's basis.
+      KIND        the HEAD closes a WHOLE label of another metric on the row's own card ("production" over an
+                  exports row), not all of it licensed -> that label run := the row's card label. One word a
+                  sibling label happens to carry ("reading", "cells") names no line of the sheet.
+      CONCEPT (a) THE CARD'S PHRASE CARRYING A CONTRADICTION -- the longest contiguous word run the span shares
+                  with a routing text (display / mechanism / blurb), ending ON THE HEAD, two or more content
+                  words, that CONTAINS a CLASS / BASIS / KIND contradiction above -> the whole run := the
+                  printed name (``replacement``): the writer printed the driver's noun phrase, and the
+                  contradiction inside it proves the phrase names another thing than the row. A card phrase
+                  with no contradiction inside ("Brazilian export" over Brazil's exports) is the row
+                  paraphrased and is left as written.
+      CONCEPT (b) THE CARD'S NOUN AT THE HEAD -- the HEAD is an unlicensed word of a routing text, in a span
+                  that does not name the row (G2), and the maximal run of unlicensed content words ending on it
+                  holds two or more content words -> the run := the row's card label (an unlicensed noun phrase
+                  standing where the row's name belongs, headed by the routing card's own noun).
+
+    A run that begins or ends inside the writer's own hyphenated compound is never replaced. Every edit
+    replaces ONLY the contradicting words; the writer's determiners, possessives, scope and verbs stay. A span
+    with unlicensed words and no contradiction is left as written and counted (``noun_unlicensed_kept``) in
+    ``tally``. A row whose card declares no label gets no label-word correction (a raw metric id never
+    reaches prose). Never raises."""
+    out: list = []
+    try:
+        if not noun or not isinstance(licence, dict) or not licence.get("licensed"):
+            return out
+        a0, b0 = noun
+        if b0 <= a0:
+            return out
+        spans = _nbl_word_spans(sent, a0, b0)
+        if not spans:
+            return out
+        lic = set(_nbl_fold_all(licence.get("licensed") or ()))
+        named = set(_nbl_fold_all(licence.get("named") or ()))
+        raw = [w for _a, _b, w in spans]
+        words = _nbl_fold_all(raw)
+        content_ix = [i for i, w in enumerate(raw) if _nbl_tokens(w)]
+        unlic_ix = [i for i in content_ix if words[i] not in lic]
+        if not unlic_ix:
+            return out
+        # G1: the figure names its own row after it -> the words before it are not its noun
+        if tail is not None and (set(_nbl_fold_all(w for _a, _b, w in _nbl_word_spans(sent, tail[0], tail[1])))
+                                 & named):
+            return out
+        routing = [_nbl_fold_all(re.findall(r"[a-z0-9]+", str(t).lower())) for t in (licence.get("routing") or ())]
+        rwords = set()
+        for rt in routing:
+            rwords |= set(rt)
+        # KIND's evidence: where a WHOLE sibling label of the row's own card ends in the span (-> its start word)
+        kind_at: dict = {}
+        for lw in (licence.get("siblings") or ()):
+            lw = _nbl_fold_all(lw)
+            for i in _nbl_find_run(words, lw):
+                j = i + len(lw) - 1
+                if j in content_ix and any(x in unlic_ix for x in range(i, j + 1)):
+                    kind_at.setdefault(j, i)
+        _anch = [i for i in content_ix if words[i] in lic or words[i] in rwords or i in kind_at]
+        head = (_anch or content_ix or [None])[-1]
+        label = str(licence.get("label") or "")
+        g2 = bool(set(words) & named)
+        # the proven contradictions, as word-index ranges with their replacement (emitted below, after (a))
+        proven: list = []
+        own_class = str((licence.get("class") or {}).get("own") or "")
+        if own_class:
+            own_fold = set(_nbl_fold_all(re.findall(r"[a-z0-9]+", own_class.lower())))
+            for q in ((licence.get("class") or {}).get("other") or ()):
+                q = _nbl_fold_all(q)
+                # the whole declared qualifier, or a closing run of it two or more words long ("short grain"
+                # of "medium and short grain") -- its last word alone ("grain") names no class
+                for k in range(0, len(q)):
+                    suf = q[k:]
+                    if (k and len(suf) < 2) or set(suf) <= own_fold:
+                        continue
+                    for i in _nbl_find_run(words, suf):
+                        proven.append((i, i + len(suf) - 1, own_class))
+        own_basis = str((licence.get("basis") or {}).get("own") or "")
+        if own_basis:
+            ob_fold = set(_nbl_fold_all(re.findall(r"[a-z0-9]+", own_basis.lower())))
+            for ob in ((licence.get("basis") or {}).get("other") or ()):
+                ow = _nbl_fold_all(re.findall(r"[a-z0-9]+", str(ob).lower()))
+                if ow and not set(ow) <= ob_fold:
+                    for i in _nbl_find_run(words, ow):
+                        proven.append((i, i + len(ow) - 1, own_basis))
+        if not g2 and label and head is not None and head in kind_at:
+            proven.append((kind_at[head], head, label))
+        taken: list = []                          # word-index ranges already edited (no double edit)
+
+        def _free(i, j) -> bool:
+            return all(j < x or i > y for x, y in taken)
+
+        def _emit(i, j, rep):
+            if rep and _free(i, j) and not _nbl_compound_edge(sent, spans[i][0], spans[j][1]):
+                if _nbl_sentence_start(sent, spans[i][0]) and rep[:1].islower():
+                    rep = rep[:1].upper() + rep[1:]
+                out.append((spans[i][0], spans[j][1], rep, "noun_corrected"))
+                taken.append((i, j))
+        # CONCEPT (a): the card's phrase, head included, carrying a proven contradiction
+        best = None
+        if head is not None and licence.get("replacement") and proven:
+            for rt in routing:
+                for i in range(0, head + 1):
+                    run = words[i:head + 1]
+                    if not _nbl_find_run(rt, run):
+                        continue
+                    ctn = [x for x in range(i, head + 1) if x in content_ix]
+                    if len(ctn) >= 2 and any(i <= p[0] and p[1] <= head for p in proven):
+                        if best is None or i < best:
+                            best = i
+                    break                          # the longest run from the head back is the first found
+        if best is not None:
+            while best < head and best not in content_ix:
+                best += 1                          # the writer's own leading function words stay
+            _emit(best, head, str(licence["replacement"]))
+        # CONCEPT (b): an unlicensed noun phrase headed by the routing card's own noun
+        if not g2 and label and head is not None and head in unlic_ix and words[head] in rwords:
+            x = head
+            while x - 1 >= 0 and (x - 1) in unlic_ix:
+                x -= 1
+            if len([i for i in range(x, head + 1) if i in content_ix]) >= 2:
+                _emit(x, head, label)
+        # CLASS / BASIS / KIND, each where no wider edit already stands
+        for i, j, rep in proven:
+            _emit(i, j, rep)
+        if not out and tally is not None:
+            tally["noun_unlicensed_kept"] = tally.get("noun_unlicensed_kept", 0) + 1
+    except Exception:  # noqa: BLE001 -- a correction must never be the thing that breaks an answer
+        return []
     return out
 
 

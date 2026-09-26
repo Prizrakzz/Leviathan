@@ -3719,8 +3719,10 @@ def test_W9_the_EFFECT_WINDOW_closes_at_the_NEWEST_print_plus_the_max_lag_and_th
     run that began in 1997 still closes at newest + max."""
     band = parse_lag("1-3 quarters")
     ew = W.effect_window(band, newest="2026-07", run_start="2025-11", peak="2026-07")
+    # RE-BANKED 09-26 (lane W, CONTRACT P8): `anchor_date` is ADDED -- the date that opened `opens` (the run
+    # start here); every HEAD key and value is unchanged.
     assert ew == {"opens": "2026-02-28", "closes": "2027-04-30", "peak_closes": "2027-04-30",
-                  "anchor": "run"}, ew
+                  "anchor": "run", "anchor_date": "2025-11"}, ew
     old = W.effect_window(band, newest="2026-07", run_start="1997-01")
     assert old["closes"] == "2027-04-30" and old["opens"] == "1997-04-30", old
     assert W.effect_window(band, newest="2026-07")["anchor"] == "reading"
@@ -3731,7 +3733,8 @@ def test_W9_the_EFFECT_WINDOW_closes_at_the_NEWEST_print_plus_the_max_lag_and_th
     pt = W.effect_window(parse_lag("0 quarters"), newest="2026-07", peak="2026-06-30")
     assert pt["closes"] == "2026-08-31" and pt["peak_closes"] == "2026-07-30", pt
     none = W.effect_window(parse_lag("not a band"), newest="2026-07")
-    assert none == {"opens": None, "closes": None, "peak_closes": None, "anchor": "reading"}
+    assert none == {"opens": None, "closes": None, "peak_closes": None, "anchor": "reading",
+                    "anchor_date": "2026-07"}
 
 
 def test_W9_on_the_fixture_every_hops_lag_to_is_HEADs_and_its_effect_closes_is_BOUNDED(chain_tiers):
@@ -4176,8 +4179,12 @@ def test_W0924_K9_a_pick_with_NO_carrier_in_reach_DECLINES_visibly_and_a_subject
     ids = {"d1_cbot": frozenset({"s"})}
     assert W._slot_subject(c, ids) is True                     # HEAD's test: no reach, no bound
     assert W._slot_subject(c, ids, frozenset({"q_cbot"})) is False
+    # RE-BANKED 09-26 (lane W, W-3 / D4): a chain that only TERMINATES on a question market no longer answers
+    # the subject -- the hop CARRYING the subject must sit on a question market (arm A: corn's stocks-to-use
+    # chain answered rice's "US balance sheet"). The claim kept: a distance-1 carrier answers no subject seat.
     c.terminal = "q_cbot"
-    assert W._slot_subject(c, ids, frozenset({"q_cbot"})) is True
+    assert W._slot_subject(c, ids, frozenset({"q_cbot"})) is False
+    assert W._slot_subject(c, ids, frozenset({"q_cbot", "d1_cbot"})) is True
 
 
 # ── K10: THE LAST LINK'S VERDICT ─────────────────────────────────────────────────────────────────────

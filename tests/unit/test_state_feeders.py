@@ -903,13 +903,27 @@ def test_the_text_feeder_performs_NO_retrieval():
     called |= {n.func.id for n in ast.walk(tree)
                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
     assert "retrieve" not in called and "pg_retrieve" not in called
+    # RE-BANKED 09-26 (lane W, CONTRACT P6): the chain leg's TWO store reads live here by contract -- the
+    # point-in-time action ledger (`_pg_action_rows`) and the receipt routing (`_pg_routed_rows`, with the
+    # store's own id `routed_prop_id` and the contract slice `_contract_slice_of`). Neither is a retrieval (no
+    # embedding, no `retrieve` / `pg_retrieve`, asserted above); each is ONE date- or key-ordered statement per
+    # CHAIN turn, after the fill. The claim kept: no other function of this module imports the evidence
+    # layer or the pool, so the TEXT feeder still performs no retrieval and borrows nothing.
+    STORE_READS = {"_pg_action_rows", "_pg_routed_rows", "routed_prop_id", "_contract_slice_of"}
     imported = set()
+    inside = set()
+    for fn in ast.walk(tree):
+        if isinstance(fn, ast.FunctionDef) and fn.name in STORE_READS:
+            inside |= {id(n) for n in ast.walk(fn)}
     for n in ast.walk(tree):
+        if id(n) in inside:
+            continue
         if isinstance(n, ast.ImportFrom):
             imported |= {f"{n.module}.{a.name}" for a in n.names}
         elif isinstance(n, ast.Import):
             imported |= {a.name for a in n.names}
     assert not any(m.endswith(("evidence", "pgstore")) for m in imported), sorted(imported)
+    assert {fn.name for fn in ast.walk(tree) if isinstance(fn, ast.FunctionDef)} >= STORE_READS
 
 
 # -- the review's remaining findings, each with the pin it asked for -----------------------------------

@@ -2282,10 +2282,14 @@ def test_S8R2_the_positioning_row_says_AMPLIFIER_or_CONVEXITY_and_is_SILENT_wher
                       "key": ("soybeans_cbot", "cot_mm_positioning")}
     row = R.sb_chain_positioning(ch, handle=12)
     assert "[N12]" in row and "one hundredth percentile of its own record" in row
-    assert "the other way from this sequence" in row and "reversal abrupt" in row
+    # RE-BANKED 09-26 (fix sitting, R-2 a / THREAT S-1 -- DECLARED): THE CASE WORDS ARE OWNER RULING 1 (the
+    # mapping walk._positioning_note prints on the same fact): the crowd the OTHER way CUSHIONS the sequence,
+    # the crowd the SAME way makes the reversal ABRUPT. HEAD's row said the opposite of the walk's note, and the
+    # 2024 writer copied "amplifies rather than cushions" for a record short crowded the same way.
+    assert "the other way from this sequence" in row and "cushions" in row and "abrupt" not in row
     ch.positioning = dict(ch.positioning, against=False)
     same = R.sb_chain_positioning(ch)
-    assert "the same way as this sequence" in same and "amplifies it" in same
+    assert "the same way as this sequence" in same and "reversal abrupt" in same and "amplifies" not in same
     assert "[N" not in same, "a standing this page carries no address for prints no handle"
     for line in (row, same):
         assert R.classify(line) == ("SB-P",) and R.register_hits(line) == []

@@ -1077,12 +1077,20 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # ...and the 09-24 fix round 2 (lane A, CONTRACT K8 / K21) appends the TWO TL;DR clauses' kwargs after
     # `state_chain`, in that order: `ask_head` (the handles the block's ask head printed) and `horizon_row`.
     # Both default to the empty value, so every existing caller is byte-identical (checked below).
+    # ...and the 09-26 fix sitting (lane A, CONTRACT P9 / A-4) appends ONE more after `horizon_row`:
+    # `positioning_asymmetry` (the handles of the block lines that print lane R's record-extreme lead), default
+    # the empty tuple, so every existing caller is byte-identical (checked below). DECLARED RE-BANK: this pin's
+    # claim -- appended at the tail, in order added, default-off value == HEAD's bytes -- is kept.
     _APPENDS = [n for n in ("numbers_budget", "state_board", "desk_register", "watch_selection",
-                            "register_licence", "state_chain", "ask_head", "horizon_row")
+                            "register_licence", "state_chain", "ask_head", "horizon_row",
+                            "positioning_asymmetry")
                 if n in _tail]
     if "ask_head" in _tail:
         assert params["ask_head"].default == () and params["horizon_row"].default is False
         assert an._system(ask_head=(), horizon_row=False) == base
+    if "positioning_asymmetry" in _tail:
+        assert params["positioning_asymmetry"].default == ()
+        assert an._system(positioning_asymmetry=()) == base
     assert _tail[len(_tail) - 2 - len(_APPENDS):len(_tail) - len(_APPENDS)] == \
         ["extreme_locator", "extreme_hop"], _tail
     assert _tail[len(_tail) - len(_APPENDS):] == _APPENDS, _tail   # appended, in order added

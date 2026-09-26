@@ -101,11 +101,21 @@ def _chain(score, contract, terminal, ids, *, band="0-1 quarters"):
 def test_fixer_WT_MAJOR3_an_off_question_chain_is_counted_never_seated():
     corn = _chain(95.0, "corn_cbot", "sorghum", ("China_state_reserves", "b1"))       # driver board's own
     into = _chain(80.0, "corn_cbot", "soybeans_cbot", ("planted_area", "b2"))         # runs INTO the question
+    # RE-BANKED 09-26 (lane W, W-3 / D4): a chain whose own contract is off the question seats only through a
+    # SIGNED last link, so the chain running INTO the question carries one here; the claim kept: a chain
+    # between two boards the question never named is counted (`off_question`), never seated.
+    into.edge_signs = ("+", "-")
     own = _chain(70.0, "soybeans_cbot", "soybeans_cbot", ("crush", "b3"))
     got = W.chain_render_set([corn, into, own], k=3, print_line=0.0,
                              question_markets=frozenset({"soybeans_cbot"}))
     seated = {(c.contract, c.terminal) for c in got["rendered"]}
     assert ("corn_cbot", "sorghum") not in seated and len(got["rendered"]) == 2
+    assert got["counts"]["off_question"] == 1
+    # ...and the same chain with an UNSIGNED last link is counted under its own name, never seated
+    into.edge_signs = ("+", "0")
+    got = W.chain_render_set([corn, into, own], k=3, print_line=0.0,
+                             question_markets=frozenset({"soybeans_cbot"}))
+    assert len(got["rendered"]) == 1 and got["counts"]["unsigned_terminal"] == 1
     assert got["counts"]["off_question"] == 1
     head = W.chain_render_set([corn, into, own], k=3, print_line=0.0)             # no reach: HEAD's reading
     assert len(head["rendered"]) == 3 and "off_question" not in head["counts"]

@@ -227,7 +227,9 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # answer's ONE seam -- the `_fnf` idiom exactly: OMITTED when off, so the flag-off call is byte-
     # identical and an injected answer_numbers fake with the older signature stays valid. The agent arms
     # the LEVEL only (`rv_pair_spread_legs(level_only=...)`); the history leg stays behind its own env.
-    _ps = {"pair_spread": True, "closed_year": True} if an._state_board_on() else {}
+    _ps = ({"pair_spread": True, "closed_year": True,
+            **({"rung_ladder": True} if _numbers_takes_rung_ladder() else {})}
+           if an._state_board_on() else {})
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn, families=families,
                             **_fnf, **_ps)
     _ms_numbers = int((_time.perf_counter() - _tn) * 1000)
@@ -770,7 +772,9 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     # on the CALLING thread for the reason written above -- the board flag is the same env the walk lane
     # reads, and a per-thread read would let the two lanes disagree about the treatment within one turn.
     # Omit-when-off (the `_fnf` idiom): flag off -> the submit below is byte-identical.
-    _ps = {"pair_spread": True, "closed_year": True} if an._state_board_on() else {}
+    _ps = ({"pair_spread": True, "closed_year": True,
+            **({"rung_ladder": True} if _numbers_takes_rung_ladder() else {})}
+           if an._state_board_on() else {})
     # 09-25 FIX ROUND 3 (lane A, item A-4; CHAIN_ANALOG_READ N5): THE SEAT'S SPEND IS THE CALLER'S. MEASURED on
     # the tariff turn (job b372544e, CloudWatch): the agent's ONE round stopped at `max_tokens` with 6,000 out
     # tokens ("[numbers-thinking] stop=max_tokens in=162 out=6000 cache_read=102568"), the truncation sentinel
@@ -1781,6 +1785,15 @@ def _numbers_mode_budget_on() -> bool:
     flag turns the other on, and both default off and fail closed. Rollback = drop the env var (single
     flag, instant, no redeploy)."""
     return os.environ.get("GRAPHRAG_NUMBERS_MODE_BUDGET", "off").lower() == "on"
+
+
+def _numbers_takes_rung_ladder() -> bool:
+    """S-1 (CONTRACT P12): does the loaded numbers agent declare `rung_ladder`? Never raises."""
+    try:
+        import inspect as _inspect
+        return "rung_ladder" in _inspect.signature(na.answer_numbers).parameters
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _numbers_takes_usage_sink() -> bool:

@@ -145,6 +145,24 @@ CONFIDENCE_RANK: dict = {"high": 0, "medium": 1, "low": 2}
 #: A run's direction as a word. ``streak`` returns ``up``/``down``; the board never says "improving".
 RUN_DIRECTION_WORDS: dict = {"up": "rising", "down": "falling"}
 
+
+def run_direction_vocabulary(st) -> dict:
+    """THE ROW'S WHOLE DECLARED DIRECTION VOCABULARY (09-26, CONTRACT P5): ``{"up": (...), "down": (...)}`` --
+    :data:`RUN_DIRECTION_WORDS`' word for each direction plus the row's own convention entry of the declared
+    ``direction_words`` book (the convention the row's state carries: its series ref), so the verifier can
+    hold a writer's direction word to the direction the block printed. Never a synonym list: the book
+    declares only the conventions whose rows a writer names with a directional word."""
+    ent = _book("direction_words").get(str(getattr(getattr(st, "key", None), "ref", "") or ""))
+    ent = ent if isinstance(ent, dict) else {}
+    out: dict = {}
+    for side in ("up", "down"):
+        words = [RUN_DIRECTION_WORDS[side]]
+        w = ascii_text(str(ent.get(side) or "")).strip()
+        if w and w not in words:
+            words.append(w)
+        out[side] = tuple(words)
+    return out
+
 #: The cadence's own period noun, singular and plural -- ``feeders._period_noun``'s table restated as a
 #: RENDER map (the producer's copy is used to LABEL a change window; this one is used in prose).
 PERIOD_NOUNS: dict = {"daily": "session", "weekly": "week", "weekly_destination": "week",
@@ -481,6 +499,40 @@ def _reading_word_table() -> dict:
         return {}
 
 
+@lru_cache(maxsize=32)
+def _book(name: str) -> dict:
+    """ONE DECLARED ROW-WORD BOOK of ``state_conventions.yaml`` (09-26 fix sitting, R-5) -- ``direction_words``,
+    ``window_anchor_words``, ``regime_words``, ``scope_words``, ``positioning_words``, ``slot_words``. Every
+    word this sitting adds to a board row is declared ONCE there and graded by ``state/lint.py`` clause 18;
+    this is its one reader here (lazily imported for the reason :func:`_reading_word_table` is). No book is
+    no words, never a raise."""
+    try:
+        from leviathan.graphrag.state import lint as _lint
+        v = (_lint.load_conventions() or {}).get(str(name))
+        return dict(v) if isinstance(v, dict) else {}
+    except Exception:                                   # noqa: BLE001
+        return {}
+
+
+def book_words(name: str, key: str) -> str:
+    """One entry of one declared book, ASCII-folded -- or ``""``."""
+    return ascii_text(str(_book(name).get(str(key)) or ""))
+
+
+#: THE TWO MODULE WORDS OTHER LANES READ BY NAME (CONTRACT P6 / P9), resolved from the book on first read
+#: (PEP 562): ``REGIME_LEDGER_WORDS`` (the regime words for an action the point-in-time ledger read, ONE
+#: ``%s``) and ``POSITIONING_ASYMMETRY_LEAD`` (the words that introduce the positioning card's own mechanism
+#: on a row at its record's end -- the ONE spelling lane A's gate searches the block for).
+_BOOK_ATTRS: dict = {"REGIME_LEDGER_WORDS": ("regime_words", "ledger"),
+                     "POSITIONING_ASYMMETRY_LEAD": ("positioning_words", "record_extreme_lead")}
+
+
+def __getattr__(name: str):
+    if name in _BOOK_ATTRS:
+        return book_words(*_BOOK_ATTRS[name])
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
+
+
 def cache_clear() -> None:
     """Drop the two DECLARED BOOKS this module memoises (review round 2, minor 10).
 
@@ -489,7 +541,7 @@ def cache_clear() -> None:
     calls this, so one call clears the whole state lane's memo -- a deck or a process that re-read the
     conventions can no longer keep grading the book it read first."""
     # 09-23 FIX ROUND (review RA minor 7): every memo over the conventions / the registry, not two of them
-    for fn in (_reading_word_table, _phase_pair_table, globals().get("_tail_word_table"),
+    for fn in (_reading_word_table, _phase_pair_table, globals().get("_tail_word_table"), _book,
                globals().get("convention_lines"),
                globals().get("_hop_identity"), globals().get("_chain_generic_words")):
         try:
@@ -1324,7 +1376,30 @@ def _band_scalars(block, band) -> None:
         _scalar(block, q, unit="quarters", kind="lag_band_quarters", text=txt)
 
 
-def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_hop=None) -> tuple:
+def positioning_asymmetry_clause(row, st) -> str:
+    """THE POSITIONING CARD'S OWN WORDS ON A RECORD EXTREME (09-26, CONTRACT P9, R-2 b) -- ``""`` unless the
+    row is a POSITIONING row (``row.context_only``, D18) whose reading sits at its own record's END (the
+    percentile producer's printed value is 0 or 100 -- :func:`rows.percentile_value`, the number the row's
+    own ordinal prints) AND its causal card declares a ``mechanism``; then :data:`POSITIONING_ASYMMETRY_LEAD`
+    plus that mechanism field WHOLE (never split, never paraphrased: the 2024 page filed a record short as a
+    further push while the card says extreme positioning flags reversal risk). The positioning convention
+    declares no severe line (``cot_mm_positioning`` is percentile_bands 10 / 90), so the record's own end is
+    the one test. The CALLER fences it the way SB-R fences a document sentence (all four detectors) and
+    counts a withheld one."""
+    if not getattr(row, "context_only", False) or st is None or not _ok(getattr(st, "percentile", None)):
+        return ""
+    pv = percentile_value((st.percentile or {}).get("value"))
+    if pv is None or float(pv) not in (0.0, 100.0):
+        return ""
+    mech = ascii_text(" ".join(str(getattr(row, "mechanism", "") or "").split())).strip().rstrip(".").strip()
+    lead = book_words("positioning_words", "record_extreme_lead")
+    if not mech or not lead:
+        return ""
+    return "%s %s" % (lead, mech)
+
+
+def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_hop=None,
+             subject_clause: str = "") -> tuple:
     """SB-1 (sec 6.2): the STATE row, ONE HANDLE PER MAGNITUDE.
 
     Three handles at most -- the level, the z, the percentile -- each with its own call carrying its
@@ -1511,8 +1586,12 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
     if st.run and not st.run.get("declined"):
         d = RUN_DIRECTION_WORDS.get(str(st.run.get("direction") or ""), "moving one way")
         ln = int(st.run.get("length") or 0)
+        # 09-26 (P5): the run scalar carries the WORDS the template printed with it, the run's own direction
+        # and the row's whole declared direction vocabulary -- the verifier's direction check reads them.
+        _rdir = str(st.run.get("direction") or "")
         _scalar(block, ln, unit=period_noun(st.cadence, ln), kind="run_length", row_id=rid,
-                text=words_for_int(ln))
+                text=words_for_int(ln), words=d, direction=(_rdir if _rdir in ("up", "down") else ""),
+                direction_words=run_direction_vocabulary(st))
         parts.append(f"{d} over the last {period_noun(st.cadence, 1)}" if ln == 1 else
                      f"{d} in each of the last {words_for_int(ln)} {period_noun(st.cadence, ln)}")
     if st.convention and st.convention.get("matched") and st.convention.get("label"):
@@ -1524,8 +1603,27 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
         # positioning narrated as a CAUSE of the anchor's price.
         parts.append("historical context only: this row is what the reporting funds held, never a "
                      "cause the graph declares")
+        # 09-26 (R-2 b, P9): AT ITS RECORD'S END, THE CARD'S OWN READING OF SUCH A POSITION rides the row --
+        # fenced as SB-R fences a document sentence; a card whose text a detector charges prints nothing
+        # and is COUNTED.
+        _asym = positioning_asymmetry_clause(row, st)
+        if _asym:
+            if register_hits(_asym):
+                _count(block, "positioning_asymmetry_withheld")
+            else:
+                parts.append(_asym)
+                _count(block, "positioning_asymmetry")
     if age_clause:
         parts.append(age_clause)
+    # 09-26 (P14, W-5): a driver declared for the WORLD whose world series is fenced here, read on the anchor
+    # market's own declared home scope -- the row's identity prints that scope and this clause says why.
+    if str(getattr(st, "scope_resolution", "") or "") == "home_for_global":
+        _sw = book_words("scope_words", "home_for_global")
+        if _sw:
+            parts.append(_sw)
+    # 09-26 (R-4 a, P13): the subject slot answered by this row (``answered_by_row``), in the book's words.
+    if subject_clause:
+        parts.append(subject_clause)
     if st.vintage_note:
         parts.append(st.vintage_note)
     # THE PERIOD GAP (C11): the newest period this row HOLDS as known is older than a period the SAME
@@ -2669,13 +2767,17 @@ def sb_chain_positioning(ch, *, handle=None) -> str:
     if not pw:
         return ""
     cite = " [N%d]" % int(handle) if handle else ""
+    # 09-26 (R-2 a, THREAT S-1): THE CASE WORDS ARE THE OWNER'S RULING 1, declared ONCE (``positioning_words``)
+    # -- a crowd the SAME way as the sequence makes the reversal abrupt, a crowd the OTHER way cushions it --
+    # the mapping ``walk._positioning_note`` already prints. HEAD's row said the opposite of the walk's note on
+    # the same fact ("amplifies it rather than cushioning it" for the same way), and the 2024 writer copied it.
     if p.get("against"):
+        case = book_words("positioning_words", "other_way")
         return ("%spositioning%s: the crowd sits at the %s percentile of its own record the other way "
-                "from this sequence, which is what makes a reversal abrupt."
-                % (CHAIN_SUB_PREFIX, cite, pw))
+                "from this sequence%s." % (CHAIN_SUB_PREFIX, cite, pw, (", " + case) if case else ""))
+    case = book_words("positioning_words", "same_way")
     return ("%spositioning%s: the crowd sits at the %s percentile of its own record the same way as "
-            "this sequence, which amplifies it rather than cushioning it."
-            % (CHAIN_SUB_PREFIX, cite, pw))
+            "this sequence%s." % (CHAIN_SUB_PREFIX, cite, pw, (", " + case) if case else ""))
 
 
 def sb_chain_head(ch, *, i: int, n: int, why=(), page_markets=(), subject_named: bool = True) -> str:
@@ -2954,7 +3056,7 @@ CHAIN_PAGE_SENTENCE_MAX_WORDS: int = 45
 CHAIN_PAGE_SENTENCE_MAX_NODES: int = 3
 
 
-def chain_page_sentence(ch, row_handles: dict, *, page_markets=()) -> str:
+def chain_page_sentence(ch, row_handles: dict, *, page_markets=(), cited=()) -> str:
     """ONE desk-English sentence for ONE rendered chain -- lane A's backstop, appended only where the
     writer narrated no chain the block carried (CONTRACT.md C9).
 
@@ -2981,6 +3083,22 @@ def chain_page_sentence(ch, row_handles: dict, *, page_markets=()) -> str:
     terminal = (board_label(ch.terminal) if cross
                 else "the %s price" % board_label(getattr(ch, "contract", "")))
     first, last = hops[0], hops[-1]
+    # 09-26 (R-4 b, CONTRACT P11, D13): WHERE THE PROSE ALREADY CITES A MIDDLE HOP'S LEVEL ADDRESS, THAT HOP
+    # IS THE NAMED MIDDLE NODE -- it takes the seat the last hop held, under the SAME node and word caps. The
+    # soyoil/palm backstop named drought and positioning and dropped the stocks-to-use link the TL;DR leans
+    # on. ``cited`` = the [N] ints the served prose cites; () -> HEAD byte for byte. No id is special-cased.
+    _cited = {int(x) for x in (cited or ()) if isinstance(x, int) or str(x).isdigit()}
+
+    def _level(hop):
+        _hs = rh.get((getattr(hop, "contract", ""), getattr(hop, "driver_id", ""))) or {}
+        _lv = _hs.get("level") if isinstance(_hs, dict) else _hs
+        return int(_lv) if _lv else None
+
+    # the named middle node: the last hop where the prose cites it (HEAD's sentence already names it), else the
+    # first middle hop in chain order whose LEVEL address the prose cites
+    mid = None
+    if _cited and len(hops) > 2 and _level(last) not in _cited:
+        mid = next((h for h in hops[1:-1] if _level(h) in _cited), None)
     agree = sum(1 for v in (getattr(ch, "agreements", None) or ()) if str(v) == "aligned")
     links = len(getattr(ch, "agreements", None) or ())
     tail = ("; the readings agree with the direction the model expects at %s of %s %s"
@@ -2988,6 +3106,12 @@ def chain_page_sentence(ch, row_handles: dict, *, page_markets=()) -> str:
     forms = []
     # 09-24 (K12): the hop names carry their market where the question's page markets are known.
     _pm = page_markets
+    if mid is not None:
+        # 09-26 (R-4 b): the cited middle hop's form first; HEAD's forms follow it UNCHANGED, so a sentence the
+        # cited hop's longer name would push past the word cap falls back to HEAD's own node set, never below it
+        forms.append("One chain the data carries runs from %s%s through %s%s to %s%s."
+                     % (chain_hop_name(first, page_markets=_pm), _cite(first),
+                        chain_hop_name(mid, page_markets=_pm), _cite(mid), terminal, tail))
     if last is not first:
         forms.append("One chain the data carries runs from %s%s through %s%s to %s%s."
                      % (chain_hop_name(first, page_markets=_pm), _cite(first),
@@ -3368,7 +3492,7 @@ def sb_chain_count(counts: dict, *, k: int, anchor_label: str = "", slots=(), na
                ("; " + "; ".join(parts)) if parts else ""))
 
 
-def sb_fan(entry: dict, *, names_cap: int = 0) -> str:
+def sb_fan(entry: dict, *, names_cap: int = 0, block=None) -> str:
     """SB-F (sec 6.2, 3.6): the fan-out, COUNTS IN WORDS. The COUNT is never cut -- it is what makes
     "the graph decides relevance" visible, and it is the figure a reader checks the enumeration against.
 
@@ -3402,11 +3526,28 @@ def sb_fan(entry: dict, *, names_cap: int = 0) -> str:
     rest_cap = max(0, cap - min(len(head), head_cap)) if cap else 0
     body = (f"declared {sign_words(head_sign)} on {words_for_int(len(head))} of them "
             f"({name_list(head, head_cap, noun='markets')})")
+    other_sign = ""
     if rest:
         other_sign = sorted(s for s in by_sign if s != head_sign)[0]
         body += (f" and {sign_words(other_sign)} on the rest "
                  f"({name_list(rest, max(1, rest_cap) if cap else 0, noun='markets')})")
     n = len(far)
+    # 09-26 (P5, S-4): THE FAN'S THREE COUNTS ARE SERVED FIGURES -- the total and each arm with the sign words
+    # the line printed beside it -- registered on the block so the verifier can hold a writer's split to the
+    # line's own words. ONE FAN'S IDENTITY is its SEED ROW's (``"<contract>|<driver_id>|<series_key>"``, the row
+    # identity's own join shape): CONTRACT P5 spelt "<driver_id>|<series_key>" (K26's same-series key), and
+    # MEASURED on the palm/rape board that key is shared by THREE fans with three different splits (El Nino
+    # on CME palm oil 29 / 5, on ICE canola and on ZCE rapeseed oil 28 / 6 -- one series, three seeds), so the
+    # seed's board joins it. The printed line is byte-identical to HEAD's.
+    if block is not None:
+        _fid = "%s|%s|%s" % (str(entry.get("contract") or ""), str(entry.get("driver_id") or ""),
+                             str(entry.get("series_key") or ""))
+        _scalar(block, n, unit="markets", kind="fan_count", text=words_for_int(n), fan_id=_fid)
+        _scalar(block, len(head), unit="markets", kind="fan_count", text=words_for_int(len(head)),
+                words=sign_words(head_sign), fan_id=_fid)
+        if rest:
+            _scalar(block, len(rest), unit="markets", kind="fan_count", text=words_for_int(len(rest)),
+                    words=sign_words(other_sign), fan_id=_fid)
     # THE FAN IN WORDS A PM READS (lane D, the 2026-09-16 smoke). HEAD rendered "the same reading is
     # declared on twenty-three other boards: ..." and the writer transcribed it as "declared on
     # twenty-three other markets, twenty-two in the same direction" -- which the PM lens read as
@@ -4916,7 +5057,17 @@ def event_when_words(interval, precision: str = "", *, prep: bool = True) -> str
     return ("on %s" % dw) if prep else dw
 
 
-def _event_words(kind: str, *, event_date: str, precision: str = "", published: str = "") -> str:
+def _ledger_origin() -> str:
+    """Lane W's ``feeders.ACTION_LEDGER_ORIGIN`` (CONTRACT P6), read defensively -- ``""`` before it lands."""
+    try:
+        from leviathan.graphrag.state import feeders as _fd
+        return str(getattr(_fd, "ACTION_LEDGER_ORIGIN", "") or "")
+    except Exception:                                   # noqa: BLE001
+        return ""
+
+
+def _event_words(kind: str, *, event_date: str, precision: str = "", published: str = "",
+                 origin: str = "") -> str:
     """THE RECEIPT'S SENTENCE PER EVENT KIND (CONTRACT.md C7), in the page's own words. The kind is lane
     W's classifier's (``walk.hop_event``); every word here is this page's. ``published`` is the
     document's own date, printed as a day."""
@@ -4928,7 +5079,13 @@ def _event_words(kind: str, *, event_date: str, precision: str = "", published: 
     # date and nothing else: the event is stated as reported, never placed on a day the store does not
     # hold. Lane W's classifier makes such a candidate a REPORT (never an action); the words here fail
     # closed the same way for every kind, so no caller can print an unplaced event as a day.
+    # 09-26 (P6, W-1 W1-f): an action the point-in-time ACTION LEDGER read is the RECORD's newest on the link as
+    # known at the page's date, never "this turn retrieved" -- the ledger's own words, from the book.
+    _led = (kind == "regime_in_force" and origin and origin == _ledger_origin()
+            and "%s" in book_words("regime_words", "ledger"))
     if not str(precision or "").strip() and pub:
+        if _led:
+            return book_words("regime_words", "ledger") % ("reported %s" % pub)
         if kind == "guidance":
             return "a dated forecast, published %s -- not an action" % pub
         if kind == "regime_in_force":
@@ -4952,6 +5109,8 @@ def _event_words(kind: str, *, event_date: str, precision: str = "", published: 
         # A REPORT WRITTEN INSIDE THE PERIOD IT DESCRIBES (review WT F-1): dated by its publication and
         # the period at its precision -- never "a forecast", never "not an action".
         return "a dated report, published %s, about %s" % (pub, bare)
+    if _led:
+        return book_words("regime_words", "ledger") % ("%s%s" % (bare, (", reported %s" % pub) if pub else ""))
     if kind == "regime_in_force":
         # THE DRAW LAW (review WT M-1; walk's CHAIN_REGIME_WORDS carries it): the newest action is the
         # newest THIS TURN RETRIEVED -- a regime read off a retrieval sample, never off the node's ledger.
@@ -5068,7 +5227,8 @@ def chain_receipt(ch, pool=None, *, asof: str = "") -> dict:
             cand = {"prop": _fold, "hop": hop, "echoes": int(_fold.get("echoes") or 0),
                     "outside": False, "event_kind": ek,
                     "words": _event_words(ek, event_date=ed, precision=prec,
-                                          published=str(p.get("date") or ""))}
+                                          published=str(p.get("date") or ""),
+                                          origin=str(p.get("origin") or ""))}
             if ek == "action_open":
                 return _chain_receipt_words(dict(cand, kind="open"))
             if ek in ("action_closed", "regime_in_force") and best is None:
@@ -6049,7 +6209,8 @@ class Block:
         self.counters: dict = {}
 
     def scalar(self, value, *, unit: str, kind: str, row_id: Optional[str] = None,
-               handle: Optional[int] = None, text: str = "") -> None:
+               handle: Optional[int] = None, text: str = "", words: str = "", direction: str = "",
+               direction_words: Optional[dict] = None, fan_id: str = "") -> None:
         """REGISTER ONE PRINTED FIGURE (CONTRACT.md C4) -- called by the template AT THE MOMENT it formats
         that number, so the printed words and the registered scalar are the SAME variable. It is PENDING
         until the row that printed it is committed by :meth:`add`, which binds it to that row's class; a
@@ -6058,9 +6219,21 @@ class Block:
             v = float(value)
         except (TypeError, ValueError):
             return
-        self._pending.append({"value": v, "unit": str(unit or ""), "kind": str(kind),
-                              "row_id": (str(row_id) if row_id else None),
-                              "handle": (int(handle) if handle else None), "text": str(text or "")})
+        d = {"value": v, "unit": str(unit or ""), "kind": str(kind),
+             "row_id": (str(row_id) if row_id else None),
+             "handle": (int(handle) if handle else None), "text": str(text or "")}
+        # 09-26 (CONTRACT P5): the printed words, the run's own direction, the row's whole direction
+        # vocabulary and one fan's identity -- each OMITTED when empty, so a scalar with nothing to say keeps
+        # HEAD's shape.
+        if words:
+            d["words"] = str(words)
+        if direction:
+            d["direction"] = str(direction)
+        if direction_words:
+            d["direction_words"] = {k: tuple(v) for k, v in dict(direction_words).items()}
+        if fan_id:
+            d["fan_id"] = str(fan_id)
+        self._pending.append(d)
 
     def served_scalars(self) -> list:
         """Every figure the committed block printed, one dict per figure: ``{value, unit, kind, row_id,
@@ -6710,6 +6883,11 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     # whose chain line says "peaked at ... now ..." (`chain_state_words`' own in-transit test). Empty on a
     # board-on / chain-off turn (`bd.chains` is not built), so that turn's bytes do not move.
     _peak_hops: dict = {}
+    #: 09-26 (R-3, D15): EVERY STANDING A RENDERED FULL CHAIN'S HOP LINE PRINTS -- a measured hop whose current
+    #: percentile the line states in words ("European area is at the seventieth percentile"). A hop whose row
+    #: the loud cut did not print had no address for it, so the writer re-digitised it with none; the RT-5 peak
+    #: pattern is extended to the current percentile below (role ``cited_state``, rank None, after the loud rows).
+    _standing_hops: dict = {}
     for _c in (getattr(bd, "chains", None) or ()):
         if not (getattr(_c, "rendered", False) and getattr(_c, "full", False)):
             continue
@@ -6719,6 +6897,8 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
             if (getattr(_h, "measured", False) and _kw and _pw and _kw != _pw
                     and month_words(str(getattr(_h, "tail_peak_date", "") or ""))):
                 _peak_hops.setdefault(_h.key, _h)
+            if getattr(_h, "measured", False) and _pw:
+                _standing_hops.setdefault(_h.key, _h)
     # 09-24 (item 28g): THE PEAK IS MINTED ON THE ROW THAT PRINTS THE HOP'S SERIES, not only on the row
     # keyed by the hop's own driver id. A hop routed by one driver id and printed on the SB-1 row of
     # another id on the SAME series (the fold the SB-JOIN line names) found no row of its own key, so its
@@ -6735,7 +6915,7 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     # grades as SB-P), so the loud-cut coverage denominators do not move.
     # Empty wherever ``bd.chains`` is not built, so a board-on / chain-off turn keeps HEAD's bytes.
     _chain_cited: list = []
-    if _peak_hops:
+    if _peak_hops or _standing_hops:
         _have_keys = {r.key for r in rendered}
         _have_series: set = set()
         for _r in rendered:
@@ -6743,7 +6923,9 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                 _have_series.add((str(_r.contract or ""), _r.state.key.label()))
             except Exception:                           # noqa: BLE001 -- an unlabelled key folds alone
                 continue
-        for _hk, _h in _peak_hops.items():
+        # the peak hops first (RT-5's own order, byte for byte), then every other standing hop (R-3)
+        for _hk, _h in (list(_peak_hops.items())
+                        + [(k, v) for k, v in _standing_hops.items() if k not in _peak_hops]):
             _hsk = (str(getattr(_h, "contract", "") or ""), str(getattr(_h, "series_key", "") or ""))
             if _hk in _have_keys or not _hsk[1] or _hsk in _have_series:
                 continue
@@ -6753,6 +6935,26 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
             _chain_cited.append(_crow)
             _have_keys.add(_hk)
             _have_series.add(_hsk)
+    # 09-26 (R-4 a, CONTRACT P13): WHERE LANE W STAMPS THE SUBJECT SLOT ``answered_by_row`` -- the subject pick's
+    # OWN driver id has a served row on a question market and its paths are one link -- that row answers the
+    # subject: it is printed (after the loud rows, like the chain-cited rows, when the loud cut did not print it)
+    # and carries the slot word's reader sentence (the ``slot_words`` book). Only the pick's OWN driver id,
+    # never a group cousin's; silent on every turn W does not stamp it.
+    _subject_key = None
+    try:
+        _ss0 = dict((getattr(bd, "chain_counts", None) or {}).get("slot_state") or {})
+        if _ss0.get("subject") == "answered_by_row":
+            _picked = {str(x) for x in (((getattr(bd, "subject", None) or {}) or {}).get("picked") or ())}
+            _qm = {str(x) for x in _pm}
+            for _r in sorted(bd.rows, key=lambda r: order.get(r.key, len(order))):
+                if (str(_r.driver_id) in _picked and str(_r.contract) in _qm and _r.state is not None
+                        and status_word(_r.state.status) == "ok"):
+                    _subject_key = _r.key
+                    if _r.key not in {x.key for x in rendered} and _r.key not in {x.key for x in _chain_cited}:
+                        _chain_cited.append(_r)
+                    break
+    except Exception:                                   # noqa: BLE001 -- a slot read never costs the board
+        _subject_key = None
     _chain_cited_keys = {r.key for r in _chain_cited}
     if _chain_cited:
         rendered = list(rendered) + _chain_cited
@@ -6782,7 +6984,9 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
             if _pk_hop is not None:
                 _peak_series_minted.add(_row_sk)
         line, calls = sb_state(h, row, asof=bd.asof, age_clause=ages.get(row.key, ""), block=b,
-                               peak_hop=_pk_hop)
+                               peak_hop=_pk_hop,
+                               subject_clause=(book_words("slot_words", "answered_by_row")
+                                               if _subject_key is not None and row.key == _subject_key else ""))
         _cited_row = row.key in _chain_cited_keys
         if line:
             _got = b.add(line, calls, label=f"{row.contract}/{row.driver_id}",
@@ -6809,6 +7013,11 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                 b.row_handles[row.key] = _rh
                 # THE SERIES' FIRST PRINTED ROW, for a hop whose own driver id printed no row (28g).
                 _series_row.setdefault(_row_sk, row.key)
+                # 09-26 (R-2 b): the manifest marks the row that carries the positioning card's own clause
+                # (telemetry, never a byte; the row keeps its role so no coverage denominator moves).
+                _lead = book_words("positioning_words", "record_extreme_lead")
+                if _lead and _lead in line and b.rows_meta:
+                    b.rows_meta[-1]["asymmetry"] = "positioning_asymmetry"
         if _cited_row:
             # 09-25 (RT-5): the chain line that cites this row already states its link, so it takes no
             # edge line and no projection of its own -- the row is here for its handles.
@@ -7149,6 +7358,13 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                                           block=b)
             b.add(sb_chain_document(_rp, _rh, cite_e=_cite_e, page_markets=_pm),
                   label=f"{_lbl} document", display=_disp, role="chain_document", rank=_i)
+            # 09-26 (P3): WHICH LINK THIS DOCUMENT SITS ON -- manifest telemetry for the [E] naming route of
+            # `chain_referenced_in`, never a byte of the block.
+            _rhi = next((_k for _k, _hp in enumerate(_c.hops) if _hp is _rh),
+                        next((_k for _k, _hp in enumerate(_c.hops)
+                              if getattr(_hp, "key", None) == getattr(_rh, "key", ())), None))
+            if b.rows_meta and b.rows_meta[-1].get("role") == "chain_document" and _rhi is not None:
+                b.rows_meta[-1]["hop_index"] = _rhi
             if _rp["kind"] != "none" and _rp["prop"] and not _seen and _rspent < _rcap:
                 # K1: THE RECEIPT ROW CARRIES THE SAME ADDRESS THE DOCUMENT ROW CITES -- one document, one
                 # address everywhere it is named; HEAD's own sequence where no ledger is handed down.
@@ -7161,6 +7377,8 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                       label=f"{_lbl} receipt",
                       display=f"the dated document on {row_words(_rh.contract, _rh.driver_id)}",
                       role="chain_receipt", rank=_i)
+                if b.rows_meta and b.rows_meta[-1].get("role") == "chain_receipt" and _rhi is not None:
+                    b.rows_meta[-1]["hop_index"] = _rhi
                 _rspent += 1
         # WHERE THE CHAINS DISAGREE, and the honest closure for everything the page did not carry.
         b.add(sb_chain_sides(_chains, page_markets=_pm), label="chain sides",
@@ -7216,7 +7434,9 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         if spill >= int(cap["spillover"]):
             cut_boards.extend(f["contract"] for f in far_named)
             continue
-        b.add(sb_fan(e, names_cap=int(cap.get("fan_names") or 0)), label=f"fan {e['driver_id']}",
+        # 09-26 (P5): the fan registers its counts on the block; its identity carries the seed's series key
+        _fe = dict(e, series_key=str(getattr(seed, "series_key", "") or "")) if seed is not None else e
+        b.add(sb_fan(_fe, names_cap=int(cap.get("fan_names") or 0), block=b), label=f"fan {e['driver_id']}",
               display=f"the spillover index for {humanise(e['driver_id'])}")
         spill += 1
         for f in far_named[:far_per_entry]:
@@ -7866,12 +8086,26 @@ def _anchor_words(st, anchor_date: str) -> str:
     "counted from , the effect window opens around December 2024" is a fence that deleted half a clause
     and left the comma -- correct or compute, never delete."""
     words = month_words(anchor_date)
+    _decl = "an anchor this card dates by no calendar period this board can place"
     if not words:
-        return "an anchor this card dates by no calendar period this board can place"
+        return _decl
     since = (st.run or {}).get("since_date") if (st.run and not st.run.get("declined")) else None
-    if since and str(since)[:10] == str(anchor_date)[:10]:
-        return f"the run's start in {words}"
-    return f"this reading's own date in {words}"
+    # 09-26 (P8): the anchor's words are the ONE book's (``window_anchor_words``), read by the watch too.
+    anchor = "run" if (since and str(since)[:10] == str(anchor_date)[:10]) else "reading"
+    return window_anchor_words(anchor, anchor_date) or _decl
+
+
+def window_anchor_words(anchor: str, anchor_date: str) -> str:
+    """WHAT A WINDOW IS COUNTED FROM, in the ONE declared book's words (09-26, CONTRACT P8, W-6 / AN-5):
+    ``anchor`` is ``walk.effect_window``'s own ``"run"`` / ``"reading"`` and ``anchor_date`` the date that
+    opened the window, in month words. The SB-J line and the watch's window clause both print THIS, so one
+    reading's two windows always name their anchors. ``""`` for an unknown anchor, an unplaceable date or a
+    missing book -- the caller keeps its own decline words."""
+    tmpl = book_words("window_anchor_words", str(anchor or ""))
+    words = month_words(anchor_date)
+    if not tmpl or not words or "{month}" not in tmpl:
+        return ""
+    return tmpl.replace("{month}", words)
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -8367,95 +8601,208 @@ def _identifying_names(name_sets) -> list:
     return out
 
 
-def chain_referenced_in(ch, sents, hop_handles=None) -> bool:
+def _link_tokens(name: str) -> frozenset:
+    """The CONTENT tokens of one reader name, by the estate's ONE content-word reader (``verify._tokens``,
+    the reader the verifier grades prose with), on the ASCII fold. Empty where no reader is importable --
+    a name with no content token names nothing."""
+    try:
+        from leviathan.graphrag.verify import _tokens as _content
+    except Exception:                                   # noqa: BLE001 -- no content reader, no names
+        return frozenset()
+    return frozenset(_content(ascii_text(str(name or "")).lower()))
+
+
+def _link_identity(hop) -> tuple:
+    """WHICH READING A HOP IS, for the board-wide uniqueness of its names (09-26, R-1): a MEASURED hop is
+    its SERIES (one series on two boards is one reading -- the SB-JOIN law), an unmeasured hop is its own
+    node (contract, driver). Two chains that share a hop name the same link; two different readings that
+    share a word name neither."""
+    sk = str(getattr(hop, "series_key", "") or "")
+    if getattr(hop, "measured", False) and sk:
+        return ("series", sk)
+    return ("node", str(getattr(hop, "contract", "") or ""), str(getattr(hop, "driver_id", "") or ""))
+
+
+def _board_link_population(ch, peer_chains, page_markets) -> tuple:
+    """``(per_identity_tokens, market_tokens)`` over every hop of ``peer_chains`` (``ch`` included): the
+    content tokens of every reader name of every reading on the board, and of every chain's market words."""
+    peers = [p for p in (peer_chains or ()) if p is not None]
+    if not any(p is ch for p in peers):
+        peers.append(ch)
+    pop: dict = {}
+    market: set = set()
+    for p in peers:
+        for h in (getattr(p, "hops", None) or ()):
+            toks = pop.setdefault(_link_identity(h), set())
+            for n in chain_hop_reader_names(h, page_markets=page_markets):
+                toks |= _link_tokens(n)
+        for slug in (getattr(p, "terminal", "") or "", getattr(p, "contract", "") or ""):
+            for lbl in _market_words(slug):
+                market |= _link_tokens(lbl)
+    return pop, market
+
+
+def chain_link_names(ch, *, page_markets=(), peer_chains=()) -> list:
+    """PER HOP OF ``ch``: THE WHOLE READER NAMES THAT NAME THAT HOP ALONE ON THE BOARD (09-26, CONTRACT P3,
+    R-1 / D3). A spelling of :func:`chain_hop_reader_names` counts for its hop only where NONE of its content
+    tokens (:func:`_link_tokens`) is a content token of any name of any OTHER reading on the board -- every
+    hop of ``peer_chains`` (the board's RENDERED chains, ``ch`` included) -- nor of any of those chains'
+    market words (a sentence about "soybeans" is about no one link). A name sharing a token with another
+    hop's names identifies NEITHER: the cotton page's "Indian monsoon ... drought" read as the Indian Ocean
+    dipole -> drought link on the one token "indian" (the D3 class). Uniqueness is over the BOARD, never the
+    chain. ``peer_chains=()`` -> uniqueness over ``ch`` alone (the harness default). NOTHING IS TYPED: the
+    names are the ones the render prints, the tokens the verifier's own, the population the board's own."""
+    hops = list(getattr(ch, "hops", None) or ())
+    pop, market = _board_link_population(ch, peer_chains, page_markets)
+    out: list = []
+    for h in hops:
+        me = _link_identity(h)
+        others = set(market)
+        for ident, toks in pop.items():
+            if ident != me:
+                others |= toks
+        names: list = []
+        for n in chain_hop_reader_names(h, page_markets=page_markets):
+            ct = _link_tokens(n)
+            if ct and not (ct & others) and n not in names:
+                names.append(n)
+        out.append(tuple(names))
+    return out
+
+
+def _terminal_link_names(ch, peer_chains=(), *, page_markets=()) -> tuple:
+    """The terminal market's own reader words that name the MARKET and no hop on the board (the last link's
+    far end, read by :func:`chain_referenced_adjacent_in`): a market word sharing a content token with any
+    hop's names identifies neither."""
+    term = str(getattr(ch, "terminal", "") or "") or str(getattr(ch, "contract", "") or "")
+    pop, _market = _board_link_population(ch, peer_chains, page_markets)
+    hop_toks: set = set()
+    for toks in pop.values():
+        hop_toks |= toks
+    return tuple(n for n in _market_words(term) if _link_tokens(n) and not (_link_tokens(n) & hop_toks))
+
+
+_CHAIN_ADDR_E_RX = re.compile(r"E(\d+)")
+
+
+def _chain_sentences(sents) -> list:
+    """THE WRITER'S SENTENCES, for the two chain producers: the estate splitter's clauses (``verify.sentences``
+    cuts at ``;`` because the verifier grades a claim per clause) re-joined where a clause ENDS in the
+    semicolon that joined it to the next one. 09-26 (R-1): the block prints every link as ONE line whose
+    reading and whose edge onto the NEXT hop are joined by exactly that semicolon (:func:`sb_chain_hop`,
+    "<hop>: <reading>; the model expects it to move <next> ..."), so a writer telling a link in the block's
+    own shape -- "crude reads 0.51 z [N119]; the model expects it to lift the board crush margin [N115]" --
+    names its two ends in two clauses of ONE sentence. The unit is the typographic sentence; no word is read."""
+    out: list = []
+    buf = ""
+    for x in (sents or ()):
+        t = str(x)
+        buf = (buf + " " + t) if buf else t
+        if not t.rstrip().endswith(";"):
+            out.append(buf)
+            buf = ""
+    if buf:
+        out.append(buf)
+    return out
+
+
+def _sentence_e_addresses(sent: str) -> set:
+    """Every [E] index the sentence cites, grouped members included ("[E3][E7]", "[E3, E7]")."""
+    out: set = set()
+    for m in _CHAIN_ADDR_RX.finditer(str(sent or "")):
+        out.update(int(x) for x in _CHAIN_ADDR_E_RX.findall(m.group(1)))
+    return out
+
+
+def _hop_address_sets(hops, hop_handles, hop_receipts) -> tuple:
+    """``(n_addrs, e_addrs)`` -- per hop, the [N] ints the block printed for that hop's row and the [E] ints
+    the block printed on that hop's chain document / receipt rows; a missing entry is an empty set."""
+    n_addrs = [set(int(x) for x in (hh or ()) if isinstance(x, int) and x > 0)
+               for hh in list(hop_handles or ())] + [set() for _ in hops]
+    e_addrs = [set(int(x) for x in (hr or ()) if isinstance(x, int) and x > 0)
+               for hr in list(hop_receipts or ())] + [set() for _ in hops]
+    return n_addrs, e_addrs
+
+
+def chain_referenced_in(ch, sents, hop_handles=None, *, hop_receipts=None, peer_chains=()) -> bool:
     """IS THIS RENDERED CHAIN NARRATED IN ``sents``? -- ONE sentence (:data:`_CHAIN_WINDOW_SENTS`) names at
-    least TWO distinct links of the chain (its one link, on a one-link chain), each by a full reader name
-    (:func:`chain_hop_reader_names`, word-bounded, one that carries a content word and names that link alone
-    -- :func:`_identifying_names`, the fixer pass's uniqueness rule in place of a character floor), by one of
-    its identity words (:func:`chain_hop_identity_words`), or by one of its
-    OWN [N] addresses (``hop_handles``: per hop, the handles the block printed for that hop's row). That is
-    the whole rule (THREAT_MODEL R-12), and it is STRUCTURAL: no head noun, no market word is required --
-    the 09-23 cut's literal "chain" / end-market anchor was a keyword gate (review RA M3) and is gone.
-    MEASURED on the ten 09-23 pages against the human read (fix_round_0923/fix/r12_fix.out): the tariff
-    and cotton pages DO name two linked hops of a rendered chain in one sentence ("export pace ... feeds
-    the stocks-to-use ratio"; "if El Nino emerges ... weaken the Indian monsoon and raise drought") and
-    now read referenced -- the human read's "no" there rested on the chain not being told AS a chain,
-    which only a keyword can see. Prose is folded to ASCII first, so "El Nino" with its tilde is one
-    spelling. ONE PRODUCER: the coverage counter and lane A's chain backstop both call this."""
+    least TWO distinct links of the chain (its one link, on a one-link chain).
+
+    **09-26 (CONTRACT P3, R-1 / D3): A LINK IS NAMED BY ITS OWN ADDRESS OR BY A WHOLE NAME UNIQUE TO IT ON THE
+    BOARD** -- (1) one of its own [N] addresses (``hop_handles[k]``: the handles the block printed for that
+    hop's row), (2) one of its own [E] addresses (``hop_receipts[k]``: the [E] the block printed on that hop's
+    chain document / receipt rows), or (3) a whole reader name from :func:`chain_link_names` (word-bounded; a
+    name sharing a content token with ANY other reading on the board -- ``peer_chains`` -- names neither).
+    The single identity words (:func:`chain_hop_identity_words`) are NOT a naming route any more: "Indian
+    monsoon" named the Indian Ocean dipole on the one token "indian" and withheld the cotton backstop. The
+    function itself stays for its other readers. REJECTED: a stop list ("Indian", "monsoon") or a longer word
+    floor -- both keep the one-token match and only move it. Prose is folded to ASCII first. ONE PRODUCER:
+    the coverage counter and lane A's chain backstop both call this."""
     hops = list(getattr(ch, "hops", None) or ())
     if not hops:
         return False
-    names = _identifying_names([chain_hop_reader_names(h) for h in hops])
-    idw = chain_hop_identity_words(ch)
-    addrs = [set(int(x) for x in (hh or ()) if isinstance(x, int) and x > 0)
-             for hh in list(hop_handles or ())] + [set() for _ in hops]
+    names = chain_link_names(ch, peer_chains=peer_chains)
+    addrs, e_addrs = _hop_address_sets(hops, hop_handles, hop_receipts)
     need = min(2, len(hops))
     w = max(1, int(_CHAIN_WINDOW_SENTS))
-    raw = [str(x) for x in (sents or ())]
+    raw = [str(x) for x in _chain_sentences(sents)]
     folded = [ascii_text(x) for x in raw]
     for i in range(len(folded)):
         low = " ".join(folded[max(0, i - w + 1):i + 1]).lower()
-        cited = set()
+        cited, cited_e = set(), set()
         for x in raw[max(0, i - w + 1):i + 1]:
             cited |= _sentence_addresses(x)
-        toks = set(_CHAIN_WORD_RX.findall(low))
+            cited_e |= _sentence_e_addresses(x)
         got = sum(1 for k in range(len(hops))
-                  if (idw[k] & toks) or any(_token_hit(n.lower(), low) for n in names[k])
-                  or (addrs[k] & cited))
+                  if any(_token_hit(n.lower(), low) for n in names[k])
+                  or (addrs[k] & cited) or (e_addrs[k] & cited_e))
         if got >= need:
             return True
     return False
 
 
-def _link_positions(tokens_words, names, addrs, low: str, raw: str) -> Optional[int]:
-    """The FIRST character position in one sentence at which one link is named -- by an identity word, a
-    whole reader name, or one of its own [N] addresses -- or ``None``. Positions are read on the same
-    ASCII-folded, lower-cased sentence ``chain_referenced_in`` reads (addresses on the raw sentence, whose
-    offsets the fold keeps for every ASCII character)."""
+def _link_positions(names, addrs, low: str, raw: str, e_addrs=()) -> Optional[int]:
+    """The FIRST character position in one sentence at which one link is named -- by a whole reader name
+    unique to it on the board, one of its own [N] addresses, or one of its own [E] addresses -- or
+    ``None``. Positions are read on the same ASCII-folded, lower-cased sentence ``chain_referenced_in``
+    reads (addresses on the raw sentence, whose offsets the fold keeps for every ASCII character). 09-26
+    (R-1): the single identity words are no longer a route."""
     best = None
-    for m in _CHAIN_WORD_RX.finditer(low):
-        if m.group(0) in tokens_words:
-            best = m.start() if best is None else min(best, m.start())
-            break
     for n in names:
         rx = _token_rx(str(n).lower())
         mm = rx.search(low) if rx else None
         if mm:
             best = mm.start() if best is None else min(best, mm.start())
-    if addrs:
+    for _addrs, _rx in ((addrs, _CHAIN_ADDR_N_RX), (e_addrs, _CHAIN_ADDR_E_RX)):
+        if not _addrs:
+            continue
         for m in _CHAIN_ADDR_RX.finditer(raw):
-            if {int(x) for x in _CHAIN_ADDR_N_RX.findall(m.group(1))} & addrs:
+            if {int(x) for x in _rx.findall(m.group(1))} & set(_addrs):
                 best = m.start() if best is None else min(best, m.start())
                 break
     return best
 
 
-def chain_referenced_adjacent_in(ch, sents, hop_handles=None, *, page_markets=()) -> bool:
+def chain_referenced_adjacent_in(ch, sents, hop_handles=None, *, page_markets=(), hop_receipts=None,
+                                 peer_chains=()) -> bool:
     """IS THIS CHAIN TOLD AS A CHAIN? -- ONE sentence names two ADJACENT links of it IN THE CHAIN'S OWN
     ORDER (09-24, item 28b): hop k and hop k+1, or the last hop and the market it lands on, the earlier
-    link first. A told link ("dryness to draw stocks down", "crude to crush margin") is a chain narrated;
-    two hop names in one sentence in any order -- :func:`chain_referenced_in`'s rule, which it keeps -- is
-    not always one: it read ONE on cotton and rice, where the human read found no chain told as a chain,
-    and that ONE is what withheld the backstop there. SAME identity words, reader names and addresses as
-    :func:`chain_referenced_in` (one producer of what names a link), plus the terminal market's own reader
-    words for the last link -- no keyword, no head noun."""
+    link first. Two hop names in one sentence in any order -- :func:`chain_referenced_in`'s rule, which it
+    keeps -- is not always one. SAME naming routes as :func:`chain_referenced_in` (09-26, P3: the hop's own
+    [N] / [E] addresses and the whole names unique to it on the board, :func:`chain_link_names`), plus the
+    terminal market's own reader words for the last link (:func:`_terminal_link_names`) -- no keyword, no
+    head noun, no single shared word."""
     hops = list(getattr(ch, "hops", None) or ())
     if not hops:
         return False
-    term = str(getattr(ch, "terminal", "") or "") or str(getattr(ch, "contract", "") or "")
-    # the hops' names AND the terminal market's own words are one population: a spelling that names a hop and
-    # the market it lands on identifies neither (FIXER PASS, REVIEW_RA lexical 10: uniqueness, never a length)
-    _all = _identifying_names([chain_hop_reader_names(h, page_markets=page_markets) for h in hops]
-                              + [_market_words(term)])
-    names, term_names = _all[:-1], _all[-1]
-    idw = chain_hop_identity_words(ch)
-    addrs = [set(int(x) for x in (hh or ()) if isinstance(x, int) and x > 0)
-             for hh in list(hop_handles or ())] + [set() for _ in hops]
-    for x in (sents or ()):
+    names = chain_link_names(ch, page_markets=page_markets, peer_chains=peer_chains)
+    term_names = _terminal_link_names(ch, peer_chains, page_markets=page_markets)
+    addrs, e_addrs = _hop_address_sets(hops, hop_handles, hop_receipts)
+    for x in _chain_sentences(sents):
         raw = str(x)
         low = ascii_text(raw).lower()
-        pos = [_link_positions(idw[k], names[k], addrs[k], low, raw) for k in range(len(hops))]
-        pos.append(_link_positions(frozenset(), term_names, set(), low, raw))
+        pos = [_link_positions(names[k], addrs[k], low, raw, e_addrs[k]) for k in range(len(hops))]
+        pos.append(_link_positions(term_names, set(), low, raw))
         for k in range(len(pos) - 1):
             if pos[k] is not None and pos[k + 1] is not None and pos[k] < pos[k + 1]:
                 return True
@@ -8499,16 +8846,28 @@ def _chain_coverage(bd, rows, bucket, sents, *, text: str = "") -> dict:
         ch_ref, ch_missed = 0, []
         for _i, (_ri, _m) in enumerate(_chain_rows):
             _c = _ranked[_i] if _i < len(_ranked) else None
-            # each hop's OWN printed addresses, in hop order (the manifest's `hop_handles`)
+            # each hop's OWN printed addresses, in hop order (the manifest's `hop_handles`). 09-26 (R-1): read
+            # at the CHAIN ROW'S OWN RANK -- the render stamps its chain rows 1-based and this loop counts from
+            # 0, so HEAD handed every chain the PREVIOUS chain's hop addresses (and the first chain none).
+            _rk = _m.get("rank")
             _hh = [m.get("hop_handles") or () for m in rows
-                   if m.get("role") == "chain_hop" and m.get("rank") == _i]
-            if _c is not None and chain_referenced_in(_c, sents, hop_handles=_hh):
+                   if m.get("role") == "chain_hop" and m.get("rank") == _rk]
+            # 09-26 (P3): the [E] the block printed on this chain's document / receipt rows, at the hop each
+            # row names (the manifest's `hop_index`), so a receipt the writer cites names its own link.
+            _hr: list = [set() for _ in (getattr(_c, "hops", None) or ())] if _c is not None else []
+            for m in rows:
+                if (m.get("role") in ("chain_document", "chain_receipt") and m.get("rank") == _rk
+                        and isinstance(m.get("hop_index"), int) and 0 <= m["hop_index"] < len(_hr)):
+                    _hr[m["hop_index"]] |= _sentence_e_addresses(str(m.get("line") or ""))
+            if _c is not None and chain_referenced_in(_c, sents, hop_handles=_hh, hop_receipts=_hr,
+                                                      peer_chains=rendered):
                 ch_ref += 1
             else:
                 ch_missed.append(_row_id(_ri, _m))
             # 09-24 (item 28b): the ADJACENT, IN-ORDER count beside it -- the one lane A's backstop reads.
             if _c is not None and chain_referenced_adjacent_in(_c, sents, hop_handles=_hh,
-                                                               page_markets=_pmk):
+                                                               page_markets=_pmk, hop_receipts=_hr,
+                                                               peer_chains=rendered):
                 ch_adj += 1
     hp_ref, _hp_cit, _hp_fig, hp_seen, _hp_missed = bucket(lambda i, m: m.get("role") == "chain_hop")
     low = str(text or "\n".join(sents or ())).lower()

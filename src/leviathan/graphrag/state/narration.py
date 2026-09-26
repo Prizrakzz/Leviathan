@@ -465,7 +465,9 @@ _T_MANDATE_CHAIN_MOVEMENT: str = (
     "(3) THE CHAIN: take {record}'s leading chains, in the order it gives them, and narrate each chain "
     "it sets out link by link the same way -- link by link, in the present tense. Name every chain by what it "
     "links -- where it starts and the market it reaches -- and never by where or how {record} shows it: "
-    "the reader is told what moves what. At each link give the figure in "
+    "the reader is told what moves what. Make a market or a reading the subject of every sentence here -- "
+    "the series, what it reads and what it moves -- never {record} itself or the way it assembled what it "
+    "read. At each link give the figure in "
     "its unit and the plain meaning in the same sentence, say which way the driver model expects "
     "that link to push the next one, and say whether the current readings agree with the direction "
     "the model expects or run against it -- {record} gives you the word. Cite the chain's dated "
@@ -553,15 +555,53 @@ MANDATE_HORIZON_ROW: str = (
 )
 
 
+def _join_handles(handles) -> str:
+    """The handles in the order given, "a", "a and b", "a, b and c"; ``""`` for none."""
+    hs = [str(h).strip() for h in (handles or ()) if str(h or "").strip()]
+    if not hs:
+        return ""
+    return hs[0] if len(hs) == 1 else ", ".join(hs[:-1]) + " and " + hs[-1]
+
+
 def ask_head_mandate(handles) -> str:
     """:data:`MANDATE_ASK_HEAD` with the head's own handles, in the order the head printed them. ``""`` for
     no handle -- the clause never ships over an empty head. The handles are the writer's ADDRESSES and
     carry no figure (THREAT A-7)."""
-    hs = [str(h).strip() for h in (handles or ()) if str(h or "").strip()]
-    if not hs:
+    joined = _join_handles(handles)
+    if not joined:
         return ""
-    joined = hs[0] if len(hs) == 1 else ", ".join(hs[:-1]) + " and " + hs[-1]
     return MANDATE_ASK_HEAD.format(handles=joined)
+
+
+#: 09-26 FIX SITTING (lane A, item A-4; CONTRACT P9) -- THE RECORD EXTREME'S OWN WORDS, THE MANDATE HALF.
+#: MEASURED (arm A, the 2024 page, PM M1 MAJOR): "a record-tail short: -126,674 contracts [N14], -3.4 sigma
+#: [N15], 0th percentile [N16] ... declared same-direction, so on the model's own terms it amplifies rather
+#: than cushions" -- while the positioning card's own mechanism reads "Large managed-money net length amplifies
+#: and can overextend price moves, while extreme positioning flags reversal risk", and both rendered chains
+#: carried that asymmetry. "On the model's own terms" read half the card. Lane R's row half prints the card's
+#: mechanism WHOLE beside an SB-1 positioning row that sits at its own record's end, behind its declared lead
+#: (`render.POSITIONING_ASYMMETRY_LEAD`); this clause is appended to the TL;DR mandate ONLY when the block
+#: printed that lead (`answer._positioning_asymmetry_printed`, the `_ask_head_printed` idiom), so a writer is
+#: never told to carry words it was not handed. It carries NO FIGURE, NO DIRECTION WORD and NO CAUSE VERB:
+#: it asks for the card's own words beside the position, or one clause saying why they do not bear on the call
+#: (D18: positioning is context, never a cause the graph declares). REJECTED: a "reversal" phrase injected by
+#: the writer seam or appended post-writer.
+MANDATE_POSITIONING_ASYMMETRY: str = (
+    "THE POSITION AT ITS RECORD'S END: this page prints the position under {handles} at the end of its own "
+    "record and quotes, beside it, the driver model's own words on what a position that far out means. "
+    "Wherever the answer uses that position, carry those words beside it as the model's reading, in the "
+    "model's own words and with no figure or direction of your own added to them -- or say in one clause "
+    "why they do not bear on the call."
+)
+
+
+def positioning_asymmetry_mandate(handles) -> str:
+    """:data:`MANDATE_POSITIONING_ASYMMETRY` with the handles of the block lines that carry the record-extreme
+    clause, in block order. ``""`` for no handle -- the clause never ships over a block that printed none."""
+    joined = _join_handles(handles)
+    if not joined:
+        return ""
+    return MANDATE_POSITIONING_ASYMMETRY.format(handles=joined)
 
 
 def state_board_mandate(nonobvious: bool = False, chain: bool = False, desk: bool = False) -> str:
@@ -1099,15 +1139,17 @@ def check_literals() -> list:
     # K8 / K21: the two TL;DR clauses, graded as they SHIP (the ask clause formatted with two handles).
     _ask = ("MANDATE_ASK_HEAD", ask_head_mandate(("[N11]", "[N14]")))
     _hzn = ("MANDATE_HORIZON_ROW", MANDATE_HORIZON_ROW)
+    # 09-26 (A-4, CONTRACT P9): the record-extreme clause, graded as it SHIPS (formatted with its handles)
+    _pos = ("MANDATE_POSITIONING_ASYMMETRY", positioning_asymmetry_mandate(("[N14]", "[N15]", "[N16]")))
     try:
         from leviathan.graphrag.register import count_desk_register as _cdr
-        for _n, _t in (_ask, _hzn):
+        for _n, _t in (_ask, _hzn, _pos):
             if _cdr(_t):
                 errs.append(f"narration.{_n}: {_cdr(_t)} desk-register charge(s)")
     except Exception as exc:                        # noqa: BLE001 -- named, never raised onward
         errs.append(f"narration: could not grade the ask / horizon clauses: {exc}")
     for name, text in (("SYSTEM_STATE_BOARD_MANDATE", SYSTEM_STATE_BOARD_MANDATE),
-                       _watch_mandate, _chain_mandate, _desk_mandate, _ask, _hzn,
+                       _watch_mandate, _chain_mandate, _desk_mandate, _ask, _hzn, _pos,
                        ("RECENCY_LEDGER_SENTENCE", RECENCY_LEDGER_SENTENCE),
                        ("SYSTEM_RECENCY_CLAUSE", SYSTEM_RECENCY_CLAUSE),
                        _desk):

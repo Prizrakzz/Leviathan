@@ -1478,9 +1478,14 @@ CHAIN_SLOTS: tuple[str, ...] = ("top", "sign", "subject", "pair", "horizon")
 #:                           the sign swap, or an earlier slot's seat (the selection's own test,
 #:                           ``any(test(c) for c in picked)``, and it seats nothing);
 #:   ``seated``           -- the slot took a seat for a chain the rank left below the cap;
-#:   ``no_candidate``     -- the slot was asked and no chain in the pool answers it.
+#:   ``no_candidate``     -- the slot was asked and no chain in the pool answers it;
+#:   ``answered_by_row``  -- the SUBJECT slot only (the 09-26 fix sitting, CONTRACT P13): the subject
+#:                           pick's OWN driver has a served row on one of the question's own markets and
+#:                           every path it heads is a single link (``chain_counts["single_hop_paths"]``'s
+#:                           own population), so its served row answers the slot and no group cousin's
+#:                           chain is seated in its name. APPENDED at the tail.
 SLOT_STATES: tuple[str, ...] = ("not_asked", "resolver_off", "answered_by_rank", "seated",
-                                "no_candidate")
+                                "no_candidate", "answered_by_row")
 
 #: The three QUESTION slots, in :func:`chain_render_set`'s own seat order.
 QUESTION_SLOTS: tuple[str, ...] = ("subject", "pair", "horizon")
@@ -1614,6 +1619,13 @@ CHAIN_SEAM_FIELDS: tuple[str, ...] = (
     "ChainHop.aliases",
     "Chain.premise_off", "Chain.terminal_reading", "Chain.subject_tier", "Chain.answers_horizon",
     "chain_counts.series_folded", "chain_counts.premise_off", "chain_counts.horizon_chain",
+    # ── THE 09-26 FIX SITTING (lane W; CONTRACT P6 / P8), APPENDED ────────────────────────────────────
+    # The effect window's opening and its anchor, which the SB-J / chain / watch surfaces print (P8); and
+    # whether the point-in-time action ledger could be read on a board that carries a regime node (P6).
+    # (``chain_counts.unsigned_terminal`` -- W-3's seat refusal count -- is stamped only where a reach was
+    # computed and a chain was refused, like ``off_question``, and is declared in lane W's evidence.)
+    "ChainHop.effect_opens", "ChainHop.effect_anchor", "ChainHop.effect_anchor_date",
+    "chain_counts.action_ledger_unread",
 )
 
 _SIGN_INT: dict = {"+": 1, "-": -1}
@@ -1741,6 +1753,35 @@ class ChainHop:
     #: between them was "aligned" by construction and counted as an agreeing hop. ``()`` on every hop
     #: that folded nothing, which is every hop of every path that never walks one series twice.
     aliases: tuple = ()
+    # -- THE 09-26 FIX SITTING (lane W; CONTRACT P6 / P8), every field at the TAIL and defaulted so a hop
+    # built by hand -- and every hop on a chain-off turn -- is HEAD's hop byte for byte ------------------
+    #: WHERE THE EFFECT WINDOW OPENS AND WHICH DATE OPENED IT (CONTRACT P8, W-6) -- the SAME
+    #: :func:`effect_window` call that already gives ``effect_closes``: ``effect_opens`` its ``opens``,
+    #: ``effect_anchor`` its ``anchor`` (``run`` | ``reading``) and ``effect_anchor_date`` the date that
+    #: opened it (the run start, else the newest reading). A surface that prints this window prints its
+    #: anchor beside it, so two windows for one reading can never sit on one page unexplained (D11).
+    effect_opens: str = ""
+    effect_anchor: str = ""
+    effect_anchor_date: str = ""
+    #: THE ROUTER'S FACT FOR THIS HOP'S DOCUMENTS (W-2): ``routed_read`` is whether the store's routing was
+    #: read this turn, and ``routed_on`` the ``(source_key, text)`` propositions the store's router put on
+    #: THIS hop's contract's own evidence slice -- the fact :func:`receipt_identity` reads.
+    routed_read: bool = False
+    routed_on: frozenset = frozenset()
+    #: THE PROPOSITIONS THE STORE'S ROUTER PUT ON NO COMMODITY SLICE AT ALL (``evidence.all_nodes()``, the
+    #: router's own node universe) -- a sentence that names no market; such a sentence joins the market its
+    #: SOURCE declares (:func:`receipt_identity`). ``(source_key, text)`` pairs, read this turn.
+    routed_marketless: frozenset = frozenset()
+    #: THE DOCUMENTS :func:`receipt_identity` REFUSED ON THIS HOP (W-2) -- ``((date, source_key), ...)``,
+    #: counted on the chain's count line and never silently dropped.
+    identity_refused: tuple = ()
+    #: A PERIOD STALE AGAINST THE AS-OF (W-4, D12): ``{"served", "expected", "gap_periods", "basis"}`` where
+    #: this hop's served period trails, by MORE THAN ONE full period of its card's cadence, the period the
+    #: card should hold at the as-of -- the store's own newer period where one is held (``period_gap`` /
+    #: ``period_behind``), else the card's declared first print; ``{}`` otherwise. A stale hop keeps its
+    #: figure and its period on the page; it is excluded from TAIL and from the agreements (its reading is
+    #: not today's), and REACH never reads it.
+    period_stale: dict = field(default_factory=dict)
 
     @property
     def phase_reoriented(self) -> bool:
@@ -1821,7 +1862,7 @@ class ChainHop:
         return frozenset((self.fold_key, qk)) if qk else frozenset((self.fold_key,))
 
     def to_dict(self) -> dict:
-        return {"contract": self.contract, "driver_id": self.driver_id, "sign": self.sign,
+        out = {"contract": self.contract, "driver_id": self.driver_id, "sign": self.sign,
                 "lag": self.lag, "confidence": self.confidence, "measured": self.measured,
                 "series_key": self.series_key, "level_shown": self.level_shown, "unit": self.unit,
                 "percentile": self.percentile, "z": self.z, "run_direction": self.run_direction,
@@ -1841,6 +1882,18 @@ class ChainHop:
                 "phase_orient": int(self.phase_orient), "effect_closes": self.effect_closes,
                 # THE 09-24 FIX ROUND (CONTRACT K12), at the tail: the node ids folded into this link.
                 "aliases": list(self.aliases or ())}
+        # THE 09-26 FIX SITTING (lane W), APPENDED AT THE TAIL AND OMITTED WHEN EMPTY, so a hop that carries
+        # none of them -- every hand-built hop -- keeps HEAD's row: the effect window's opening and its
+        # anchor (P8), the documents the identity refused (W-2) and a stale period (W-4).
+        if self.effect_anchor:
+            out["effect_opens"] = self.effect_opens
+            out["effect_anchor"] = self.effect_anchor
+            out["effect_anchor_date"] = self.effect_anchor_date
+        if self.identity_refused:
+            out["identity_refused"] = [list(x) for x in self.identity_refused]
+        if self.period_stale:
+            out["period_stale"] = dict(self.period_stale)
+        return out
 
 
 @dataclass
@@ -2117,7 +2170,7 @@ def hop_window_peak(st, band: Optional[LagBand], asof: str, *, orient: int = 0) 
 
 
 def chain_hop(bd: B.Board, row: B.NodeRow, *, seat: Optional[dict] = None,
-              receipts: Optional[dict] = None) -> ChainHop:
+              receipts: Optional[dict] = None, routed: Optional[dict] = None) -> ChainHop:
     """ONE :class:`ChainHop` from a board row. ZERO reads -- every figure is already on the board.
 
     **THE 09-23 FIX ROUND READS THREE MORE FACTS HERE, EACH FROM ITS ONE PRODUCER, AND WRITES NONE OF
@@ -2133,7 +2186,18 @@ def chain_hop(bd: B.Board, row: B.NodeRow, *, seat: Optional[dict] = None,
         declared pair while the OTHER pole is in force scores its TAIL -- latest and window peak alike
         -- on its own pole (W-7), so a La Nina hop reads 0 on a warm ONI instead of the warm tail;
       * the EFFECT WINDOW (:func:`effect_window`): ``tail_lag_to`` is its ``peak_closes`` (byte for
-        byte HEAD's ``peak + max lag`` on every bounded band) and ``effect_closes`` is its ``closes``."""
+        byte HEAD's ``peak + max lag`` on every bounded band) and ``effect_closes`` is its ``closes``.
+
+    **THE 09-26 FIX SITTING READS THREE MORE, STILL ONE PRODUCER EACH** (lane W; CONTRACT P6 / P8):
+
+      * the EFFECT WINDOW's opening and its ANCHOR (``effect_opens`` / ``effect_anchor`` /
+        ``effect_anchor_date``) off the SAME call (W-6), set only where the window opens at all;
+      * the RECEIPT IDENTITY (W-2): where ``routed`` is threaded -- the chain leg's own read of the
+        store's routing (``{"read", "on", "ledger_refused"}``) -- every document on this hop, the action
+        tiers' list and the mechanism tier's ``receipts_top`` alike, is read through
+        :func:`receipt_identity`'s rule, and a refused one is dropped from THIS HOP ONLY and recorded on
+        ``identity_refused`` (counted, never silent). ``None`` -- every hand-built call -- is HEAD's hop;
+      * a STALE PERIOD (W-4, :func:`hop_period_stale`), read off the row's own state at the as-of."""
     st = row.state
     ok = st is not None and status_word(st.status) == "ok"
     pct = _measure_value(st.percentile) if ok else None
@@ -2161,6 +2225,30 @@ def chain_hop(bd: B.Board, row: B.NodeRow, *, seat: Optional[dict] = None,
         rs = receipts.get(row.key) or receipts.get(row.driver_id) or ()
     else:
         rs = (row.event_receipt,) if row.event_receipt else ()
+    tops = tuple((row.receipts or {}).get("top") or ())
+    r_read, r_on, r_free, refused = False, frozenset(), frozenset(), ()
+    if routed is not None:
+        # W-2: ONE IDENTITY RULE OVER EVERY DOCUMENT THIS HOP COULD BE RECEIPTED ON. The routing fact is keyed
+        # on the hop's OWN contract (the store routes a document to that contract's evidence slice), the cell
+        # is the row identity's own scope, and a refusal is recorded -- with the ledger rows step 5 already
+        # refused for this node -- so the count line counts it.
+        r_read = bool(routed.get("read"))
+        r_on = frozenset((routed.get("on") or {}).get(row.contract) or ())
+        r_free = frozenset(routed.get("marketless") or ())
+        _cell = _row_cell(row.series_key or "")
+        _ref = list((routed.get("ledger_refused") or {}).get(row.key) or ())
+
+        def _admit(r) -> bool:
+            if not isinstance(r, dict):
+                return True
+            if _identity_of(r, contract=row.contract, cell=_cell, routed_read=r_read, routed_on=r_on,
+                            marketless=r_free):
+                return True
+            _ref.append(_doc_key(r))
+            return False
+        rs = tuple(r for r in rs if r and _admit(r))
+        tops = tuple(r for r in tops if _admit(r))
+        refused = tuple(dict.fromkeys(tuple(x) for x in _ref))
     ev = hop_event(rs, asof=asof, band=row.lag_band or parse_lag(""), node_type=row.type or "",
                    stamped={"event_date": row.event_date, "event_open": row.event_open,
                             "event_precision": row.event_precision})
@@ -2184,7 +2272,7 @@ def chain_hop(bd: B.Board, row: B.NodeRow, *, seat: Optional[dict] = None,
         move=_newest_move(st) if ok else 0.0,
         event_date=ev["event_date"], event_precision=ev["precision"],
         event_open=(ev["kind"] == "action_open"), event_receipt=ev["receipt"],
-        receipts_top=tuple((row.receipts or {}).get("top") or ()),
+        receipts_top=tops,
         tail=_hop_tail(pct, z, orient=orient),
         seat=int((seat or {}).get(row.key, 10 ** 6)),
         tail_peak=float(pk["tail"]), tail_peak_percentile=pk["percentile"],
@@ -2194,7 +2282,12 @@ def chain_hop(bd: B.Board, row: B.NodeRow, *, seat: Optional[dict] = None,
         phase_driver=ph["phase_driver"], phase_in_force=ph["phase_in_force"],
         phase_in_force_driver=ph["phase_in_force_driver"], phase_orient=int(ph["phase_orient"]),
         effect_closes=str(ew["closes"] or ""),
-        collapse=(str(getattr(st, "collapse", "") or "") if ok else None))
+        collapse=(str(getattr(st, "collapse", "") or "") if ok else None),
+        effect_opens=str(ew["opens"] or ""),
+        effect_anchor=(str(ew["anchor"] or "") if ew["opens"] else ""),
+        effect_anchor_date=(str(ew.get("anchor_date") or "") if ew["opens"] else ""),
+        routed_read=r_read, routed_on=r_on, routed_marketless=r_free, identity_refused=refused,
+        period_stale=hop_period_stale(st if ok else None, asof))
 
 
 def hop_phase(driver_id: str, st) -> dict:
@@ -2267,13 +2360,21 @@ def effect_window(band: Optional[LagBand], *, newest: str, run_start: Optional[s
     so a zero-quarter band keeps HEAD's ``peak + 1 month`` byte for byte. AN OPEN-ENDED BAND CLOSES
     NOWHERE (``structural`` opens and does not close, :func:`event_is_open`'s own law): ``closes`` and
     ``peak_closes`` are ``None`` rather than an invented date. A band with no parse declines to ``None``
-    everywhere. ``anchor`` says which date opened the window (``run`` / ``reading``)."""
+    everywhere. ``anchor`` says which date opened the window (``run`` / ``reading``).
+
+    **AND ``anchor_date`` IS THAT DATE** (the 09-26 fix sitting, CONTRACT P8 -- W-6 / D11): the run start
+    when one was given, else the newest reading. It is THE ONE producer of "when does this reading's
+    effect land" for every surface: the SB-J line and the chain read it anchored on the RUN, the watch
+    reads it anchored on the READING (``newest=`` its own reading, no ``run_start``), and each surface
+    prints its own anchor beside the months -- two windows for one reading on one page are then two
+    stated anchors, never a contradiction (max: "opens around February 2026" counted from the run's start,
+    "opens 2026-10-31" counted from the reading). Every other key and value is HEAD's."""
     anchor = "run" if run_start else "reading"
-    out = {"opens": None, "closes": None, "peak_closes": None, "anchor": anchor}
+    start = str(run_start or newest or "")
+    out = {"opens": None, "closes": None, "peak_closes": None, "anchor": anchor, "anchor_date": start}
     if band is None or band.min_q is None:
         return out
     lo_m, hi_m = band.months()
-    start = str(run_start or newest or "")
     if start:
         out["opens"] = _add_months(start, int(lo_m or 0))
     if hi_m is None:
@@ -2284,6 +2385,310 @@ def effect_window(band: Optional[LagBand], *, newest: str, run_start: Optional[s
     if peak:
         out["peak_closes"] = _add_months(str(peak), hi)
     return out
+
+# ---------------------------------------------------------------------------------------------------
+# THE 09-26 FIX SITTING (lane W): THE RECEIPT'S IDENTITY (W-2), THE LEDGER MERGE (W-1), THE STALE PERIOD
+# (W-4) -- each read by the chain leg only, each a fact of the store, the card or the source's declaration
+# ---------------------------------------------------------------------------------------------------
+#: THE WORDS :func:`receipt_identity` RETURNS FOR AN ADMITTED DOCUMENT, and ``""`` for a refused one:
+#: ``contract`` -- the store's router put THIS PROPOSITION on the hop's contract's own evidence slice (read
+#: this turn), or -- where the routing could not be read -- the document's source DECLARES the contract
+#: among its targets; ``region`` -- the document's declared region (a partition key of its ``source_key``)
+#: is the row's own cell; ``unread`` -- the routing could not be read and nothing declared admits it, so
+#: the document keeps HEAD's admission and is COUNTED, never refused on a guess (threat W2-a).
+RECEIPT_IDENTITY_WORDS: tuple = ("contract", "region", "unread")
+#: THE ``source_key`` PARTITION KEYS THAT DECLARE A DOCUMENT'S REGION -- the store's own hive schema
+#: (``text/source=usda_gain_coffee/country=VN/...``), read as a key=value pair and never parsed out of an id.
+RECEIPT_REGION_KEYS: tuple = ("country", "region")
+
+
+def receipt_merge_key(r) -> tuple:
+    """ONE DOCUMENT'S IDENTITY FOR THE LEDGER MERGE (CONTRACT P6): its ``source_key`` (the source and the
+    date where a record carries none), its event interval at its precision, and its text -- so a ledger
+    row the draw already holds is held once, and two propositions of one document stay two."""
+    g = (r.get if isinstance(r, dict) else (lambda k, _r=r: getattr(_r, k, None)))
+    sk = str(g("source_key") or "") or "%s|%s" % (g("source") or "", str(g("date") or "")[:10])
+    return (sk, tuple(event_interval(g("event_date"), str(g("event_date_precision") or ""))),
+            " ".join(str(g("text") or "").split()))
+
+
+def merge_receipts(drawn, ledger) -> list:
+    """THE DRAW FIRST AND VERBATIM, THEN EACH LEDGER ROW NOT ALREADY HELD (CONTRACT P6, threat W1-g): the
+    identity is :func:`receipt_merge_key`; the draw is never subtracted, never reordered and never copied
+    -- its own objects ride through, so every reader of a drawn receipt reads exactly what it read."""
+    out = list(drawn or ())
+    seen = {receipt_merge_key(r) for r in out if r}
+    for r in (ledger or ()):
+        k = receipt_merge_key(r)
+        if r and k not in seen:
+            seen.add(k)
+            out.append(r)
+    return out
+
+
+def _fold_token(x) -> str:
+    """A region / cell token folded for an equality test: lower case, every non-alphanumeric run one
+    underscore -- the store's ``united_states`` and the card's ``United States`` are one spelling."""
+    out, prev = [], False
+    for ch in str(x or "").strip().lower():
+        if ch.isalnum():
+            out.append(ch)
+            prev = False
+        elif not prev:
+            out.append("_")
+            prev = True
+    return "".join(out).strip("_")
+
+
+def _declared_regions(receipt) -> frozenset:
+    """The regions a document DECLARES through its ``source_key`` partition keys (:data:`RECEIPT_REGION_KEYS`),
+    folded; empty where it declares none (a global bulletin)."""
+    g = (receipt.get if isinstance(receipt, dict) else (lambda k, _r=receipt: getattr(_r, k, None)))
+    out = set()
+    for part in str(g("source_key") or "").split("/"):
+        k, sep, v = part.partition("=")
+        if sep and k in RECEIPT_REGION_KEYS and v:
+            out.add(_fold_token(v))
+    return frozenset(x for x in out if x)
+
+
+def _row_cell(series_key: str) -> str:
+    """THE ROW IDENTITY'S CELL -- the scope its series key names (``drought_z|cocoa|West Africa`` -> the
+    West Africa cells; ``oni_climate|_global|`` -> none), folded. ``""`` for a global series."""
+    parts = (str(series_key or "").split("|") + ["", "", ""])[:3]
+    return _fold_token(parts[2])
+
+
+def _receipt_source(receipt) -> str:
+    """The document's SOURCE id: the store's own ``source`` column, else the ``source=`` partition key of
+    its ``source_key`` (a hive key read whole, never split into words)."""
+    g = (receipt.get if isinstance(receipt, dict) else (lambda k, _r=receipt: getattr(_r, k, None)))
+    src = str(g("source") or "").strip()
+    if src:
+        return src
+    for part in str(g("source_key") or "").split("/"):
+        k, sep, v = part.partition("=")
+        if sep and k == "source":
+            return v
+    return ""
+
+
+def _prop_key(receipt) -> tuple:
+    """``(source_key, text)`` -- the PROPOSITION a receipt is (the two fields ``pgstore.prop_id`` hashes with
+    the slice); the routing fact is held per hop in this shape."""
+    g = (receipt.get if isinstance(receipt, dict) else (lambda k, _r=receipt: getattr(_r, k, None)))
+    return (str(g("source_key") or ""), str(g("text") or ""))
+
+
+def _identity_of(receipt, *, contract: str, cell: str, routed_read: bool, routed_on,
+                 marketless=()) -> str:
+    """:func:`receipt_identity`'s rule on bare facts -- the one rule the hop, the step-5 ledger gate and a
+    caller holding no hop all read.
+
+    WHERE THE ROUTING WAS READ, IT DECIDES: the proposition is on the contract's own slice (``contract``),
+    or its declared region is the row's cell (``region``), or it is refused (``""``) -- a PROVEN miss of the
+    router's own fact. WHERE IT WAS NOT READ (the harness, an outage), a source that DECLARES the contract
+    admits (``contract``), the region admits (``region``), and everything else keeps HEAD's admission
+    (``unread``, counted): a declaration is never a reason to refuse."""
+    regions = _declared_regions(receipt)
+    from leviathan.graphrag.state import feeders as _F
+    if routed_read:
+        pk = _prop_key(receipt)
+        if pk[0] and pk in (routed_on or ()):
+            return "contract"
+        if cell and cell in regions:
+            return "region"
+        # A SENTENCE THAT NAMES NO MARKET (the router put it on no commodity slice) JOINS THE MARKET ITS SOURCE
+        # DECLARES: MEASURED, the India cotton GAIN's "If El Nino conditions emerge during 2026, they could
+        # weaken the Indian southwest monsoon ..." is on no commodity slice and its source declares cotton,
+        # while the Vietnam coffee sentence on the cocoa hop names coffee (and its source declares coffee).
+        if pk[0] and pk in (marketless or ()):
+            declared = _F.source_target_contracts(_receipt_source(receipt))
+            if declared is not None and str(contract or "") in declared:
+                return "contract"
+        return ""
+    declared = _F.source_target_contracts(_receipt_source(receipt))
+    if declared is not None and str(contract or "") in declared:
+        return "contract"
+    if cell and cell in regions:
+        return "region"
+    return "unread"
+
+
+def receipt_identity(receipt: dict, hop, *, row=None) -> str:
+    """DOES THIS DOCUMENT JOIN THIS HOP? (the 09-26 fix sitting, W-2 / D2; CONTRACT P6) -- ``"contract"``,
+    ``"region"``, ``"unread"`` (:data:`RECEIPT_IDENTITY_WORDS`) or ``""`` (refused).
+
+    MEASURED ON ARM A AND ON THE STORE: cocoa's El Nino hop took as its mechanism receipt the first in-reach
+    dated sentence the El Nino driver slice held -- a 2026-04-09 USDA GAIN soybean-meal report on ARGENTINA
+    ("An El Nino pattern typically brings above-average precipitation to Argentina") -- and the page's
+    writer then reached a GAIN COFFEE report on Vietnam ([E19]). A driver slice spans every market that
+    driver moves. MEASURED on the S3 slices (read-only, 09-26): the Vietnam coffee DOCUMENT is routed to the
+    cocoa slice -- through one sentence naming the "Vietnam Coffee and Cocoa Association" -- so a DOCUMENT-
+    level routing test admits it; its El Nino SENTENCE is not on the cocoa slice. So the fact read is the
+    PROPOSITION's own routing (``pgstore.prop_id``, the table's primary key): a sentence joins a hop where
+
+      * ``contract`` -- the store's router put THIS SENTENCE on the hop's contract's own evidence slice
+        (``hop.routed_on``, read this turn by ``feeders.routed_propositions``); where the routing could not
+        be read, the SOURCE declaring the hop's contract (``feeders.source_target_contracts``, the
+        collector's ``target_commodities``) admits;
+      * ``region`` -- a region the document declares through its ``source_key`` partition keys is the row
+        identity's own cell (``row``'s series key, else the hop's);
+      * ``unread`` -- the routing could not be read and nothing declared admits: HEAD's admission, counted.
+
+    It is REFUSED (``""``) only where the routing WAS read and the sentence is on neither the contract's
+    slice nor the row's cell -- the router's own fact, never a guess and never a declaration. The rejected
+    lexical forms: stop-listing commodity words, requiring the market's name in the sentence, or splitting a
+    source id into words."""
+    sk = str(getattr(row, "series_key", "") or "") if row is not None else ""
+    return _identity_of(receipt, contract=str(getattr(hop, "contract", "") or ""),
+                        cell=_row_cell(sk or str(getattr(hop, "series_key", "") or "")),
+                        routed_read=bool(getattr(hop, "routed_read", False)),
+                        routed_on=getattr(hop, "routed_on", frozenset()) or frozenset(),
+                        marketless=getattr(hop, "routed_marketless", frozenset()) or frozenset())
+
+
+def _doc_key(receipt) -> tuple:
+    """``(date, source_key)`` -- how a refused document is recorded on a hop and folded on the count line."""
+    g = (receipt.get if isinstance(receipt, dict) else (lambda k, _r=receipt: getattr(_r, k, None)))
+    return (str(g("date") or g("event_date") or "")[:10], str(g("source_key") or g("source") or ""))
+
+
+def _is_ledger_row(receipt) -> bool:
+    """Did the ACTION LEDGER read this receipt (``origin`` == ``feeders.ACTION_LEDGER_ORIGIN``)? A drawn
+    receipt carries no ``origin`` and is False."""
+    if not isinstance(receipt, dict) or not receipt.get("origin"):
+        return False
+    from leviathan.graphrag.state import feeders as _F
+    return str(receipt.get("origin")) == str(getattr(_F, "ACTION_LEDGER_ORIGIN", ""))
+
+
+def regime_ledger_words() -> str:
+    """THE RECORD'S WORDS FOR A REGIME THE LEDGER READ (threat W1-f; CONTRACT P6): lane R's
+    ``render.REGIME_LEDGER_WORDS`` (one ``%s``, declared once in the book), read DEFENSIVELY; ``""`` where
+    it has not landed or carries other than exactly one ``%s`` -- the caller then keeps HEAD's words."""
+    try:
+        from leviathan.graphrag.state import render as _r
+        w = getattr(_r, "REGIME_LEDGER_WORDS", "")
+    except Exception:                                   # noqa: BLE001 -- the words never break a walk
+        return ""
+    w = str(w or "")
+    return w if (w.count("%s") == 1 and w.count("%") == 1) else ""
+
+
+def _annual_family(shape) -> str:
+    """The period FAMILY a label shape counts in: a bare year and a split season are both annual (their
+    ordinal is the opening year), a month is monthly."""
+    kind = str((shape or ("", 0))[0] or "")
+    return "annual" if kind in ("year", "split") else kind
+
+
+def _card_expected_ordinal(st, asof: str, fam: str, split: bool) -> Optional[int]:
+    """THE PERIOD THE CARD SHOULD HOLD AT THE AS-OF, from its OWN declarations (W-4's fallback, used only
+    where the store holds no newer period): an annual card's ``period_first_known`` (``anchor``,
+    ``offset_months``: the label's first -- or last -- day plus the offset, read at month end), a monthly
+    row's declared publication lag in days after month end (the row's own ``recency`` facts). ``None``
+    where the card declares neither -- no rule, never stale."""
+    cut = str(asof or "")[:10]
+    if len(cut) != 10:
+        return None
+    y0 = int(cut[:4])
+    if fam == "annual":
+        try:
+            from leviathan.graphrag import citations as _cit
+            pfk = (_cit._card_fields(str(getattr(st, "table", "") or ""),
+                                     str(getattr(st, "metric", "") or "")) or {}).get("period_first_known")
+            anchor = str((pfk or {}).get("anchor") or "").strip()
+            off = int((pfk or {}).get("offset_months"))
+        except Exception:                               # noqa: BLE001 -- no declaration, no rule
+            return None
+        if anchor not in ("period_start", "period_end"):
+            return None
+        for y in range(y0 + 1, y0 - 40, -1):
+            base = ("%04d-01-01" % y) if anchor == "period_start" else (
+                "%04d-12-31" % (y + (1 if split else 0)))
+            first = _add_months(base, off)
+            if not first:
+                continue
+            fk = _month_end_iso(int(first[:4]), int(first[5:7]))
+            if fk <= cut:
+                return y
+        return None
+    if fam == "month":
+        rec = dict(getattr(st, "recency", None) or {})
+        lag = rec.get("ym_publication_lag_days")
+        if lag is None:
+            lag = rec.get("publication_lag_days")
+        try:
+            lag_d = int(lag)
+        except (TypeError, ValueError):
+            return None
+        import datetime as _dt
+        try:
+            cut_d = _dt.date.fromisoformat(cut)
+        except ValueError:
+            return None
+        y, m = cut_d.year, cut_d.month
+        for _ in range(0, 48):
+            end = _dt.date.fromisoformat(_month_end_iso(y, m))
+            if end + _dt.timedelta(days=lag_d) <= cut_d:
+                return y * 12 + m - 1
+            m -= 1
+            if m == 0:
+                y, m = y - 1, 12
+        return None
+    return None
+
+
+def hop_period_stale(st, asof: str) -> dict:
+    """IS THIS HOP'S SERVED PERIOD STALE AGAINST THE AS-OF? (the 09-26 fix sitting, W-4 / D12) --
+    ``{"served", "expected", "gap_periods", "basis"}`` when stale, ``{}`` otherwise.
+
+    MEASURED ON ARM A: the 2024-03-01 horizon seat was the Thai TRQ chain carried on Thai imports for
+    MY2021/22 and the US stocks-to-use ratio for MY2020/21, read as the March-2024 state (confidence 0.0),
+    and the page led with it.
+
+    THE RULE, ONE FULL PERIOD OF SLACK: the served period (the row's newest held period,
+    ``feeders.newest_held_period``) is stale when it trails the period the card SHOULD hold at the as-of by
+    MORE THAN ONE period of the card's own cadence. "Should hold" is the STORE's own fact where it has one
+    -- a newer period of the same slug on the same card (``period_gap``) or of the same commodity and scope
+    on another card (``period_behind``), both as known at the as-of -- and otherwise the card's declared
+    first print (:func:`_card_expected_ordinal`). A monthly print one release late (MPOC June at a
+    September as-of) and a late annual printer one year behind (FCOJ, the coffee sheets) are NEVER stale:
+    the slack is a whole period. A label outside the three shapes (a daily or weekly date), a card that
+    declares nothing and a row with no newer fact are never stale. Read at the AS-OF, never the run date
+    (threat W4-d). The rejected lexical forms: year cutoffs, TRQ or PSD-Thailand exclusions."""
+    if st is None or not asof or status_word(getattr(st, "status", "")) != "ok":
+        return {}
+    from leviathan.graphrag.state import feeders as _F
+    served = _F.newest_held_period(st) or ""
+    sp = _F._label_ordinal(served)
+    if sp is None:
+        return {}
+    s_ord, s_shape = sp
+    fam = _annual_family(s_shape)
+    best, basis = None, ""
+    for fld, k in (("period_gap", "expected"), ("period_behind", "newer")):
+        lab = (getattr(st, fld, None) or {}).get(k)
+        p = _F._label_ordinal(lab)
+        if p is not None and _annual_family(p[1]) == fam and (best is None or p[0] > best):
+            best, basis = p[0], "store"
+    if best is None:
+        e = _card_expected_ordinal(st, asof, fam, split=(str(s_shape[0]) == "split"))
+        if e is not None:
+            best, basis = e, "card"
+    if best is None or best - s_ord <= 1:
+        return {}
+    return {"served": str(served), "expected": _F._label_text(best, s_shape),
+            "gap_periods": int(best - s_ord), "basis": basis}
+
+
+def _tail_measure(hp) -> float:
+    """THE TAIL MEASURE A HOP CONTRIBUTES TODAY: :attr:`ChainHop.chain_tail`, and 0.0 for a hop whose
+    period is stale against the as-of (W-4) -- an old period's standing is not today's tail. ONE reader
+    for :func:`_tail_order` (the receipt hop) and :func:`chain_score` (the TAIL term)."""
+    return 0.0 if getattr(hp, "period_stale", None) else float(getattr(hp, "chain_tail", 0.0) or 0.0)
+
 
 
 def _measure_value(m):
@@ -3180,7 +3585,8 @@ def chain_score(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = 
     best = chain_receipt_index(hops)
     ch.receipt_index = best
     rh = hops[best] if hops else None
-    measure = (rh.chain_tail if rh is not None else 0.0)
+    # W-4: THE TAIL IS TODAY'S -- a stale hop's reading (:func:`hop_period_stale`) scores none of it.
+    measure = (_tail_measure(rh) if rh is not None else 0.0)
     # THE ANCHOR'S OWN PRICE ROW IS A READING ON THIS CHAIN'S TERMINAL (owner ruling 2, 2026-09-18).
     # Where no cross was earned the chain lands on the anchor's own front price, so a chain that
     # terminates on a price sitting at the 95th percentile of its own record scores TAIL on the
@@ -3200,6 +3606,9 @@ def chain_score(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = 
                _pct_suffix(int(round(float(anchor.price_percentile or 0.0))))))
     elif rh is None or not rh.measured:
         notes["tail"] = ("no series is served for this hop; its declared direction is carried alone")
+    elif getattr(rh, "period_stale", None):
+        # W-4: THE STALE READING IS NAMED WITH ITS PERIOD AND SCORES NOTHING -- never a silent zero.
+        notes["tail"] = _stale_tail_words(rh)
     else:
         notes["tail"] = _tail_words(rh)
 
@@ -3282,7 +3691,8 @@ def chain_score(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = 
     asym, anote = 0.0, ""
     for i in order:
         hp = hops[i]
-        if hp.percentile is None:
+        # W-4: a stale period's standing is not today's tail, so it is no asymmetry either.
+        if hp.percentile is None or getattr(hp, "period_stale", None):
             continue
         p = float(hp.percentile)
         # A HOP WHOSE PHASE IS NOT THE ONE IN FORCE IS AT A TAIL ONLY ON ITS OWN POLE (W-7): a La Nina
@@ -3297,8 +3707,10 @@ def chain_score(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = 
         break
     if not asym:
         for i in order:
-            # ...and the desk line a re-oriented hop's reading sits on is the OTHER pole's line.
-            if hops[i].convention_label and not hops[i].phase_reoriented:
+            # ...and the desk line a re-oriented hop's reading sits on is the OTHER pole's line -- and a
+            # stale period's desk line is not today's (W-4).
+            if (hops[i].convention_label and not hops[i].phase_reoriented
+                    and not getattr(hops[i], "period_stale", None)):
                 asym = 10.0
                 if with_notes:
                     anote = "%s sits on a declared desk line (%s)" % (
@@ -3440,6 +3852,21 @@ def _tail_words(rh: ChainHop) -> str:
     return "%s sits at %s" % (name, latest)
 
 
+def _stale_tail_words(rh: ChainHop) -> str:
+    """THE TAIL SENTENCE FOR A STALE RECEIPT HOP (W-4): the reading WITH its period and the period the card
+    should hold, and that it scores no tail -- the trace's words; the page prints the row's own period."""
+    ps = dict(getattr(rh, "period_stale", None) or {})
+    try:
+        from leviathan.graphrag.state.render import chain_hop_name
+        name = chain_hop_name(rh) or _words(rh.driver_id)
+    except Exception:                                   # noqa: BLE001 -- a name is never worth a turn
+        name = _words(rh.driver_id)
+    return ("%s is read for %s, %d periods behind %s, the period its card should hold at this as-of, so "
+            "no reading on this chain scores a tail today" % (name, ps.get("served", ""),
+                                                              int(ps.get("gap_periods") or 0),
+                                                              ps.get("expected", "")))
+
+
 def chain_explain(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = None,
                   anchor: Optional[AnchorFacts] = None) -> Chain:
     """Fill a chain's seven PRINTABLE sentences -- one per rank term -- without moving its score.
@@ -3470,8 +3897,10 @@ def _tail_order(hops) -> list:
     THE MEASURE IS ``ChainHop.chain_tail`` -- the loudest reading inside the hop's own declared lag
     window (owner ruling 5) -- and it is the SAME measure the TAIL term scores, so the receipt hop and
     the term can never disagree about which reading is the loudest on a chain."""
+    # W-4 (the 09-26 fix sitting): a hop whose period is STALE against the as-of contributes no tail today
+    # (:func:`_tail_measure`); it keeps its seat in the order and is ranked as an unmeasured reading is.
     return sorted(range(len(hops)),
-                  key=lambda i: (-hops[i].chain_tail, hops[i].seat, hops[i].driver_id))
+                  key=lambda i: (-_tail_measure(hops[i]), hops[i].seat, hops[i].driver_id))
 
 
 def chain_receipt_index(hops) -> int:
@@ -3642,8 +4071,13 @@ def _chain_receipt(ch: Chain) -> tuple:
         if kinds[i] in ("action_closed", "regime_in_force") and hp.event_receipt and hp.event_date:
             ch.event_kind = kinds[i]
             if kinds[i] == "regime_in_force":
+                # THE RECORD'S WORDS FOR A LEDGER-READ ACTION (the 09-26 fix sitting, W-1 / threat W1-f): a
+                # regime this turn's retrieval never drew is not "the newest ... this turn retrieved" --
+                # lane R's declared ledger words name the record; a drawn one keeps HEAD's words.
+                _lw = (regime_ledger_words()
+                       if _is_ledger_row(hp.event_receipt) else "")
                 return (EVENT_KIND_RECEIPT["regime_in_force"], dict(hp.event_receipt),
-                        CHAIN_REGIME_WORDS % _action_when(hp), *aged)
+                        (_lw or CHAIN_REGIME_WORDS) % _action_when(hp), *aged)
             return ("closed", dict(hp.event_receipt),
                     "a dated action %s, read as history: the window closed" % _action_when(hp),
                     *aged)
@@ -3754,12 +4188,26 @@ def _slot_subject(c: Chain, subject_ids: Optional[dict], question_markets=None) 
     soybean turns seated a safrinha CORN chain (``campinas_corn_reference_bmf`` into DCE soybeans)
     under the label "the chain this question names". ``None`` -- no reach computed -- is HEAD's test."""
     ids = (subject_ids or {}).get(str(c.contract or "")) or ()
-    if not (bool(ids) and any(h.driver_id in ids or any(a in ids for a in (h.aliases or ()))
-                              for h in c.hops)):
+    carriers = [h for h in c.hops if h.driver_id in ids or any(a in ids for a in (h.aliases or ()))]
+    if not (bool(ids) and carriers):
         return False
     if question_markets is None:
         return True
-    return str(c.contract or "") in question_markets or str(c.terminal or "") in question_markets
+    # **THE HOP THAT CARRIES THE SUBJECT SITS ON ONE OF THE QUESTION'S OWN MARKETS** (the 09-26 fix sitting,
+    # W-3 / D4): the carrier's own ``ChainHop.contract`` must be distance 0. A chain that merely TERMINATES
+    # on a question market answers the question's subject through ANOTHER board's hop -- MEASURED on arm A,
+    # rice's and cotton's "US balance sheet" subject was answered by CORN's stocks-to-use chain (terminal
+    # rice / cotton, cross sign "0"). The terminal still earns the chain its REACH and its SEAT under
+    # ``_on_question``'s signed-terminal rule; it no longer answers the subject. The rejected lexical forms:
+    # excluding corn or ending-stocks ids, or a per-commodity list.
+    return any(str(h.contract or c.contract or "") in question_markets for h in carriers)
+
+
+def _signed_terminal(c: Chain) -> bool:
+    """Does the chain's LAST link carry a declared sign (``Chain.edge_signs[-1]`` in ``+`` / ``-``)? The
+    field is the composed relation :func:`_agree` stamped -- the graph's own declaration, never a word."""
+    es = tuple(getattr(c, "edge_signs", ()) or ())
+    return bool(es) and str(es[-1]) in ("+", "-")
 
 
 def _slot_pair(c: Chain, named_contracts) -> bool:
@@ -3784,7 +4232,8 @@ def _slot_horizon(c: Chain, horizon_months: Optional[int]) -> bool:
 
 def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: Optional[dict] = None,
                      named_contracts=(), horizon_months: Optional[int] = None,
-                     subject_off: str = "not_asked", question_markets=None) -> dict:
+                     subject_off: str = "not_asked", question_markets=None,
+                     subject_rows: Optional[dict] = None) -> dict:
     """WHICH chains render, and WHY -- a RENDER rule the object exposes, never a filter on the pool.
 
     THE RULES, IN ORDER:
@@ -3849,6 +4298,14 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
     and by every question slot; it stays in the pool with its score and its trace row and is counted.
     ``question_markets`` (K9) is the question's own markets, which the SUBJECT slot's test reads.
 
+    **AND A SUBJECT WHOSE OWN ROW ANSWERS IT SEATS NO COUSIN** (the 09-26 fix sitting, CONTRACT P13):
+    ``subject_rows`` is ``{"rows": frozenset((contract, pick)), "own": {contract: frozenset(picks)}}`` --
+    the subject picks whose OWN driver has a served row on a question market and heads only single-link
+    paths (:func:`chain_rows` builds it). Where the rank has not answered the slot and no candidate carries
+    a pick's OWN id, the slot reads ``answered_by_row`` and no group cousin's chain is seated in the
+    pick's name (MEASURED on arm A: soyoil/palm seated the DCE palm-olein chain through the cousin
+    ``soyoil_olein_premium`` of the pick ``soyoil_palm_premium``). ``None`` -- HEAD.
+
     **AND THE HORIZON'S CHAIN IS NAMED** (CONTRACT K21): where the horizon slot is ``seated`` or
     ``answered_by_rank``, exactly one rendered chain -- the seated one, else the best-ranked rendered
     chain the slot's own test passes -- carries :attr:`Chain.answers_horizon`, and the head's horizon
@@ -3903,6 +4360,20 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
         # reach computed: the resolver never reached the turn) is HEAD's reading.
         if question_markets is None:
             return True
+        if str(c.contract or "") in question_markets:
+            return True
+        # THE 09-26 FIX SITTING (W-3 / D4): A CHAIN WHOSE OWN CONTRACT IS OFF THE QUESTION SEATS ONLY THROUGH A
+        # SIGNED LAST LINK -- its terminal on a question market AND ``Chain.edge_signs[-1]`` one of the two
+        # declared signs. A last link the graph declares no sign for ("0") says nothing about the question's
+        # market, and a seat is a claim that it does. SEATING ONLY: the chain keeps its score, its terms, its
+        # reach and its pool membership, and is COUNTED (``chain_counts["unsigned_terminal"]``).
+        return str(c.terminal or "") in question_markets and _signed_terminal(c)
+
+    def _head_on_question(c) -> bool:
+        # HEAD's predicate, kept for HEAD's own count (``off_question``), which the seat rule above does not
+        # move: the chains refused ONLY for an unsigned last link are their own population.
+        if question_markets is None:
+            return True
         return str(c.contract or "") in question_markets or str(c.terminal or "") in question_markets
 
     def _take(c, slot: str = "top") -> bool:
@@ -3952,6 +4423,9 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
                 continue                                 # the top K already answers this slot
             taken = {id(c) for c in picked}
             cands = [c for c in fits if id(c) not in taken]
+            if word == "subject" and _answered_by_row(cands, subject_rows):
+                slot_state[word] = "answered_by_row"     # P13: the pick's own row answers; no cousin seats
+                continue
             if not cands:
                 slot_state[word] = "no_candidate"
                 continue
@@ -4006,9 +4480,29 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
     counts = chain_counts(pool, print_line=float(print_line), slot_state=slot_state)
     if question_markets is not None:
         # the chains the seat test refused (REVIEW_WT MAJOR-3), COUNTED at the tail of the counts
-        counts["off_question"] = sum(1 for c in pool if not _on_question(c))
+        counts["off_question"] = sum(1 for c in pool if not _head_on_question(c))
+        # THE 09-26 FIX SITTING (W-3): the chains refused a seat ONLY for an unsigned last link onto a question
+        # market -- appended at the tail, OMITTED WHEN ZERO.
+        _uns = sum(1 for c in pool if _head_on_question(c) and not _on_question(c))
+        if _uns:
+            counts["unsigned_terminal"] = _uns
     return {"rendered": picked, "counts": counts,
             "disagreement": chain_disagreement_words(picked)}
+
+
+def _answered_by_row(cands, subject_rows: Optional[dict]) -> bool:
+    """CONTRACT P13's test: a subject pick's own served row answers the slot (``subject_rows["rows"]``) and
+    no candidate chain carries a pick's OWN id on its own contract (``subject_rows["own"]``) -- so the only
+    chains that could take the seat are group cousins'."""
+    sr = dict(subject_rows or {})
+    if not sr.get("rows"):
+        return False
+    own = dict(sr.get("own") or {})
+    for c in cands or ():
+        ids = own.get(str(c.contract or "")) or ()
+        if ids and any(h.driver_id in ids or any(a in ids for a in (h.aliases or ())) for h in c.hops):
+            return False
+    return True
 
 
 def _slot_pick(cands, fits):
@@ -4141,7 +4635,11 @@ def chain_counts(pool, *, print_line: float = 40.0, slot_state: Optional[dict] =
             # pool chain that walks its memoised hop, and the pool carried THREE). Folded on the
             # document's own identity exactly as `receipts_aged_out` is (round-4 census 3); the
             # per-chain field (`Chain.mechanism_refused_*`) is unchanged.
-            "mechanism_refused": len({k for k in (_refused_report_key(c) for c in pool) if k}),
+            # THE 09-26 FIX SITTING (W-2): a document the RECEIPT IDENTITY refused joins the SAME population on
+            # the same key (``(contract, driver_id, date)``), so a refusal is counted once per document and
+            # never silently -- the threat model's "counted in the existing one population".
+            "mechanism_refused": len({k for k in (_refused_report_key(c) for c in pool) if k}
+                                     | {k for c in pool for k in _identity_refused_keys(c)}),
             "distinct_sequences": len({(c.contract, c.hop_ids) for c in pool}),
             "distinct_markets": len({c.terminal for c in pool if c.terminal}),
             "distinct_unnamed_markets": len({c.terminal for c in pool if c.unnamed_terminal}),
@@ -4210,6 +4708,14 @@ def chain_counts(pool, *, print_line: float = 40.0, slot_state: Optional[dict] =
                                    if getattr(c, "answers_horizon", False)), -1)}
 
 
+def _identity_refused_keys(c: Chain) -> set:
+    """``{(contract, driver_id, date)}`` of the documents :func:`receipt_identity` refused on this chain's
+    hops (W-2) -- the key :func:`_refused_report_key` folds on, so one document is one count however many
+    chains walk its memoised hop."""
+    return {(str(hp.contract), str(hp.driver_id), str(d)[:10])
+            for hp in (c.hops or ()) for (d, _sk) in (getattr(hp, "identity_refused", ()) or ())}
+
+
 def _refused_report_key(c: Chain) -> Optional[tuple]:
     """``(contract, driver_id, date)`` of the report sentence a chain's mechanism bound refused, or
     ``None`` -- THE DOCUMENT'S OWN ADDRESS, the key :func:`_aged_receipt_keys` folds actions on. A
@@ -4224,7 +4730,7 @@ def _refused_report_key(c: Chain) -> Optional[tuple]:
 
 # ── the builder ──────────────────────────────────────────────────────────────────────────────────────
 def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=None,
-               receipts: Optional[dict] = None) -> dict:
+               receipts: Optional[dict] = None, routed: Optional[dict] = None) -> dict:
     """THE COMPOSED CHAIN LEG. ZERO reads, zero retrievals, zero environment.
 
     ``ancestor_paths``' own pool (already walked and deduped into ``bd.paths`` at step 6) crossed with
@@ -4240,7 +4746,11 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
 
     ``receipts`` IS STEP 5'S OWN MAP (the 09-23 fix round), threaded so each hop's dated document is
     classified over the SAME list step 5 read (:func:`hop_event`); absent, each hop reads its row's own
-    step-5 winner, which is every hand-built board's case and HEAD's reading."""
+    step-5 winner, which is every hand-built board's case and HEAD's reading.
+
+    ``routed`` IS STEP 5's READ OF THE STORE'S ROUTING (the 09-26 fix sitting, W-2): every hop reads its
+    documents through :func:`receipt_identity`'s rule over it; ``None`` -- every hand-built board -- is
+    HEAD's hop."""
     rows_by_key = {r.key: r for r in bd.rows}
     seat = {k: i for i, k in enumerate(bd.order)}
     named = set(bd.anchor_slugs)
@@ -4264,7 +4774,7 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
         got = hop_cache.get(key)
         if got is None:
             row = rows_by_key.get(key)
-            got = (chain_hop(bd, row, seat=seat, receipts=receipts) if row is not None
+            got = (chain_hop(bd, row, seat=seat, receipts=receipts, routed=routed) if row is not None
                    else ChainHop(contract=contract, driver_id=driver_id))
             hop_cache[key] = got
         return got
@@ -4317,10 +4827,13 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
     single_hop_paths = 0
     series_folded = 0
     composed: set = set()
+    # THE NODES THAT HEAD A SINGLE-LINK PATH (CONTRACT P13): ``single_hop_paths``' own population, by node.
+    single_ids: set = set()
     for p in bd.paths:
         contract = p["contract"]
         hop_ids = tuple(p.get("hops") or ())
         if len(hop_ids) < 2:
+            single_ids.update((contract, h) for h in hop_ids)
             # A PATH TOO SHORT TO COMPOSE IS COUNTED (round-2 census blocker 7, carried). A chain is
             # a SEQUENCE and one hop is not one; the path is not a chain and never becomes one -- but
             # it was on the board, the count line's `total` is the pool and not the paths, and a drop
@@ -4339,6 +4852,7 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
             series_folded += 1
         if len(hops) < 2:
             single_hop_paths += 1
+            single_ids.update((contract, h) for h in hop_ids)
             continue
         seq = (contract, tuple(h.driver_id for h in hops))
         if n_fold and seq in composed:
@@ -4416,7 +4930,9 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
                            print_line=float(getattr(knobs, "chain_print_line", 40) or 40),
                            subject_ids=subject_ids, named_contracts=named_contracts,
                            horizon_months=bd.horizon_months,
-                           subject_off=subject_off, question_markets=question_markets)
+                           subject_off=subject_off, question_markets=question_markets,
+                           subject_rows=_subject_rows(bd, pool, subject_ids, question_markets,
+                                                      single_ids, rows_by_key))
     out["counts"]["cross_unpriced"] = cross_unpriced
     out["counts"]["single_hop_paths"] = single_hop_paths
     out["counts"]["series_folded"] = series_folded
@@ -4444,6 +4960,43 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
                           anchor=_facts(c.contract))
     out["pool"] = pool
     return out
+
+
+def _subject_rows(bd, pool, subject_ids: dict, question_markets, single_ids: set,
+                  rows_by_key: dict) -> Optional[dict]:
+    """CONTRACT P13's facts for :func:`chain_render_set`: ``{"rows": frozenset((contract, pick)), "own":
+    {contract: frozenset(picks)}}`` or ``None``. A pick qualifies on a QUESTION market (distance 0) where
+    its OWN driver has a served row there (a measured state), it heads a single-link path there
+    (``single_ids``, ``single_hop_paths``' own population) and no composed chain on that contract carries
+    it. Zero reads; ``None`` where no reach was computed or no pick qualifies (HEAD)."""
+    if not question_markets or not subject_ids:
+        return None
+    picks = [str(p) for p in ((getattr(bd, "subject", None) or {}).get("picked") or ()) if str(p or "")]
+    if not picks:
+        return None
+    own: dict = {}
+    rows: set = set()
+    for ctr, ids in subject_ids.items():
+        mine = frozenset(p for p in picks if p in (ids or ()))
+        if not mine:
+            continue
+        own[ctr] = mine
+        if ctr not in question_markets:
+            continue
+        for p in mine:
+            row = rows_by_key.get((ctr, p))
+            st = getattr(row, "state", None) if row is not None else None
+            if st is None or status_word(getattr(st, "status", "")) != "ok":
+                continue
+            if (ctr, p) not in single_ids:
+                continue
+            if any(c.contract == ctr and (p in c.hop_ids or any(p in (h.aliases or ()) for h in c.hops))
+                   for c in pool):
+                continue
+            rows.add((ctr, p))
+    if not rows:
+        return None
+    return {"rows": frozenset(rows), "own": own}
 
 
 #: THE THREE LEXICAL TIERS OF A SUBJECT PICK, strongest first (CONTRACT K9, O-5).
@@ -4543,6 +5096,10 @@ def _fold_into(a: ChainHop, b: ChainHop) -> ChainHop:
                   if isinstance(r, dict) and str(r.get("text") or "") not in seen)
     if extra:
         kw["receipts_top"] = tuple(a.receipts_top or ()) + extra
+    if getattr(b, "identity_refused", ()):
+        # W-2: the folded node's refused documents stay COUNTED on the one link (the 09-26 fix sitting).
+        kw["identity_refused"] = tuple(dict.fromkeys(tuple(a.identity_refused or ())
+                                                     + tuple(b.identity_refused or ())))
     return replace(a, **kw)
 
 
@@ -4837,7 +5394,11 @@ def _hop_move(hp) -> float:
     """The hop's move TODAY for the agreement verdict -- HEAD's ``ChainHop.move``, and 0.0 (which
     `stats.sign_agreement` reads as ``undetermined``, never as flat) for a hop whose pole is absent
     (:func:`_pole_absent`): a pole not in force cannot agree or run against its neighbour."""
-    return 0.0 if _pole_absent(hp) else float(getattr(hp, "move", 0.0) or 0.0)
+    # W-4 (the 09-26 fix sitting): A STALE PERIOD'S MOVE IS A MOVE BETWEEN TWO OLD PERIODS, never today's --
+    # the hop is excluded from the agreements (both as the parent and as the child of a link).
+    if _pole_absent(hp) or getattr(hp, "period_stale", None):
+        return 0.0
+    return float(getattr(hp, "move", 0.0) or 0.0)
 
 
 def _history(bd, ch: Chain, hist_cache: dict) -> dict:
@@ -4971,6 +5532,10 @@ def _chain_direction(ch: Chain) -> tuple:
     # pole's, so reading it as this hop's move gave the chain a side it never had, and the sign swap
     # seats a chain by its SIDE, whatever it scored. It is read exactly as an unmeasured top is.
     if _pole_absent(top):
+        return ("unsettled", "unsettled")
+    # W-4 (the 09-26 fix sitting): A STALE TOP READING DECLARES NO DIRECTION TODAY -- its run is a run of old
+    # periods, read exactly as an unmeasured top is.
+    if getattr(top, "period_stale", None):
         return ("unsettled", "unsettled")
     mv = (1 if top.run_direction == "up" else (-1 if top.run_direction == "down" else 0))
     if not mv:
@@ -5621,13 +6186,19 @@ class _WalkNode:
     """What ``cascade._scope_ex`` / ``_region_row`` read: `.contract`, `.id`, `.prior`, `.evidence`.
     The census's `_LegNode` stand-in, minted here from the DAG's own Driver so the board never asks the
     planner for a node it can build from the graph."""
-    __slots__ = ("contract", "id", "prior", "evidence")
+    __slots__ = ("contract", "id", "prior", "evidence", "anchor_row")
 
-    def __init__(self, contract, driver):
+    def __init__(self, contract, driver, anchor_row: bool = False):
         self.contract, self.id = contract, driver.id
         self.prior = {"silver_ref": getattr(driver, "silver_ref", None),
                       "region": getattr(driver, "region", None)}
         self.evidence = []
+        #: A ROW OF ONE OF THE TURN'S OWN ANCHOR BOARDS (stage 1), never a far / fan / census node -- the one
+        #: population a fenced world scope may resolve to its board's declared home on (W-5,
+        #: ``feeders.series_key_for``). MEASURED: resolving it on FAR rows too read US wheat stocks-to-use as
+        #: the fan of palm's own ``ending_stocks`` (one driver id, two quantities) and printed "the largest
+        #: moves on CME palm oil are declared on ... MGEX hrs wheat" on the palm fixture board.
+        self.anchor_row = bool(anchor_row)
 
 
 #: Every leg the board orchestrates (sec 6.7). The walk stamps `not_reached` for every one it did not
@@ -5824,7 +6395,8 @@ def walk(*, graph, asof: str, mode: str = "deep", anchors=(), question: str = ""
 
 def stage2(bd: B.Board, graph, *, state_fn=None, key_fn=None, receipts=None, width: int = 2,
            legb_on: bool = False, complexes=(), chains=(), analog_reads: bool = True,
-           state_chain: bool = False, spread_fn=None, extra_periods=()) -> B.Board:
+           state_chain: bool = False, spread_fn=None, extra_periods=(), ledger_reader=None,
+           routed_reader=None) -> B.Board:
     """STAGE 2 ALONE, on a board :func:`walk` built with ``stage2=False`` (D11, sec 3.9).
 
     IT EXISTS BECAUSE THE TWO STAGES RUN AT TWO SEAMS AND NOT ONE. `walk(stage2=True)` is the harness
@@ -5852,7 +6424,12 @@ def stage2(bd: B.Board, graph, *, state_fn=None, key_fn=None, receipts=None, wid
     ``extra_periods`` (FIXER PASS, REVIEW_VC M2 / RA M7 -- CONTRACT K23's seat half): the numbers seat's
     SERVED calls, which exist only by stage 2. They join the cross-card store-period pass
     (:func:`restamp_store_period`) before anything in stage 2 reads a rank. Empty (every caller that
-    threads none, and every board-off turn) -> HEAD's stage 2 exactly."""
+    threads none, and every board-off turn) -> HEAD's stage 2 exactly.
+
+    ``ledger_reader`` / ``routed_reader`` (the 09-26 fix sitting, W-1 / W-2) are the two store reads the
+    CHAIN leg makes -- ``feeders.action_ledger``'s and ``feeders.routed_documents``' injected readers. ``None``
+    (every caller) is the pooled pg statement, which declines by name where no mirror is configured; a
+    chain-off turn reads neither."""
     if bd.knobs is None or not bd.anchors or not bd.stage_done.get(1):
         return bd
     if extra_periods:
@@ -5860,7 +6437,7 @@ def stage2(bd: B.Board, graph, *, state_fn=None, key_fn=None, receipts=None, wid
     _stage2(bd, graph, bd.knobs, key_fn=key_fn, state_fn=state_fn, receipts=receipts, width=width,
             legb_cells=B.legb_cells_of(bd.mode), legb_on=legb_on, complexes=complexes, chains=chains,
             turn_kind=bd.turn_kind, analog_reads=analog_reads, state_chain=state_chain,
-            spread_fn=spread_fn)
+            spread_fn=spread_fn, ledger_reader=ledger_reader, routed_reader=routed_reader)
     return bd
 
 
@@ -5913,7 +6490,7 @@ def _stage1(bd, graph, kn, *, key_fn, state_fn, turn_kind, width, positioning_id
             if d.id in subject_ids.get(a.contract, ()):
                 row.subject = True
             bd.rows.append(row)
-            node = _WalkNode(a.contract, d)
+            node = _WalkNode(a.contract, d, anchor_row=True)
             ref = str(getattr(d, "silver_ref", "") or "")
             if not ref:
                 row.coverage_tier = _text_tier(row.silver_status)
@@ -6058,7 +6635,7 @@ def restamp_store_period(bd, extra_periods) -> int:
 
 def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, legb_on, complexes,
             chains, turn_kind, analog_reads: bool = True, state_chain: bool = False,
-            spread_fn=None) -> None:
+            spread_fn=None, ledger_reader=None, routed_reader=None) -> None:
     """STEPS 5-14 of sec 3.3: receipts, EVENT rows, the closure, the edges, the free fan, wave 2's
     price, wave 2, convergence, complexes and chains. IT NEVER RE-RANKS STAGE 1."""
     t0 = time.perf_counter()
@@ -6074,6 +6651,17 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
     #    carries none is `no_receipts`. The first build wrote `no_receipts` whenever the list was empty,
     #    which collapsed the two and made the third word of a closed set unreachable from the walk --
     #    the very distinction rows.py:111 was declared this sitting to keep.
+    #
+    #    **THE POINT-IN-TIME ACTION LEDGER JOINS HERE, ON THE CHAIN PATH ONLY** (the 09-26 fix sitting, W-1 /
+    #    D1; CONTRACT P6): each regime node's dated, realised actions are READ at the as-of from the node's own
+    #    evidence slice -- independent of the question's wording -- gated by the RECEIPT IDENTITY (W-2), and
+    #    MERGED after the draw (the draw first and verbatim; retrieval adds, never subtracts). The merged list
+    #    feeds this loop AND the chain leg, so the SB-E row and the chain read one list. A chain-off turn reads
+    #    nothing and this loop is HEAD's (threat W1-i).
+    routed = None
+    if state_chain:
+        receipts, routed = _ledger_and_routing(bd, receipts, ledger_reader=ledger_reader,
+                                               routed_reader=routed_reader)
     for row in bd.rows:
         fetched_receipts = (row.key in receipts) or (row.driver_id in receipts)
         rs = receipts.get(row.key) or receipts.get(row.driver_id) or ()
@@ -6347,10 +6935,19 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
     if state_chain:
         # STEP 5's OWN RECEIPT MAP rides into the chain leg (the 09-23 fix round) so each hop's dated
         # document is classified over the list step 5 read -- and ONLY here, on the chain path.
-        got = chain_rows(bd, graph, knobs=kn, chains=chains, spread_fn=spread_fn, receipts=receipts)
+        got = chain_rows(bd, graph, knobs=kn, chains=chains, spread_fn=spread_fn, receipts=receipts,
+                         routed=routed)
         bd.chains = got["pool"]
         bd.chain_counts = dict(got["counts"])
         bd.chain_counts["disagreement"] = got["disagreement"]
+        # W-1 (CONTRACT P6): WHETHER THE LEDGER COULD BE READ, where the board carries a regime node at all --
+        # 0 read, 1 unread (the harness, an outage); omitted on a board with no regime node.
+        # A board with regime nodes none of whose draws holds an action to anchor on is NOT unread -- nothing
+        # was asked of the store; the stamp's ``unanchored`` says so. Unread is a failed or impossible read.
+        if int((bd.action_ledger or {}).get("nodes") or 0):
+            bd.chain_counts["action_ledger_unread"] = (
+                1 if str((bd.action_ledger or {}).get("why") or "") in ("no_pool", "read_error", "no_asof")
+                else 0)
         bd.trace_rows = True
         # THE LEG KEEPS ITS NAME. `path` is the leg that cut topology lines and is now the leg that
         # cuts chains; re-stamping it here rather than minting a `chain` leg is what keeps every
@@ -6419,6 +7016,178 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
     bd.recency["width_peak"] = max(bd.recency.get("width_peak", 0), guard.peak)
     bd.stage_ms[2] = (time.perf_counter() - t0) * 1000.0
     bd.stage_done[2] = True
+
+
+def _partition_value(receipt, key: str) -> str:
+    """The RAW value of one hive partition key of a receipt's ``source_key`` (``country`` -> ``CN``), ``""``
+    where the key is absent -- the store's own schema, read as a key=value pair."""
+    g = (receipt.get if isinstance(receipt, dict) else (lambda k, _r=receipt: getattr(_r, k, None)))
+    for part in str(g("source_key") or "").split("/"):
+        k, sep, v = part.partition("=")
+        if sep and k == key:
+            return v
+    return ""
+
+
+def _regime_anchor(drawn, row, asof: str):
+    """THE REGIME RECEIPT THE DRAW ALREADY HOLDS ON A REGIME NODE (:func:`hop_event`'s own regime branch over
+    the draw alone, a realised action), or ``None`` where it holds none. Its declared region
+    (:func:`_declared_regions`) is the actor the ledger extends; its raw ``country`` partition
+    (:func:`_partition_value`) is what the statement's predicate reads."""
+    if row is None or not drawn:
+        return None
+    ev = hop_event(drawn, asof=asof, band=row.lag_band or parse_lag(""), node_type=str(row.type or ""))
+    if ev.get("kind") not in ("regime_in_force", "action_open") or not ev.get("receipt"):
+        return None
+    return ev["receipt"]
+
+
+def _driver_slice(driver_id: str) -> str:
+    """THE PLANNER'S OWN SLICE FOR A DRIVER NODE -- ``drivers/<slice>`` through the curated alias map
+    (``evidence.slice_for_driver``, the function ``planner._driver_slice_resolvers`` reads) -- or ``""``
+    where the driver has no text slice. Never a new routing."""
+    try:
+        from leviathan.graphrag import evidence as _ev
+        sl = _ev.slice_for_driver(str(driver_id or ""))
+    except Exception:                                   # noqa: BLE001 -- no alias map, no slice
+        return ""
+    return ("drivers/%s" % sl) if sl else ""
+
+
+def _commodity_nodes() -> tuple:
+    """THE ROUTER'S OWN COMMODITY-NODE UNIVERSE (``evidence.all_nodes()``: every node a proposition can be
+    routed to as a market), read, never typed; ``()`` when the hierarchy cannot be read."""
+    try:
+        from leviathan.graphrag import evidence as _ev
+        return tuple(str(n) for n in (_ev.all_nodes() or ()) if n)
+    except Exception:                                   # noqa: BLE001 -- no hierarchy, no universe
+        return ()
+
+
+def _contract_slice(contract: str) -> str:
+    """THE CONTRACT'S OWN COMMODITY SLICE (``evidence.node_for``, the planner's ``_slice_of`` for a contract
+    node) -- the slice a document is ROUTED to when it is about this market."""
+    try:
+        from leviathan.graphrag import evidence as _ev
+        return str(_ev.node_for(str(contract or "")) or "")
+    except Exception:                                   # noqa: BLE001 -- no hierarchy, no slice
+        return ""
+
+
+def _ledger_and_routing(bd, receipts: dict, *, ledger_reader=None, routed_reader=None) -> tuple:
+    """STEP 5's TWO STORE READS ON THE CHAIN PATH (the 09-26 fix sitting, W-1 + W-2) -> ``(merged receipts,
+    routed)``.
+
+      1. THE ACTION LEDGER (``feeders.action_ledger``): one statement for every REGIME row's own driver
+         slice (:data:`REGIME_NODE_TYPES`; :func:`_driver_slice`), at the as-of, point-in-time and realised.
+      2. THE ROUTING (``feeders.routed_propositions``): for every proposition the turn now holds for a row
+         -- the draw's and the ledger's -- whether the store's router put it on that row's contract's own
+         slice (:func:`_contract_slice`; ``pgstore.prop_id``, a primary-key probe). One statement per
+         chunk; the fact :func:`receipt_identity` reads.
+      3. THE MERGE (:func:`merge_receipts`): each regime row's ledger rows that the identity ADMITS and that
+         share the declared region of the regime the draw already holds on the node (:func:`_regime_anchor`
+         -- the actor is the draw's, measured below) join its draw, the draw first and verbatim; a refused
+         ledger row is recorded for the hop's count and never merged (threat W1-c: another market's -- or
+         another actor's -- action never becomes this link's regime).
+
+    Stamps ``bd.action_ledger`` (the ledger stamp, plus the routing read's own stamp under ``routing``).
+    Never raises: a failed read is an unread stamp, and the draw is then the whole list (HEAD)."""
+    from leviathan.graphrag.state import feeders as _F
+    rows_by_key = {r.key: r for r in bd.rows}
+    nodes: dict = {}
+    for r in bd.rows:
+        if str(r.type or "") in REGIME_NODE_TYPES:
+            sl = _driver_slice(r.driver_id)
+            if sl:
+                nodes[r.key] = (sl,)
+    # THE ACTOR IS THE DRAW'S (see the merge below): each regime node is read ANCHORED on the reporting
+    # country of the regime its own draw already holds, INSIDE the statement, so the bound is spent on this
+    # actor's actions; a node whose draw holds no realised action is not read at all, and is COUNTED.
+    anchor_rc: dict = {}
+    for key in nodes:
+        a = _regime_anchor(receipts.get(key) or receipts.get(key[1]) or (), rows_by_key.get(key),
+                           str(bd.asof or ""))
+        if a is not None:
+            anchor_rc[key] = a
+    unanchored = len(nodes) - len(anchor_rc)
+    ledger, lstamp = _F.action_ledger(nodes, asof=str(bd.asof or ""), reader=ledger_reader,
+                                      anchors={k: _partition_value(a, "country") for k, a in anchor_rc.items()})
+    slice_of: dict = {}
+    want: dict = {}                                     # {prop id: (contract, (source_key, text))}
+    for r in bd.rows:
+        cs = slice_of.get(r.contract)
+        if cs is None:
+            cs = slice_of[r.contract] = _contract_slice(r.contract)
+        if not cs:
+            continue
+        docs = list(receipts.get(r.key) or receipts.get(r.driver_id) or ()) + list(ledger.get(r.key) or ())
+        for d in docs:
+            if isinstance(d, dict) and d.get("source_key") and d.get("text"):
+                want.setdefault(_F.routed_prop_id(cs, d), set()).add((r.contract, _prop_key(d)))
+    present, rstamp = _F.routed_propositions(sorted(want), reader=routed_reader)
+    on: dict = {}
+    for pid in present:
+        for c, pk in want.get(pid, ()):
+            on.setdefault(c, set()).add(pk)
+    # THE SENTENCES OFF THEIR CONTRACT'S SLICE: does the router put them on ANY commodity slice (the evidence
+    # layer's own node universe)? One more PK-probe read over the refusal candidates only; a sentence found on
+    # none names no market (:func:`_identity_of`). Skipped where the first read did not happen.
+    marketless: frozenset = frozenset()
+    if rstamp.get("read"):
+        miss = {pk for (pid, cps) in want.items() if pid not in present for (_c, pk) in cps}
+        nodes_all = _commodity_nodes()
+        want2: dict = {}
+        for pk in miss:
+            for n in nodes_all:
+                want2.setdefault(_F.routed_prop_id(n, {"source_key": pk[0], "text": pk[1]}), set()).add(pk)
+        if want2:
+            present2, rstamp2 = _F.routed_propositions(sorted(want2), reader=routed_reader)
+            if rstamp2.get("read"):
+                named = {pk for pid in present2 for pk in want2.get(pid, ())}
+                marketless = frozenset(miss - named)
+            rstamp = {"read": bool(rstamp.get("read")) and bool(rstamp2.get("read")),
+                      "props": int(rstamp.get("props") or 0) + int(rstamp2.get("props") or 0),
+                      "ms": round(float(rstamp.get("ms") or 0.0) + float(rstamp2.get("ms") or 0.0), 1),
+                      "why": str(rstamp2.get("why") or rstamp.get("why") or "")}
+    routed = {"read": bool(rstamp.get("read")), "on": {c: frozenset(v) for c, v in on.items()},
+              "marketless": marketless, "ledger_refused": {}}
+    merged = dict(receipts)
+    for key, recs in ledger.items():
+        row = rows_by_key.get(key)
+        drawn = receipts.get(key) or receipts.get(key[1]) or ()
+        # THE ACTOR IS THE DRAW'S (MEASURED, 09-26, on the S3 slices): a regime node's driver slice is shared
+        # by every actor the slice's matchers catch -- ``drivers/tariff`` carries China's, Thailand's, India's,
+        # Korea's and Brazil's soybean tariff actions alike, and the contract's own routing admits all of
+        # them (each sentence names soybeans). The node's own identity (China_import_tariff) is not a store
+        # fact; the regime the DRAW already holds on this node is. So the ledger EXTENDS that regime's own
+        # record forward to the as-of -- rows whose declared region (the ``source_key`` partition keys, the
+        # reporting post) is the draw regime's own -- and never introduces an actor the draw did not hold. A
+        # node whose draw holds no realised action is not extended (HEAD's draw), and is COUNTED. The
+        # statement already bound the read to the anchor's reporting country; this is the belt.
+        if key not in anchor_rc:
+            continue
+        anchor = _declared_regions(anchor_rc[key])
+        cell = _row_cell(getattr(row, "series_key", "") or "")
+        r_on = routed["on"].get(key[0]) or frozenset()
+        keep, ref = [], []
+        for rec in recs:
+            if (_declared_regions(rec) == anchor
+                    and _identity_of(rec, contract=key[0], cell=cell, routed_read=routed["read"],
+                                     routed_on=r_on, marketless=routed["marketless"])):
+                keep.append(rec)
+            else:
+                ref.append(_doc_key(rec))
+        if ref:
+            routed["ledger_refused"][key] = tuple(ref)
+        if keep:
+            merged[key] = merge_receipts(drawn, keep)
+    stamp = dict(lstamp)
+    if unanchored:
+        stamp["unanchored"] = unanchored
+    if want:
+        stamp["routing"] = dict(rstamp)
+    bd.action_ledger = stamp
+    return merged, routed
 
 
 # ---------------------------------------------------------------------------------------------------

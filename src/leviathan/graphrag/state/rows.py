@@ -22,6 +22,7 @@ PURE: dataclasses, one closed enum per field that has one, and no I/O. The produ
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any, Optional
 
@@ -326,7 +327,10 @@ CHANGE_STAT_KINDS: tuple = ("window_change", "pair_level_spread")
 SCALAR_KINDS: tuple = ("level", "sigma", "percentile", "window_peak_percentile", "current_level",
                        "window_length", "run_length", "lag_band_quarters", "firings_count",
                        "firings_aligned", "card_threshold", "outcome_move", "window_change",
-                       "pair_level_spread", "ask_row")
+                       "pair_level_spread", "ask_row",
+                       # 09-26 (CONTRACT P5, S-4): one SB-F fan's counts -- the total and each signed arm, each
+                       # with the sign words the line printed beside it and the fan's identity; no row, no handle.
+                       "fan_count")
 
 #: WHAT ONE SERVED ROW'S LEVEL IS OVER A CELL AXIS (CONTRACT K3), in derivation order -- and the empty word
 #: is a real answer: a read whose grain the served rows do not prove prints its scope alone, never a
@@ -437,7 +441,35 @@ def figure_text(value, *, unit: str = "", decimals: Optional[int] = None, lines:
 #: 2026/27"); a crop season's label (:func:`period_label_for`) is a NOUN, "2024/25 season", and a count noun
 #: takes its article -- the cocoa N1 token read "28.52 % of grindings for 2024/25 season", true and not
 #: English. The entry carries the article, so the kind's label is never re-spelt: "for the 2024/25 season".
-PERIOD_TOKEN_JOINS: dict = {"marketing_year": "for", "crop_season": "for the"}
+class _BookJoins(Mapping):
+    """THE PERIOD JOINS, READ OFF THE ONE BOOK (09-26 fix sitting, R-5): ``state_conventions.period_joins`` --
+    ``{<period kind>: <preposition>}``, declared ONCE there and graded by ``state/lint.py`` clause 18. This
+    module stays import-pure (no I/O at import): the book is read through the conventions' own cached loader
+    on first use. A missing book is an empty map -- the token then prints its period with the plain comma,
+    never a guessed preposition."""
+
+    def _data(self) -> dict:
+        try:
+            from leviathan.graphrag.state import lint as _lint
+            v = (_lint.load_conventions() or {}).get("period_joins")
+            return {str(k): str(w) for k, w in dict(v).items()} if isinstance(v, dict) else {}
+        except Exception:                               # noqa: BLE001 -- no book, no join
+            return {}
+
+    def __getitem__(self, key):
+        return self._data()[key]
+
+    def __iter__(self):
+        return iter(self._data())
+
+    def __len__(self):
+        return len(self._data())
+
+    def __repr__(self):
+        return repr(self._data())
+
+
+PERIOD_TOKEN_JOINS: Mapping = _BookJoins()
 
 
 def figure_token(shown: str, *, unit: str = "", figure_basis: str = "", period_words: str = "",
@@ -819,6 +851,11 @@ class StateRow:
     #: MY2020 beside WASDE US 2023/24 and printed the 2020 figure as the March-2024 buffer). EMPTY on every
     #: row with no such sibling -- the render prints nothing for it.
     period_behind: dict = field(default_factory=dict)
+    #: 09-26 (CONTRACT P14, W-5): how the row's SCOPE was resolved where it is not the scope the driver declares
+    #: -- ``"home_for_global"``: a driver declared for the world whose world series is fenced, read on the
+    #: anchor contract's own declared home scope (lane W's feeder sets it; the render prints the declared
+    #: clause). EMPTY on every other row, and then absent from :meth:`to_dict` (HEAD's shape).
+    scope_resolution: str = ""
 
     @property
     def level_shown(self) -> Optional[float]:
@@ -865,6 +902,8 @@ class StateRow:
         # A PROPERTY IS NOT A FIELD, so ``asdict`` cannot see it -- and the trace is what a census, a
         # replay and an arm report read. The NATIVE value stays under its own name beside it.
         d["level_shown"] = self.level_shown
+        if not d.get("scope_resolution"):
+            d.pop("scope_resolution", None)             # 09-26: omitted when empty -- HEAD's shape
         return d
 
     def declined_windows(self) -> list:

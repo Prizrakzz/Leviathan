@@ -605,6 +605,12 @@ NONOBVIOUS_KIND_WORDS: dict = {
     "upstream_convergence": "declared upstream paths landing on one price",
     "spillover_reach": "one reading declared on several other markets",
     "recurrence": "a state the record has been in before",
+    # 09-26 (AN-3, CONTRACT P10): the recurrence item's two PRODUCED shapes -- the date is the nearest member
+    # of the count (``recurrence_like``), or, where the selection admitted none while a count stands, the
+    # ranked pool's nearest reading said as a reading and not as a like state (``recurrence_reading``). The
+    # same claim to the reader, so the same words; the base kind's sentence is kept for a hand-built row.
+    "recurrence_like": "a state the record has been in before",
+    "recurrence_reading": "a state the record has been in before",
     # THE VARIANTS' OWN WORDS (:data:`NONOBVIOUS_VARIANTS`). `render.sb_watch` PRINTS this phrase
     # ahead of the label, so a row whose sentence says the run points away from the line may not be
     # introduced as one "running at" it -- the header and the body would contradict each other inside
@@ -649,6 +655,8 @@ NONOBVIOUS_VARIANTS: dict = {
     "approaching_line_unplaced": "approaching_line",
     "spillover_reach_unplaced": "spillover_reach",
     "convergence_amplified_alone": "convergence_amplified",
+    "recurrence_like": "recurrence",
+    "recurrence_reading": "recurrence",
 }
 
 #: The MECHANISM each kind rests on -- one sentence, the ruling's own "its mechanism".
@@ -671,6 +679,8 @@ NONOBVIOUS_MECHANISMS: dict = {
     "upstream_convergence": "one cause reaching the price down more than one declared path",
     "spillover_reach": "one reading the declared model carries onto several markets at once",
     "recurrence": "a like state whose consequence window has already closed on the record",
+    "recurrence_like": "a like state whose consequence window has already closed on the record",
+    "recurrence_reading": "a like state whose consequence window has already closed on the record",
 }
 
 #: The STATED FALSIFIER each kind carries -- the ruling's "the reading that would show it wrong".
@@ -710,6 +720,14 @@ NONOBVIOUS_FALSIFIERS: dict = {
                                  "before any of those markets can be placed with or against it"),
     "recurrence": ("the next print moves {series} out of the state the like states were counted in, "
                    "which leaves the base rate describing a state this reading has left"),
+    # ONE FALSIFIER PER VARIANT, each its own string (the one-place law): the same state-return family,
+    # naming what the variant's own sentence adds -- the member it dates, or the reading it names.
+    "recurrence_like": ("the next print moves {series} out of the state the like states were counted in, "
+                        "which leaves the base rate and its nearest like state describing a state this "
+                        "reading has left"),
+    "recurrence_reading": ("the next print moves {series} out of the state the like states were counted "
+                           "in, which leaves the base rate and the nearest reading describing a state "
+                           "this reading has left"),
 }
 
 #: The BODY of each kind's sentence. Every ``{slot}`` is a word the BOARD supplies; every other word is
@@ -792,6 +810,23 @@ NONOBVIOUS_BODIES: dict = {
     "recurrence": ("the record has been in a state like this one before: {n_like} like {states} in "
                    "{n_obs} observations of this series, the nearest dated {date}, so the base rate "
                    "is the record's and not a guess"),
+    # 09-26 (AN-3 / D5, CONTRACT P10): THE DATE IS A MEMBER OF ITS OWN COUNT. The arm-A item paired the
+    # full-coverage count ("two like states in one hundred thirty-one observations") with the ranked pool's
+    # pick ("nearest February 2025", readable on two of three dimensions) -- a date outside the number
+    # printed beside it, which the rice writer then fused into "the one case readable on every dimension".
+    # A PRODUCED row names the selection's own ``head_nearest`` -- the first candidate the ONE admission
+    # predicate admits, in the scored order -- and says so in the words.
+    "recurrence_like": ("the record has been in a state like this one before: {n_like} like {states} "
+                        "in {n_obs} observations of this series, the nearest like state dated {date}, so "
+                        "the base rate is the record's and not a guess"),
+    # AND WHERE A COUNT STANDS WITH NO MEMBER NAMED (a row whose ``head_nearest`` is empty), the ranked
+    # pool's pick is said as what it is -- the header's own two-population rule (render.sb_analog_header):
+    # the nearest READING, how many dimensions it could be read on, and that it is not one of the states
+    # counted. The date is never dropped and "nearest" is never softened; the population is named.
+    "recurrence_reading": ("the record has been in a state like this one before: {n_like} like {states} "
+                           "in {n_obs} observations of this series; the nearest reading is dated {date}, "
+                           "readable on {k_seen} of the {n_dims} {dims_noun} compared, and it is not one "
+                           "of the like states counted, so the base rate is the record's and not a guess"),
 }
 
 #: The sub-clauses the bodies interpolate. They are templates for the SAME two reasons.
@@ -851,6 +886,14 @@ NONOBVIOUS_CLAUSES: dict = {
     # which.
     "window": (" The declared lag window, counted from that reading's own date, {opened}; the span "
                "this line ends on is {closes}"),
+    # 09-26 (AN-5 / D11, CONTRACT P8): THE ANCHOR IS SAID IN THE ONE BOOK'S WORDS. Where the window came off
+    # the ONE C8 producer (``walk.effect_window``, carrying ``anchor`` / ``anchor_date``) and render exposes
+    # the book's anchor words (``render.window_anchor_words``: the object of "counted from", e.g. "this
+    # reading's own date in July 2026" -- the phrase SB-J prints after the same two words), ``{counted}`` is
+    # that phrase, so the watch and the SB-J / chain line on one page print their two anchors in one
+    # vocabulary. Otherwise the clause above, HEAD's, byte for byte.
+    "window_anchored": (" The declared lag window, counted from {counted}, {opened}; the span this line "
+                        "ends on is {closes}"),
     "falsifier": "{body}; this reads wrong if {falsifier}.",
     # 09-25 (RT-6): THE FALSIFIER IS MINTED FROM THE ROW, SO IT SAYS WHICH WAY THE READING TURNS AND WHERE
     # THE LINE IS. A state-return falsifier on a LOW-tail reading and one on a HIGH-tail reading were one
@@ -1315,6 +1358,30 @@ def _reading_window(bd, row) -> dict:
     if not anchor:
         return {"opens": None, "closes": None, "declined": "no_open_window", "anchor": None,
                 "fallback": fallback}
+    # 09-26 (AN-5 / D11, CONTRACT P8): THE ONE C8 PRODUCER. The arm-A max and rice pages printed two effect
+    # windows for one reading -- SB-J / the chain off ``walk.effect_window`` from the run's start, this
+    # item off ``walk.projection_window`` from the reading -- so one page carried two producers' arithmetic
+    # under two unlabelled sentences. The watch now asks the SAME producer, anchored on the reading
+    # (``newest`` = this anchor, no run start), and carries the producer's own ``anchor`` word and
+    # ``anchor_date`` so its clause can say what it is counted from. READ DEFENSIVELY: the producer carries
+    # ``anchor_date`` only once lane W's P8 half is on the tree, and until then this call site is HEAD's.
+    from leviathan.graphrag.state import walk as _W
+    _ew = getattr(_W, "effect_window", None)
+    if _ew is not None:
+        try:
+            got = dict(_ew(row.lag_band, newest=str(anchor)) or {})
+        except Exception:                               # noqa: BLE001 -- the HEAD producer below answers
+            got = {}
+        if got.get("anchor_date"):
+            # ``opens is None`` IS THE BAND THE CALENDAR COULD NOT READ -- the decline word HEAD's producer
+            # gives the same case (``lag_unparsed``), so the reader of this dict meets one vocabulary.
+            # HEAD's own keys, in HEAD's producer's meanings (``open_ended``: a window that opens and never
+            # closes), then the producer's anchor word and date.
+            return {"opens": got.get("opens"), "closes": got.get("closes"),
+                    "open_ended": bool(got.get("opens") and got.get("closes") is None),
+                    "declined": (None if got.get("opens") else "lag_unparsed"),
+                    "anchor": str(got.get("anchor") or ""), "anchor_date": str(got["anchor_date"]),
+                    "fallback": fallback}
     from leviathan.graphrag.state.walk import projection_window
     w = dict(projection_window(str(anchor), row.lag_band))
     w["anchor"] = str(anchor)
@@ -1459,10 +1526,31 @@ def _window_clause(win: dict, dates: str, asof: str = "") -> str:
     if not dates or not win.get("opens"):
         return ""
     opened = bool(win.get("opens")) and str(win["opens"])[:10] <= str(asof)[:10] if asof else False
-    return NONOBVIOUS_CLAUSES["window"].format(
-        opened=("has already opened" if opened else "opens ahead"),
-        closes=("its open date alone, because that window does not close"
-                if win.get("closes") is None else "that window's own open and close"))
+    fill = {"opened": ("has already opened" if opened else "opens ahead"),
+            "closes": ("its open date alone, because that window does not close"
+                       if win.get("closes") is None else "that window's own open and close")}
+    counted = _anchor_words(win)
+    if counted:
+        return NONOBVIOUS_CLAUSES["window_anchored"].format(counted=counted, **fill)
+    return NONOBVIOUS_CLAUSES["window"].format(**fill)
+
+
+def _anchor_words(win: dict) -> str:
+    """THE WINDOW'S ANCHOR IN THE ONE BOOK'S WORDS (09-26, AN-5 / CONTRACT P8), or ``""``.
+
+    Read DEFENSIVELY on both halves: the anchor date exists only where the window came off
+    ``walk.effect_window`` with its ``anchor_date`` (lane W), and the words only where render exposes
+    ``window_anchor_words`` (lane R, the ``window_anchor_words`` book). Either half absent -- or a phrase
+    the producer declines to write -- is ``""``, and the caller keeps HEAD's clause."""
+    if not win or not win.get("anchor_date") or not win.get("anchor"):
+        return ""
+    fn = getattr(R, "window_anchor_words", None)
+    if fn is None:
+        return ""
+    try:
+        return str(fn(str(win["anchor"]), str(win["anchor_date"])) or "").strip()
+    except Exception:                                   # noqa: BLE001 -- the anchor words never cost the row
+        return ""
 
 
 def _cand(kind: str, row, *, what: str, dates: str,
@@ -2068,7 +2156,9 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
         fig_and = NONOBVIOUS_CLAUSES["figure_and"].format(what=what_is) if what_is else ""
         conv = st.convention if st.convention and not st.convention.get("declined") else None
         extra = {"pattern": pat["rank"], "paths": paths, "fan": fan,
-                 "window": {k: win.get(k) for k in ("opens", "closes", "anchor", "fallback")},
+                 "window": {**{k: win.get(k) for k in ("opens", "closes", "anchor", "fallback")},
+                            # 09-26 (AN-5): the C8 producer's anchor date, only where it wrote one
+                            **({"anchor_date": win["anchor_date"]} if win.get("anchor_date") else {})},
                  "tail": _tail_fraction(st), "run_n": n_run, "run_direction": direction}
 
         # 1 PAST THE LINE, with the run still going deeper -- the convex state
@@ -2247,16 +2337,45 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
         # rule, and `_floor_of`'s clause 5 is where the rule lives.
         if ("base_rated_episode" in floor and base is not None
                 and stanza is not None and stanza.get("date")):
+            variant, rdate, rfill = _recurrence_member(stanza)
             out.append(_cand(
-                "recurrence", row,
-                what=NONOBVIOUS_BODIES["recurrence"].format(
+                "recurrence", row, variant=variant,
+                what=NONOBVIOUS_BODIES[variant].format(
                     n_like=R.words_for_int(base["n"]),
                     states=("state" if base["n"] == 1 else "states"),
-                    n_obs=R.words_for_int(base["m"]), date=stanza.get("date")),
-                dates=str(stanza.get("date") or ""), asof=asof,
-                floor=floor, far_words=(str(stanza.get("date") or ""),) if stanza.get("date") else (),
+                    n_obs=R.words_for_int(base["m"]), date=rdate, **rfill),
+                dates=rdate, asof=asof,
+                floor=floor, far_words=(rdate,) if rdate else (),
                 extra={**extra, "base_rate": dict(base)}))
     return out
+
+
+def _recurrence_member(stanza: dict) -> tuple:
+    """``(variant, date, fill)`` -- WHICH DATE THE RECURRENCE ITEM NAMES, AND IN WHICH WORDS (09-26, AN-3 /
+    D5, CONTRACT P10).
+
+    THE COUNT AND THE DATE COME OFF ONE PREDICATE. ``like_state_base_rate`` reads the count off
+    ``n_candidates_head`` -- what ``analogs.like_state_admits`` admits -- so the date beside it is the
+    selection's ``head_nearest``: the FIRST candidate that same predicate admits, in the same scored order.
+    It is a member of the count by construction, and the sentence says "the nearest like state".
+
+      * a PRODUCED row (it carries the ``head_nearest`` key) with a member -> ``recurrence_like``, dated
+        by the member;
+      * a produced row whose ``head_nearest`` is empty -> ``recurrence_reading``: the stanza's own pick,
+        said as "the nearest reading, readable on k of the n dimensions compared", and not one of the
+        states counted -- the header's two-population rule, never a dropped date;
+      * a HAND-BUILT row (no ``head_nearest`` key at all, every pre-09-26 deck row) -> HEAD's
+        ``recurrence`` sentence over the stanza's own date, byte for byte."""
+    if "head_nearest" not in stanza:
+        return ("recurrence", str(stanza.get("date") or ""), {})
+    hn = stanza.get("head_nearest") or {}
+    if hn.get("date"):
+        return ("recurrence_like", str(hn["date"]), {})
+    k = int(stanza.get("dims_seen") or 0)
+    n = int(stanza.get("dims_declared") or k)
+    return ("recurrence_reading", str(stanza.get("date") or ""),
+            {"k_seen": R.words_for_int(k), "n_dims": R.words_for_int(n),
+             "dims_noun": "dimension" if n == 1 else "dimensions"})
 
 
 # ---------------------------------------------------------------------------------------------------

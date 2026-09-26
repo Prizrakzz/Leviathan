@@ -466,9 +466,22 @@ def _date_named_documents(entry: dict, item: dict, evidence: list) -> set:
 
 def _declared_names_address(entry: dict, item: dict, evidence: list) -> bool:
     """Does a DECLARED ledger entry name the issued address's document by its identity -- the address's own
-    document date, a source that names no other publisher, and no rival document of that date? (VC-2)"""
+    document date, a source that names no other publisher, and no rival document of that date? (VC-2)
+
+    09-26 V-2: the declaration's dates are READ (`_declared_dates`), never sliced. The date the address is
+    named by is the address's OWN document date, at the precision the address carries it: equal to one of
+    the declaration's full dates (HEAD's rival rule, byte for byte), or -- where the declaration carries the
+    date only to its month -- its month, held unique against every other document of that month."""
+    own_date = str((item or {}).get("date") or "")[:10]
     when = str((entry or {}).get("date") or "")[:10]
-    if not when or when != str((item or {}).get("date") or "")[:10]:
+    if not when or not own_date:
+        return False
+    dd = _declared_dates(entry)
+    if when == own_date or own_date in dd:
+        key, width = own_date, 10                      # the address's own date, at HEAD's width
+    elif len(own_date) > 7 and own_date[:7] in dd:
+        key, width = own_date[:7], 7                   # 09-26 V-2: named to its month -- rivals by month
+    else:
         return False
     own_src = _norm(str((item or {}).get("source") or ""))
     src = str((entry or {}).get("source") or "").strip()
@@ -476,8 +489,40 @@ def _declared_names_address(entry: dict, item: dict, evidence: list) -> bool:
                    and _norm(str((e or {}).get("source") or "")) != own_src for e in evidence or []):
         return False                                   # the declaration names ANOTHER publisher
     own = _ledger_documents([item])
-    return not any(str((e or {}).get("date") or "")[:10] == when and not (_ledger_documents([e]) & own)
+    return not any(str((e or {}).get("date") or "")[:width] == key and not (_ledger_documents([e]) & own)
                    for e in evidence or [])
+
+
+# ══ 09-26 FIX SITTING, LANE V (V-2, CONTRACT P7) -- A DECLARATION'S DATE IS READ, NEVER SLICED ═══════════
+# THE MEASURED ROOT (arm A 09-26, the tariff turn's three `unsupported_at_address` strikes; THREAT_MODEL S-2).
+# The writer declares a menu document with the date phrase the menu PRINTED beside it -- answer._ev_block's
+# own "reported <document date>; event <event date>" -- so the tariff's ref 7 arrived as
+# {"source": "USDA attache GAIN, soybeans", "date": "reported 2025-03-19; event 2025-02"}. The ledger stage
+# compared `str(date)[:10]` ("reported 2") with the address's own date (2025-03-19), called the declaration
+# MISMATCHED, `_declared_names_address` failed on the same slice, and the ref went to the disputed path, where
+# the prose sentence had to pass `_address_supports` alone -- and the regime receipt's [E7] was struck
+# although the writer had named exactly the address the block issued, by the date the block printed.
+# (The chunk the block printed at [E7] was registered: `EvidenceLedger.address` keeps the receipt's own text
+# as a chunk of the address -- the stamp read `extra_chunks 1` -- so the brief's first root was inert; see
+# BUILD_V.md for the root drive.) THE FIX IS THE VERIFIER'S OWN DATE READER: the full dates `_full_dates`
+# binds in prose, and the month-year dates `_month_dates` keeps (never part of a full date). A declaration
+# NAMES its issued address when one of those dates IS the address's own document date and no rival document
+# the turn holds carries it (`_declared_names_address`, the VC-2 rival rule), and is not "mismatched" on its
+# date when the address's own date is one it carries.
+# REJECTED (lexical): stripping the word "reported" (or any phrase) before the slice; exempting chain receipts
+# from the support test; a looser source match. Support is still required wherever the dispute stands (the
+# E23 / E24 twins share a date, so a paraphrase still cannot choose between them and keeps its dispute).
+def _declared_dates(declared: dict) -> tuple:
+    """Every date a declaration's ``date`` carries, read by the verifier's OWN readers (the ones that bind
+    dates in prose): each FULL date as ``YYYY-MM-DD`` (`_full_dates`), then each MONTH-YEAR date the month
+    reader keeps (`_month_dates`: never part of a full date) as ``YYYY-MM``, in written order, deduplicated.
+    "reported 2025-03-19; event 2025-02" -> ("2025-03-19", "2025-02"). () for no date."""
+    raw = str((declared or {}).get("date") or "")
+    if not raw:
+        return ()
+    full = ["%04d-%02d-%02d" % ymd for _a, _b, ymd in _full_dates(raw)]
+    months = ["%04d-%02d" % ym for _a, _b, ym in _month_dates(raw)]
+    return tuple(dict.fromkeys(full + months))
 
 
 # ══ 09-25 FIX ROUND 3, LANE VC (VC-4) -- ONE DOCUMENT, ONE ADDRESS: A REF THAT RESOLVES TO ANOTHER ADDRESS FOLDS ══
@@ -1721,6 +1766,358 @@ def _pool_entries(served_scalars) -> tuple:
     return tuple(out)
 
 
+# ══ 09-26 FIX SITTING, LANE V (V-1, CONTRACT P4 / P5) -- A DIRECTION WORD IS HELD LIKE A FIGURE ═══════════
+# THE MEASURED DEFECT (arm A 09-26, quick palm/rapeoil, fact F1 + F2, MAJOR x2). The board printed the El Nino
+# fan of the rapeseed complex as "declared in the opposite direction on twenty-eight of them ... and in the
+# same direction on the rest" (six), and the page printed "twenty-eight in the same direction, six opposite"
+# -- then defined "same direction" as palm's '+' one sentence later, so 28 markets were said to carry El Nino
+# the way palm does. And the TL;DR said "a European balance sheet that is itself loosening [N62]" of a row the
+# block printed "falling over the last marketing year" (run DOWN, length 1). No figure was wrong; the WORDS
+# the block printed WITH two served figures were flipped, and nothing held them: the fan counts rode no
+# scalar and the run's direction word rode none either (THREAT_MODEL S-4).
+# THE FIX HOLDS THE WORDS THE BLOCK PRINTED WITH A FIGURE THE WAY THE NUMBER DISCIPLINE HOLDS THE FIGURE.
+# Lane R's producer half (P5) registers, AT THE MOMENT the template formats them, the fan's three counts
+# (kind ``fan_count``: the total, and each split arm with the sign ``words`` SB-F printed beside it, one
+# ``fan_id``) and the run scalar's own ``direction`` with the row's WHOLE declared direction vocabulary
+# (``direction_words``: the run word and the row's convention book word for each direction). This module
+# reads those dicts and nothing else -- no synonym list, no typed direction word, no phrase pattern:
+#   RUN  a phrase of the row's own vocabulary written IMMEDIATELY before a handle group that cites exactly ONE
+#        row identity (inside that handle's own clause segment: the word the handle is predicated of), naming
+#        the direction the row's run is NOT, is CORRECTED to the same-vocabulary phrase of the row's own
+#        direction (a book word by the book word, a run word by the run word). A segment that carries its
+#        own period anchor (a date, a year, a period phrase) is a trend claim of its own: left as written,
+#        counted ``direction_unanchored``.
+#   FAN  a sentence carrying a registered fan's TOTAL and one of its split COUNTS (the count's registered
+#        text, its word form from ``rows.words_for_int``, or its digits) binds the words that follow the count
+#        up to the clause break -- only words of that fan's own registered sign phrases -- to the count; a
+#        phrase naming the OTHER arm (by the words the arms do not share) is CORRECTED to the count's own
+#        registered words. The sentence's (total, split) must name exactly ONE registered fan; two fans, a
+#        split whose two arms have one count, or a phrase that runs on past its clause is left as written and
+#        counted ``fan_ambiguous`` -- never a partial correction.
+# It CORRECTS, never strikes: no handle drop, no ``by_rule`` entry, no sentence cut. It runs only when the
+# pool carries direction facts, i.e. only on a board turn whose block registered them; ``served_scalars=None``
+# (every board-off turn) leaves it inert and the report's shape HEAD's.
+# REJECTED (lexical): a synonym table ("loosening" = rising), a regex on "same direction", striking the
+# sentence, a list of expectation phrasings exempted from the check.
+def _dir_vocab(dw) -> dict:
+    """``{direction: (phrase, ...)}`` off a scalar's declared ``direction_words`` -- lowercased and whitespace-
+    folded, ORDER KEPT: position i of one direction's tuple and position i of the other's are one vocabulary
+    (the run word, then the row's book word). {} unless two or more directions declare a phrase and no phrase
+    is declared for two directions (a word naming both names neither)."""
+    if not isinstance(dw, dict):
+        return {}
+    out: dict = {}
+    for d, ws in dw.items():
+        if isinstance(ws, str):
+            ws = (ws,)
+        try:
+            t = tuple(" ".join(str(w).lower().split()) for w in (ws or ()) if str(w or "").strip())
+        except TypeError:
+            continue
+        if t:
+            out[str(d)] = t
+    if len(out) < 2:
+        return {}
+    seen: dict = {}
+    for d, t in out.items():
+        for w in t:
+            if seen.setdefault(w, d) != d:
+                return {}
+    return out
+
+
+def _direction_pool(served_scalars) -> tuple:
+    """``(runs, fans)`` -- the direction facts the block PRINTED, read off its own scalar dicts (CONTRACT P5):
+      runs  ``{row_id: ((direction, vocab), ...)}`` for every scalar carrying a ``row_id``, its own
+            ``direction`` and a ``direction_words`` vocabulary that declares that direction;
+      fans  ``((fan_id, total, total_text, ((count, text, words), ...)), ...)`` -- one entry per registered fan
+            LINE, in registration order: a ``fan_id`` scalar with no ``words`` is the fan's TOTAL and the
+            ``words``-bearing scalars of the same ``fan_id`` right after it are its split arms.
+    ``((), ())``-shaped empties for None or a pool with no direction facts -- HEAD's reading."""
+    runs: dict = {}
+    fans: list = []
+    cur = None
+    for sc in served_scalars or ():
+        if not isinstance(sc, dict):
+            cur = None
+            continue
+        fid = str(sc.get("fan_id") or "")
+        if not fid:
+            cur = None
+            rid = str(sc.get("row_id") or "")
+            d = str(sc.get("direction") or "")
+            vocab = _dir_vocab(sc.get("direction_words"))
+            if rid and d and d in vocab:
+                runs.setdefault(rid, []).append((d, vocab))
+            continue
+        try:
+            v = float(sc.get("value"))
+        except (TypeError, ValueError):
+            cur = None
+            continue
+        if v != v or v < 0 or v != int(v):
+            cur = None
+            continue
+        words = " ".join(str(sc.get("words") or "").split())
+        text = " ".join(str(sc.get("text") or "").split())
+        if not words:
+            cur = [fid, int(v), text, []]
+            fans.append(cur)
+        elif cur is not None and cur[0] == fid:
+            cur[3].append((int(v), text, words))
+        else:
+            cur = None
+    return ({k: tuple(v) for k, v in runs.items()},
+            tuple((f[0], f[1], f[2], tuple(f[3])) for f in fans if f[3]))
+
+
+def _count_spans(masked: str, n: int, text: str) -> list:
+    """Every place ``masked`` writes the count ``n``: its registered ``text``, its word form (``rows.words_for_int``,
+    the one number-word producer the block counts with) and its digits -- each a whole token (never the "eight"
+    of "twenty-eight", never the "28" of "2028" or "28.5")."""
+    forms = {str(int(n))}
+    if str(text or "").strip():
+        forms.add(" ".join(str(text).lower().split()))
+    try:
+        from leviathan.graphrag.state.rows import words_for_int as _wfi
+        w = " ".join(str(_wfi(int(n)) or "").lower().split())
+        if w:
+            forms.add(w)
+    except Exception:  # noqa: BLE001 -- the digits alone still bind
+        pass
+    out: list = []
+    for f in sorted(forms, key=len, reverse=True):
+        if f.isdigit():
+            rx = re.compile(r"(?<![\w.,\-])" + re.escape(f) + r"(?![\w\-]|[.,]\d)")
+        else:
+            rx = re.compile(r"(?<![A-Za-z0-9\-])" + re.escape(f) + r"(?![A-Za-z0-9\-])", re.I)
+        for m in rx.finditer(masked or ""):
+            if not any(a < m.end() and m.start() < b for a, b in out):
+                out.append((m.start(), m.end()))
+    return sorted(out)
+
+
+_DIR_WORD_RX = re.compile(r"[ \t]*([A-Za-z]+)")
+
+
+def _clause_ends_at(masked: str, pos: int) -> bool:
+    """Does a clause end at ``pos`` -- the rest blank, or opening on the estate's own clause break
+    (``_SEGMENT_BREAK``) or sentence terminator (``_SENTENCE_BOUND_RX``)?"""
+    rest = (masked or "")[pos:].lstrip(" \t")
+    return (not rest.strip() or bool(_SEGMENT_BREAK.match(rest)) or bool(_SENTENCE_BOUND_RX.match(rest))
+            or bool(_SEGMENT_BREAK.match(" " + rest)))
+
+
+def _period_anchored(text: str) -> bool:
+    """Does ``text`` carry a period anchor of its own -- a full or month-year date (the verifier's own date
+    readers), a year, or a written period phrase (``_period_phrase_rx``: a count and a period-kind noun)?"""
+    t = text or ""
+    if _full_dates(t) or _month_dates(t) or re.search(r"(?<!\d)(?:19|20)\d{2}(?!\d)", t):
+        return True
+    rx = _period_phrase_rx()[0]
+    return bool(rx is not None and rx.search(t))
+
+
+def _dir_log(log, key: str, n: int = 1) -> None:
+    if isinstance(log, dict):
+        log[key] = int(log.get(key, 0) or 0) + n
+
+
+def _dir_audit(log, entry: dict) -> None:
+    if isinstance(log, dict):
+        e = {"field": str(log.get("field") or "")}
+        e.update(entry)
+        log.setdefault("audit", []).append(e)
+
+
+def _run_direction_edits(sent: str, masked: str, ctx, runs: dict, log=None) -> list:
+    """RUN arm of :func:`_direction_edits` (see the block note)."""
+    calls = getattr(ctx, "calls", None) or []
+    out: list = []
+    for grp in _handle_groups(sent):
+        rids, ok, first = set(), True, None
+        for m in grp:
+            for kind, j in _handle_members(m.group(0)):
+                if kind != "N" or not (1 <= j <= len(calls)):
+                    ok = False
+                    break
+                rid = str((calls[j - 1] or {}).get("_row_id") or "")
+                if not rid:
+                    ok = False
+                    break
+                rids.add(rid)
+                first = first or j
+            if not ok:
+                break
+        if not ok or len(rids) != 1:
+            continue
+        ents = runs.get(next(iter(rids))) or ()
+        if not ents or len({d for d, _v in ents}) != 1:
+            continue
+        d_row, vocab = ents[0]
+        h0 = grp[0].start()
+        seg0 = max((mm.end() for mm in _SEGMENT_BREAK.finditer(masked, 0, h0)), default=0)
+        seg1 = next((mm.start() for mm in _SEGMENT_BREAK.finditer(masked, grp[-1].end())), len(masked))
+        # the SEGMENT cites exactly ONE row identity (THREAT_MODEL V1-a): every [N] of every handle group written
+        # inside it is a call of that same row
+        seg_rids = set()
+        for g2 in _handle_groups(sent):
+            if g2[0].start() < seg0 or g2[0].start() >= seg1:
+                continue
+            for m2 in g2:
+                for kind2, j2 in _handle_members(m2.group(0)):
+                    if kind2 == "N":
+                        seg_rids.add(str((calls[j2 - 1] or {}).get("_row_id") or "")
+                                     if 1 <= j2 <= len(calls) else "")
+        if seg_rids != rids:
+            continue
+        k = h0
+        while k > seg0 and masked[k - 1] in " \t*_":
+            k -= 1
+        head = masked[seg0:k].lower()
+        hit = None
+        for d, phrases in vocab.items():
+            for i, p in enumerate(phrases):
+                if p and head.endswith(p) and (len(head) == len(p) or not head[len(head) - len(p) - 1].isalnum()):
+                    if hit is None or len(p) > len(hit[2]):
+                        hit = (d, i, p)
+        if hit is None or hit[0] == d_row:
+            continue                                   # no direction word on the handle, or it agrees
+        d_w, i_w, p = hit
+        a, b = k - len(p), k
+        if _period_anchored(masked[seg0:a] + " " + masked[grp[-1].end():seg1]):
+            _dir_log(log, "unanchored")                # a trend claim of its own span: left as written
+            continue
+        own = vocab.get(d_row) or ()
+        if i_w >= len(own):
+            continue                                   # the row declares no word of that vocabulary
+        repl = own[i_w]
+        if sent[a:a + 1].isupper():
+            repl = repl[:1].upper() + repl[1:]
+        out.append((a, b, repl, {"before": sent[a:b], "after": repl, "handle": int(first or 0), "rule": "run"}))
+    return out
+
+
+def _fan_direction_edits(sent: str, masked: str, fans: tuple, log=None) -> list:
+    """FAN arm of :func:`_direction_edits` (see the block note)."""
+    cands = []
+    for fid, total, ttext, arms in fans:
+        if len(arms) < 2 or len({c for c, _t, _w in arms}) != len(arms) or any(c == total for c, _t, _w in arms):
+            continue
+        tsp = _count_spans(masked, total, ttext)
+        if not tsp:
+            continue
+        toks = [set(w.lower().split()) for _c, _t, w in arms]
+        vocab = set().union(*toks)
+        dist = [t - set().union(*(toks[:i] + toks[i + 1:])) for i, t in enumerate(toks)]
+        reads, bad = [], False
+        for ai, (c, ctext, _w) in enumerate(arms):
+            for a, b in _count_spans(masked, c, ctext):
+                if any(x < b and a < y for x, y in tsp):
+                    continue
+                pos, r0, r1, rt = b, None, b, []
+                while True:
+                    m = _DIR_WORD_RX.match(masked, pos)
+                    if not m or m.group(1).lower() not in vocab:
+                        break
+                    r0 = m.start(1) if r0 is None else r0
+                    rt.append(m.group(1).lower())
+                    r1, pos = m.end(1), m.end()
+                if not rt:
+                    continue
+                named = [i for i, dd in enumerate(dist) if dd & set(rt)]
+                if not named:
+                    continue                           # shared words only: no sign is named here
+                if len(named) > 1 or not _clause_ends_at(masked, r1):
+                    bad = True
+                    continue
+                reads.append((a, b, ai, named[0], r0, r1))
+        if reads or bad:
+            cands.append(((total, frozenset((c, w) for c, _t, w in arms)), fid, arms, reads, bad))
+    if not cands:
+        return []
+    if len({sig for sig, *_r in cands}) != 1 or any(bad for *_x, bad in cands):
+        _dir_log(log, "fan_ambiguous")
+        return []
+    _sig, fid, arms, reads, _bad = cands[0]
+    out: list = []
+    for _a, _b, ai, named, r0, r1 in reads:
+        if named == ai:
+            continue
+        repl = arms[ai][2]
+        if any(x < r1 and r0 < y for x, y, _v, _e in out):
+            continue
+        out.append((r0, r1, repl, {"before": sent[r0:r1], "after": repl, "fan_id": fid, "rule": "fan"}))
+    return out
+
+
+def _direction_edits_audited(sentence: str, ctx, log=None) -> list:
+    """(start, end, replacement, audit entry) for every direction correction in ``sentence`` (the RUN and FAN
+    arms of the block note), offsets into the sentence as written, never overlapping. ``log`` receives only the
+    LEFT-AS-WRITTEN counts (``unanchored`` / ``fan_ambiguous``); a correction is counted by whoever APPLIES it
+    (a correction the verifier's own apply pass discards -- inside a sentence it deleted -- is never counted)."""
+    try:
+        runs, fans = getattr(ctx, "dirs", None) or ({}, ())
+        if not (runs or fans) or not sentence:
+            return []
+        masked = _mask_handles(sentence)
+        out = list(_fan_direction_edits(sentence, masked, fans, log)) if fans else []
+        if runs:
+            for e in _run_direction_edits(sentence, masked, ctx, runs, log):
+                if not any(x < e[1] and e[0] < y for x, y, _v, _e in out):
+                    out.append(e)
+        return sorted(out, key=lambda e: (e[0], e[1]))
+    except Exception:  # noqa: BLE001 -- a direction check never costs a sentence
+        return []
+
+
+def _direction_edits(sentence: str, ctx, log=None) -> list:
+    """(start, end, replacement) edits for DIRECTION WORDS bound to a figure the block printed, read off the
+    served-scalars pool (CONTRACT P4; the rules in the block note above): the RUN arm (a row's own direction
+    vocabulary on the handle it is predicated of) and the FAN arm (a registered split count's sign words).
+    ``log`` (optional) accumulates ``corrected`` / ``unanchored`` / ``fan_ambiguous`` and the ``audit`` rows
+    (``log["field"]`` names the field). Offsets are into ``sentence`` as written; the edits never overlap. []
+    whenever the pool carries no direction fact."""
+    out = []
+    for a, b, v, entry in _direction_edits_audited(sentence, ctx, log):
+        out.append((a, b, v))
+        _dir_log(log, "corrected")
+        _dir_audit(log, entry)
+    return out
+
+
+def _reader_sentence_spans(text: str) -> list:
+    """The READER'S sentences of ``text`` as (start, end): the verifier's own terminator (``_SENTENCE_BOUND_RX``),
+    where a ';' joins two clauses of ONE sentence (``_drop_orphans``' own reading) -- a split fan's two arms are
+    read together, so a correction can never land on one arm and miss the other."""
+    spans, at = [], 0
+    for bnd in list(_SENTENCE_BOUND_RX.finditer(text or "")) + [None]:
+        if bnd is not None and text[bnd.start():bnd.end()] == ";":
+            continue
+        end = bnd.end() if bnd is not None else len(text or "")
+        if end <= at:
+            continue
+        spans.append((at, end))
+        at = end
+    return spans
+
+
+def _apply_direction_edits(text: str, ctx, log=None) -> str:
+    """Run :func:`_direction_edits` over every reader's sentence of ``text`` and apply the corrections in place,
+    right to left -- the standalone form (instruments, decks). ``verify_citations`` itself folds the same edits
+    into its PASS-3 apply, beside the ladder's substitutions, so its strip seams are minted from the text it
+    returns."""
+    if not text:
+        return text
+    ops = []
+    for s0, s1 in _reader_sentence_spans(text):
+        for a, b, v in _direction_edits(text[s0:s1], ctx, log):
+            ops.append((s0 + a, s0 + b, v))
+    for a, b, v in sorted(ops, reverse=True):
+        text = text[:a] + v + text[b:]
+    return text
+
+
 def _unit_tail_is(s: str, b: int, utoks: tuple, g=None) -> bool:
     """Does the text directly after the numeral ending at `b` spell `utoks` (a scalar's unit)? Token for
     token, or -- through the declared vocabulary -- a spelling of the same declared unit (`_unit_equal`).
@@ -1872,11 +2269,13 @@ class _VCtx:
     charge-site predicate takes it as an optional keyword, so a caller that passes nothing (a deck, a
     grader's repro) gets the same vocabulary with no pool -- the board-off reading."""
 
-    __slots__ = ("calls", "pool", "_g", "_b", "pool_hits", "disp", "disp_defs", "_gd", "stamped", "memb")
+    __slots__ = ("calls", "pool", "_g", "_b", "pool_hits", "disp", "disp_defs", "_gd", "stamped", "memb", "dirs")
 
     def __init__(self, number_calls, served_scalars=None):
         self.calls = number_calls or []
         self.pool = _pool_entries(served_scalars)
+        # 09-26 V-1: the direction facts the block printed (`_direction_pool`) -- empty on every board-off turn
+        self.dirs = _direction_pool(served_scalars)
         self._g: dict = {}
         self._b: dict = {}
         self.pool_hits: set = set()
@@ -5909,6 +6308,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         _index_kept: list = []                      # 09-25 VC-4: declared refs whose INDEX the ledger upheld
         _matched_refs: set = set()                  # 09-25 VC-4: refs the matcher (not their address) resolved
         _unit_mismatch: list = []                   # K4: bound numerals written in another unit family
+        _dlog: dict = {}                            # 09-26 V-1: direction corrections / left-as-written
 
         # FIX ROUND 2, fixer pass (REVIEW_VC F1 (a), the K1 amendment): an address is ISSUED only when the
         # ledger handed it to the block -- the kwarg's keys (`EvidenceLedger.issued`). Every other in-range
@@ -6056,7 +6456,10 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                 _src_ok = (_source_is(s.get("source"), _it.get("source"), display=True)
                            if str(s.get("source") or "").strip() else True)
                 _date_ok = (not s.get("date") or not _it.get("date")
-                            or str(s["date"])[:10] == str(_it["date"])[:10])
+                            or str(s["date"])[:10] == str(_it["date"])[:10]
+                            # 09-26 V-2: the address's own date is one the declaration CARRIES, read by
+                            # the verifier's own date readers ("reported 2025-03-19; event 2025-02")
+                            or str(_it["date"])[:10] in _declared_dates(s))
                 # FIX ROUND 2, fixer pass (REVIEW_VC F1 (b)): a declaration that names OTHER documents
                 # EXACTLY (its source, and its date where it wrote one) and not the address's own is an INDEX
                 # SLIP -- the writer named a document and mistyped its number. It takes HEAD's matcher below
@@ -6095,6 +6498,12 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                         _addr_identity.append(ref)
                     else:
                         _addr_disputed.add(ref)
+                if (_date_ok and s.get("date") and _it.get("date")
+                        and str(s["date"])[:10] != str(_it["date"])[:10]):
+                    # 09-26 V-2: the date phrase NAMED the address's own date (the reader found it in "reported
+                    # 2025-03-19; event 2025-02"): the kept row carries that document date, as HEAD's relabel
+                    # left it -- a normal form, not a correction (nothing disagreed), so it is not counted
+                    s = {**s, "date": _it.get("date")}
                 resolved[ref] = _address_items(_k)
                 kept_sources.append(s)
                 report["resolved"][ref] = _resolved_payload(_it)
@@ -6797,6 +7206,26 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             for a, b, v in edits:
                 if not any(x <= a and b <= y for x, y in spans):
                     ops.append((a, b, v))
+            # 09-26 V-1 (CONTRACT P4): THE DIRECTION WORDS the block printed with a figure, held like the figure --
+            # CORRECTED (never struck, never a `by_rule` entry) in THIS apply pass, beside the ladder's
+            # substitutions, so the strip seams below are minted from the text the field returns. Only when the
+            # pool carries direction facts (a board turn whose block registered them); a sentence this pass
+            # deletes takes its corrections with it and is not counted. Every other turn never enters here.
+            if ctx.dirs[0] or ctx.dirs[1]:
+                for _ds0, _ds1 in _reader_sentence_spans(text):
+                    if any(x <= _ds0 and _ds1 <= y for x, y in spans):
+                        continue
+                    _sl: dict = {}
+                    for a, b, v, _entry in _direction_edits_audited(text[_ds0:_ds1], ctx, _sl):
+                        a, b = _ds0 + a, _ds0 + b
+                        if any(x < b and a < y for x, y, _v in ops):
+                            continue
+                        ops.append((a, b, v))
+                        _dlog["corrected"] = int(_dlog.get("corrected", 0)) + 1
+                        _dlog.setdefault("audit", []).append(dict({"field": field}, **_entry))
+                    for _dk in ("unanchored", "fan_ambiguous"):
+                        if _sl.get(_dk):
+                            _dlog[_dk] = int(_dlog.get(_dk, 0)) + int(_sl[_dk])
             for a, b, v in sorted(ops, reverse=True):
                 text = text[:a] + v + text[b:]
             # CYCLE-5 (2026-08-07) TIDY-1 -- THE STRIP SEAMS, REPORTED. Purely ADDITIVE: this loop reads
@@ -6884,6 +7313,15 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         for fld in ("tldr", "mechanism"):
             if structured.get(fld):
                 structured[fld] = _verify_field(structured[fld], fld)
+        # 09-26 V-1 (CONTRACT P4): the direction corrections PASS 3 applied (see there), each key ONLY when non-empty
+        if _dlog.get("corrected"):
+            report["direction_corrected"] = int(_dlog["corrected"])
+        if _dlog.get("audit"):
+            report["direction_audit"] = list(_dlog["audit"])
+        if _dlog.get("unanchored"):
+            report["direction_unanchored"] = int(_dlog["unanchored"])
+        if _dlog.get("fan_ambiguous"):
+            report["fan_ambiguous"] = int(_dlog["fan_ambiguous"])
         # 09-23 (C15): the added keys, each ONLY when it has something to say.
         if _readdressed:
             report["readdressed"] = _readdressed

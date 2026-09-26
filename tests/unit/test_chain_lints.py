@@ -1502,11 +1502,14 @@ def test_0923_the_backstop_fires_on_cotton_and_tariff_only_and_its_one_sentence_
         again = an._chain_backstop(st, bd, calls, coverage={"chain_referenced": 0})
         assert st == snap and not again["backstop_appended"], turn   # idempotent
     # 09-23 FIX ROUND (review RA M3): the backstop's guard (3) is the COUNTER'S OWN PRODUCER
-    # (`render.chain_referenced_in`, no keyword gate), and the tariff and cotton pages DO name two linked
-    # hops of a rendered chain in one sentence ("export pace ... feeds the stocks-to-use ratio"; "if El
-    # Nino emerges ... weaken the Indian monsoon and raise drought") -- so no second telling lands on any
-    # of the ten pages. The firing path itself is pinned on a page that names no chain (next pin).
-    assert fired == [], fired
+    # (`render.chain_referenced_in`, no keyword gate). RE-BANKED 09-26 (fix sitting, lane R, R-1 / D3 --
+    # DECLARED): the round-3 reading that the tariff and cotton pages "DO name two linked hops" rested on
+    # SINGLE identity words ("Indian" monsoon for the Indian Ocean dipole; "export pace" for weekly export
+    # shipments) -- the one-token class the 09-26 arm read as D3. A link is now named by its own address or a
+    # WHOLE reader name unique to it on the board (CONTRACT P3), so the backstop lands on exactly the two pages
+    # the 09-23 human read found untold (`_HUMAN_READ_0923`) -- the claim this pin's own name makes -- and on
+    # none of the eight that narrated a chain.
+    assert sorted(fired) == sorted(_HUMAN_READ_0923), fired
 
 
 def test_0923_the_backstop_lands_at_the_end_of_the_chain_movements_own_section(turns0923):

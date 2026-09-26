@@ -438,7 +438,13 @@ def test_a_closed_window_is_never_nominated_and_the_anchor_is_the_READINGS_own_d
     bd, r = _nb_board()
     st = r.state
     w_reading = WA._reading_window(bd, r)
-    assert w_reading["anchor"] == st.level_date and w_reading["fallback"] == ""
+    # 09-26 (AN-5, CONTRACT P8) RE-BANK, THE CLAIM KEPT: the window is anchored on the READING'S OWN DATE.
+    # Where the one C8 producer wrote its ``anchor_date`` the date rides there and ``anchor`` is the
+    # producer's own word for it; on a tree without that half ``anchor`` is the date, as HEAD.
+    _anchor = w_reading.get("anchor_date") or w_reading["anchor"]
+    assert _anchor == st.level_date and w_reading["fallback"] == ""
+    if w_reading.get("anchor_date"):
+        assert w_reading["anchor"] == "reading"
     # THE TWO ANCHORS ARE TWO WINDOWS, and this is the whole of R6. The fixture's run starts in 2010
     # and its reading is five years later; SB-J's window opens from the run start, the watch row's from
     # the reading, and the watch row's is the LATER one -- which is how a 1997 run stopped rendering a
@@ -456,7 +462,7 @@ def test_a_closed_window_is_never_nominated_and_the_anchor_is_the_READINGS_own_d
     bd.windows[r.key].pop("reading")
     w_fallback = WA._reading_window(bd, r)
     assert w_fallback["fallback"] == "level_date", "the declared fallback names itself"
-    assert w_fallback["anchor"] == st.level_date
+    assert (w_fallback.get("anchor_date") or w_fallback["anchor"]) == st.level_date
     stale = {"opens": "1998-01-31", "closes": "1998-06-30", "declined": None}
     assert not WA._window_open(stale, ASOF)
 

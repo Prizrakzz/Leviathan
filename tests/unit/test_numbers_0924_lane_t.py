@@ -324,7 +324,14 @@ def test_T3_a_BALANCE_is_stamped_and_never_summed_and_a_national_read_is_left_al
 def test_T3_the_kwarg_is_absent_by_default_and_arms_the_leg_only_when_threaded(clean_env):
     import inspect
     p = inspect.signature(A.answer_numbers).parameters
-    assert p["closed_year"].default is False and list(p)[-1] == "closed_year"
+    names = list(p)
+    assert p["closed_year"].default is False and names[names.index("closed_year") - 1] == "pair_spread"
+    # RE-BANKED 09-26 (fix sitting, lane T, CONTRACT P12): the claim was "closed_year is APPENDED at the tail with
+    # HEAD's default". Later sittings append after it (usage_sink, rung_ladder), so the claim is kept as: it sits
+    # where 09-24 put it (right after pair_spread), and every kwarg appended after it is keyword-only with a default
+    # (None / False) that reproduces HEAD -- a later tail can neither precede it nor move a flag-off turn.
+    assert all((p[n].default is None or p[n].default is False) and p[n].kind is inspect.Parameter.KEYWORD_ONLY
+               for n in names[names.index("closed_year") + 1:])
     assert A.ESR_CLOSED_YEAR_KEY == "esr_closed_year"
 
 
