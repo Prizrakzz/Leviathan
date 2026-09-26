@@ -2055,8 +2055,20 @@ def score(q: dict, out: dict) -> dict:
     leakage_ok = None
     if exp.get("not_known"):                                          # trap: the tool must SAY the value isn't known at asof
         leakage_ok = any(p in (out.get("answer") or "").lower() for p in _NOT_KNOWN)
+    # LANE I (fix sitting 2): `intent_ok` IS READ IN THE ROUTER'S OWN VOCABULARY, NOT BY STRING EQUALITY
+    # ON THE LANE WORD. The equality read False on 50 of 50 banked pages: the deck row says `reasoning`
+    # (the lane it belongs in) and the served lane was `hybrid` after the router's own DECLARED transition
+    # -- a comparison across two vocabularies scored as a routing fail, on every page, by construction.
+    # The deck's word is now compared with every word the router's own record says the turn passed
+    # through (`_intent_route`: the `kind_history` audit, then the lane), a deck's accept-SET
+    # (`expected_intent: [reasoning, hybrid]`) is a set and never a list compared with a string, and a
+    # turn the router emitted NOTHING for (the one-hop `answer()` path) is ABSENT, never a False. The
+    # deck-level vocabulary mismatch (a word the router never emitted on the run) is named by
+    # `_deck_intent_reads`, the one reader that holds the whole deck (the routing panel, the report header
+    # and the instrument census all read it); this per-row read cannot see the deck, so it stays False there.
+    _exp_set, _route = _expected_intents(exp_intent), _intent_route(out)
     return {"routed_right": out.get("contract") == q["contract"],
-            "intent_ok": (routed_intent == exp_intent) if exp_intent else None,
+            "intent_ok": (bool(_exp_set & set(_route)) if _route else None) if _exp_set else None,
             "routed_intent": routed_intent, "expected_intent": exp_intent, "leakage_ok": leakage_ok,
             "drivers_hit": f"{len(hit)}/{len(drivers)}", "drivers_missed": [d for d in drivers if d not in hit],
             "regime_named": (ex._normalize(exp["regime"]) in ans) if exp.get("regime") else None,
@@ -2327,7 +2339,12 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
                if (out.get("trace") or {}).get("bar_adjectives") else {}),
             "banned_mood_words": (out.get("trace") or {}).get("banned_mood_words", 0),
             "mechanism_scaffold_ok": _scaffold_ok(out),
-            "n_sections": len((out.get("structured") or {}).get("sections") or []),   # P9-C derived view
+            # LANE I (fix sitting 2): RE-BASED ON THE RENDERED PAGE. It read `structured['sections']`, which
+            # only the GRAPHRAG_ANSWER_V2 seam fills and the served path never does -- 0 on 50 of 50 banked
+            # pages, an instrument that could not move. It now counts the `## ` headings the served body
+            # actually rendered (`_n_sections_read`), falls back to the typed sections only where no body
+            # was served, and is None -- ABSENT, never 0 -- where neither exists. Same key, same position.
+            "n_sections": _n_sections_read(out)[0],
             "intent": out.get("intent"),
             "intent_ok": intent_ok,
             "secs": r.get("secs"),
@@ -3742,14 +3759,25 @@ def routing_report(rows: list[dict]) -> list[str]:
         xs = [x[key] for x in m if x.get(key) is not None]
         return round(statistics.mean(xs), 1) if xs else None
 
-    intent = [x for x in m if x.get("expected_intent")]
-    iok = sum(1 for x in intent if x.get("intent_ok"))
+    # LANE I: THE READ IS ADJUDICATED ON THE DECK (`_deck_intent_reads`) AND ITS DENOMINATOR IS THE ROWS IT
+    # COULD SCORE, NAMED. A row whose router emitted no route (the one-hop body) and a row whose word the
+    # router emitted on no row of the run (a vocabulary mismatch) are ABSENT from it, never routed-wrong rows.
+    adj, vocab = _deck_intent_reads(rows)
+    intent = [a for a in adj if a is not None]
+    iok = sum(1 for a in intent if a)
     routed = collections.Counter(x.get("routed_intent") for x in m if x.get("routed_intent"))
     leak = [x for x in m if x.get("leakage_ok") is not None]
     L = ["## Intent routing + point-in-time (new layers)", "",
-         f"- **intent routed correctly**: **{iok}/{len(intent) or 1}** (vs expected_intent)",
+         f"- **intent routed correctly**: **{iok}/{len(intent)}** (vs expected_intent; population: rows "
+         f"naming an expected intent whose router emitted a route, read against every word of that route "
+         f"-- kind_history then the lane, n={len(intent)})",
          f"- routed intents: {dict(routed)}",
          f"- questions that triggered a number lookup: {sum(1 for x in m if x.get('n_numbers'))}/{len(m)}"]
+    if vocab["mismatched_rows"]:
+        L.insert(3, f"- **intent VOCABULARY MISMATCH on {len(vocab['mismatched_rows'])} row(s)**: they expect "
+                    f"{vocab['unmatched_words']}, a word the router emitted on NO row of this run (it emitted "
+                    f"{vocab['router_words']}) -- reported as a mismatch of vocabularies and never scored as a "
+                    f"routing fail")
     nerr = sum(x.get("n_number_errors", 0) for x in m)
     if nerr:                                                          # loud flag: data-access failure, NOT point-in-time
         L.append(f"- **number lookups that ERRORED (data-access failure, not 'not known'): {nerr}** <- investigate")
@@ -4751,6 +4779,714 @@ def corpus_fingerprint() -> str:
     return h.hexdigest()[:12]
 
 
+# == LANE I (fix sitting 2, 2026-09-26): THE INSTRUMENTS THAT CANNOT FAIL OR CANNOT SEE ===================
+# THE DEFECT CLASS, MEASURED on 50 banked pages by the completeness recon: `n_sections` read 0 on 50 of 50
+# (it read a field the served path never fills); `intent_ok` read False on 50 of 50 (the deck's lane word
+# and the router's served lane compared by string equality, across two vocabularies);
+# `tldr_direction.agree` read True on 50 of 50 (its basis is the routed contracts' driver signs, which are
+# `two_sided` on every deck contract and compatible with anything by construction -- and its tldr half is a
+# phrase match that stamped "my lean is modestly toward lower prices" as `higher`); `coverage.watch_cited`
+# read 0 on 40 of 40 (it scores the watch row's DISTANCE handle, which nobody cites) while
+# `watch_referenced` ran 1-8, and `events_referenced` read 0 on 40 of 40; the arm report's register
+# precondition quoted `register_leaks` at 0 on BOTH cells while `register.desk_register_hits` found 53 hits
+# on 9 of 10 control pages and 17 on 9 of 10 treatment pages; and no reader compared a count the page
+# spelled out ("194 beyond those", an 8 where the trace carries 16) with the counter the trace minted.
+# AN INSTRUMENT THAT READS ONE VALUE ON EVERY PAGE IS NOT A MEASUREMENT, and quoting it as one is how a
+# precondition read 0 on both cells.
+#
+# THE FIX IS ONE CENSUS UNDER ONE RULE. Every instrument returns ABSENT (None) where its producer field is
+# not on the record -- never 0, never False; states its POPULATION and its DENOMINATOR; and is asserted
+# NON-VACUOUS on the deck: an instrument with at least `_VACUITY_MIN_N` readings that are all one value is
+# named on the report's "vacuous instruments" line and is NOT quoted as a result. THE CENSUS IS
+# REPORT-ONLY: it moves no score, no strip, no judged byte and no per-answer column (the per-answer key
+# list is HEAD's exactly, so every tail pin in the other decks holds); it rides the baseline JSON as ONE key
+# appended after `per_answer`. It reads a LIVE row (the served body in hand) or a BANKED per-answer record
+# alone (the writer's own draft from `raw_draft`), and every reading names the text it read, so a draft is
+# never passed off as the served page.
+#
+# THE CONTRACTS IT READS THAT NO PRODUCER WRITES AT 9750ae3e are read where present and reported ABSENT
+# where not -- never guessed at from prose: `tldr_direction.declared` (answer.py), the board's settled side
+# counts `state_board.counters.BoardSidesFor/BoardSidesAgainst` or `state_board.row_states[].side` (the
+# board), `state_board.watch_rows[].handle` (render.py) and `state_board.served_counts[]` (render.py). Each
+# one's reader below names it; the lane's commit message states each contract in full.
+
+#: An instrument is VACUOUS on a deck when it carried at least this many readings and every one of them is
+#: the same value. Below it the census says the deck is too small to tell, rather than guessing.
+_VACUITY_MIN_N = 5
+
+_HEADING_LINE_RX = re.compile(r"^ {0,3}## +\S")
+_FENCE_LINE_RX = re.compile(r"^ {0,3}(?:```|~~~)")
+
+
+def _rendered_headings(text) -> int | None:
+    """How many level-2 (`## `) headings a markdown text RENDERS: a heading line outside a code fence.
+    None for a non-string -- no text is not a page with no headings."""
+    if not isinstance(text, str):
+        return None
+    n, fenced = 0, False
+    for line in text.splitlines():
+        if _FENCE_LINE_RX.match(line):
+            fenced = not fenced
+            continue
+        if not fenced and _HEADING_LINE_RX.match(line):
+            n += 1
+    return n
+
+
+def _n_sections_read(out: dict) -> tuple:
+    """`(count, source)` for the per-answer `n_sections` column. The SERVED BODY's rendered headings when a
+    body was served (its `## Sources` footer is one of them, and it is a rendered heading); the typed
+    `structured['sections']` only where no body was served; `(None, None)` where neither exists."""
+    out = out if isinstance(out, dict) else {}
+    body = out.get("answer")
+    if isinstance(body, str) and body.strip():
+        return _rendered_headings(body), "served body"
+    st = out.get("structured")
+    secs = st.get("sections") if isinstance(st, dict) else None
+    if isinstance(secs, list):
+        return len(secs), "structured['sections']"
+    return None, None
+
+
+def _expected_intents(v) -> frozenset:
+    """A deck row's expected intent as a SET of words: one word, or the accept-set a deck writes as a list
+    (`expected_intent: [reasoning, hybrid]`). Empty when the row names none."""
+    if isinstance(v, str):
+        return frozenset({v.strip()}) if v.strip() else frozenset()
+    if isinstance(v, (list, tuple, set, frozenset)):
+        return frozenset(str(x).strip() for x in v if isinstance(x, str) and x.strip())
+    return frozenset()
+
+
+def _intent_route(d: dict) -> list:
+    """Every intent word the router's OWN record says this turn passed through, in order: each
+    `kind_history` transition's source and target (the orchestrator's D-AM-1 audit, `stage:from->to`), then
+    the lane it served. Reads a live `out` (`intent_decision.kind_history`) or a per-answer record (the
+    registry-lifted `kind_history` column). [] when the router emitted nothing -- the one-hop `answer()`
+    path -- which makes `intent_ok` ABSENT there, never False."""
+    d = d if isinstance(d, dict) else {}
+    dec = d.get("intent_decision") if isinstance(d.get("intent_decision"), dict) else None
+    kh = dec.get("kind_history") if dec is not None else d.get("kind_history")
+    words: list = []
+    for step in (kh if isinstance(kh, (list, tuple)) else ()):
+        move = str(step).partition(":")[2]
+        if "->" not in move:
+            continue
+        for w in move.split("->"):
+            w = w.strip()
+            if w and w != "None" and w not in words:
+                words.append(w)
+    lane = d.get("intent")
+    if isinstance(lane, str) and lane.strip() and lane.strip() not in words:
+        words.append(lane.strip())
+    return words
+
+
+def _deck_intent_reads(rows: list) -> tuple:
+    """`(reads, vocabulary)` -- every row's `intent_ok` ADJUDICATED ON THE DECK, the one producer the
+    routing panel, the report header and the census all read.
+
+    Per row it is the `score` read (the deck's word against every word of that row's own route), with ONE
+    deck-level correction only the whole deck can make: a row whose expected word(s) the router emitted on
+    NO row of this run is a VOCABULARY MISMATCH -- None, named in `vocabulary['mismatched_rows']`, and never
+    scored as a routing fail. Measured: 50 of 50 banked pages expected `reasoning` and read False, and a
+    deck whose router never once spoke the deck's word cannot say which side of that comparison is wrong."""
+    import collections
+    exp = [_expected_intents(((r or {}).get("q") or {}).get("expected_intent"))
+           if isinstance((r or {}).get("q"), dict) else frozenset() for r in rows]
+    routes = [_intent_route((r or {}).get("out")) for r in rows]
+    emitted = collections.Counter(w for rt in routes for w in set(rt))
+    reads, mism, unmatched = [], [], set()
+    for r, e, rt in zip(rows, exp, routes):
+        if not e or not rt:
+            reads.append(None)
+        elif not (e & set(emitted)):
+            reads.append(None)
+            mism.append(str(((r or {}).get("q") or {}).get("id")))
+            unmatched |= set(e)
+        else:
+            reads.append(bool(e & set(rt)))
+    return reads, {"deck_words": dict(collections.Counter(w for e in exp for w in e)),
+                   "router_words": dict(emitted),
+                   "mismatched_rows": mism,
+                   "unmatched_words": sorted(unmatched)}
+
+
+def _int0(v) -> int:
+    try:
+        return 0 if isinstance(v, bool) else int(v or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _is_count(v) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _instrument_texts(rec: dict, r: dict | None) -> tuple:
+    """`((body, body_source), (prose, prose_source))` for ONE page -- the two texts the census reads.
+
+    BODY is the page as served (`out['answer']`, its `## Sources` footer included): what a PAGE-level count
+    reads (rendered headings, register words). PROSE is the writer's own post-verify sentences (`_prose`:
+    the structured tldr + mechanism): what a CITATION or a COUNT reads -- never the served body, whose
+    footer re-renders every ledgered [N] including the ones the verifier stripped (the primary-gate trap
+    `verify.cited_number_handles` warns of in its own docstring). A BANKED record carries no served body:
+    its prose is `raw_draft.verified_*` (after the handle passes) else `raw_draft.postverify_*`, its body
+    `raw_draft.body_pre_sanitize` where the audit captured one and otherwise that same prose -- and the
+    source says so, so no reading passes a draft off as the served page."""
+    rec = rec if isinstance(rec, dict) else {}
+    out = r.get("out") if isinstance(r, dict) and isinstance(r.get("out"), dict) else None
+    if out is not None:
+        ans = out.get("answer")
+        body = (ans, "served body") if isinstance(ans, str) and ans.strip() else (None, None)
+        st = out.get("structured")
+        if isinstance(st, dict) and st:
+            txt = f"{st.get('tldr') or ''}\n{st.get('mechanism') or ''}"
+            prose = (txt, "post-verify structured tldr+mechanism") if txt.strip() else (None, None)
+        elif body[0] is not None:
+            prose = (_prose(out), "served body with its Sources footer cut")
+        else:
+            prose = (None, None)
+        return body, prose
+    rd = rec.get("raw_draft") if isinstance(rec.get("raw_draft"), dict) else {}
+    prose = (None, None)
+    for pre in ("verified_", "postverify_"):
+        t, m = rd.get(pre + "tldr"), rd.get(pre + "mechanism")
+        if isinstance(t, str) or isinstance(m, str):
+            txt = f"{t or ''}\n{m or ''}"
+            if txt.strip():
+                prose = (txt, f"raw_draft.{pre}tldr+mechanism (the banked draft, not the served page)")
+                break
+    bps = rd.get("body_pre_sanitize")
+    body = ((bps, "raw_draft.body_pre_sanitize (the banked page before its last sanitize)")
+            if isinstance(bps, str) and bps.strip() else prose)
+    return body, prose
+
+
+#: The walk's two SETTLED side words and the direction each asserts for the anchor. `walk._chain_direction`
+#: mints `(direction, side)` as one pair -- "side is the owner's own words for the same fact" -- so this is
+#: that producer's closed vocabulary read back, not a phrase list; `unsettled` asserts nothing.
+_SIDE_DIRECTION = {"for": "higher", "against": "lower"}
+
+
+def _board_sides(sb) -> tuple | None:
+    """`(n_for, n_against, source)` -- the board's SETTLED side counts -- or None where the board carries no
+    settled-side fact at all. First present wins, and the source names which:
+      1. `state_board.counters.BoardSidesFor` / `BoardSidesAgainst` (CONTRACT C-I3b; unbuilt at 9750ae3e);
+      2. `state_board.row_states[].side` words (CONTRACT C-I3b; unbuilt at 9750ae3e);
+      3. `state_board.chains[].side` on the chains the page RENDERED -- the walk's own stamp, on the trace
+         today wherever the chain leg rendered a chain."""
+    sb = sb if isinstance(sb, dict) else {}
+    cnt = sb.get("counters") if isinstance(sb.get("counters"), dict) else {}
+    if "BoardSidesFor" in cnt or "BoardSidesAgainst" in cnt:
+        return (_int0(cnt.get("BoardSidesFor")), _int0(cnt.get("BoardSidesAgainst")),
+                "state_board.counters.BoardSidesFor/Against")
+    rs = sb.get("row_states") if isinstance(sb.get("row_states"), list) else []
+    sides = [str(x.get("side") or "") for x in rs if isinstance(x, dict) and "side" in x]
+    if sides:
+        return sides.count("for"), sides.count("against"), "state_board.row_states[].side"
+    ch = sb.get("chains") if isinstance(sb.get("chains"), list) else []
+    sides = [str(c.get("side") or "") for c in ch if isinstance(c, dict) and c.get("rendered") and "side" in c]
+    if sides:
+        return sides.count("for"), sides.count("against"), "state_board.chains[rendered].side"
+    return None
+
+
+def _tldr_direction_read(rec: dict) -> dict:
+    """The TL;DR's DECLARED direction token against the board's SETTLED side balance -- never a phrase match
+    over prose, and never the producer's own `agree` (whose `two_sided` basis agrees with anything).
+
+    The declared token is CONTRACT C-I3a, `tldr_direction.declared`: a direction word the WRITER declares in
+    a structured field. Where it is not on the record the reading is ABSENT -- this reader does NOT fall back
+    to `tldr_direction.tldr`, the phrase match that read a negated lean as its opposite. A page is TESTED
+    only where the token is directional AND the board settled one side more often than the other; a
+    balanced board, a board with no settled side and a non-directional token are all ABSENT (named in
+    `why`), never counted as agreeing -- "compatible by construction" is exactly the vacuous read."""
+    td = rec.get("tldr_direction") if isinstance(rec.get("tldr_direction"), dict) else {}
+    declared = td.get("declared")
+    if not isinstance(declared, str) or not declared.strip():
+        return {"v": None, "d": None, "src": None, "why": "declared token absent (tldr_direction.declared)"}
+    sides = _board_sides(rec.get("state_board"))
+    if sides is None:
+        return {"v": None, "d": None, "src": None, "why": "no settled side on the board"}
+    n_for, n_against, src = sides
+    if n_for == n_against:
+        return {"v": None, "d": None, "src": src,
+                "why": "board balanced" if n_for else "no settled side on the board"}
+    basis = _SIDE_DIRECTION["for"] if n_for > n_against else _SIDE_DIRECTION["against"]
+    tok = declared.strip().lower()
+    if tok not in _SIDE_DIRECTION.values():
+        return {"v": None, "d": None, "src": src, "why": "declared token not directional"}
+    return {"v": tok == basis, "d": None, "src": src, "why": "tested"}
+
+
+_HANDLE_DIGITS_RX = re.compile(r"\d+")
+
+
+def _handle_int(h) -> int | None:
+    """A watch row's `[N]` handle as an int, whether stamped as 12, "N12" or "[N12]"."""
+    if isinstance(h, bool) or h is None:
+        return None
+    if isinstance(h, int):
+        return h
+    m = _HANDLE_DIGITS_RX.search(str(h))
+    return int(m.group(0)) if m else None
+
+
+def _watch_cited_read(rec: dict, prose, prose_src) -> dict:
+    """How many watch rows the writer CITED by the handle it can cite -- CONTRACT C-I4,
+    `state_board.watch_rows[].handle`, the [N] address the watch line itself prints -- read in the writer's
+    prose (never the served body's footer). ABSENT where the contract is not on the record, and where no
+    watch row carries a handle: `coverage.watch_cited` read 0 on 40 of 40 because it scored a handle
+    nobody is shown to cite, and a zero from an instrument that cannot score is not a zero."""
+    sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    wr = sb.get("watch_rows")
+    if not isinstance(wr, list):
+        return {"v": None, "d": None, "src": None, "why": "state_board.watch_rows absent"}
+    hs = [h for h in (_handle_int(w.get("handle")) for w in wr if isinstance(w, dict)) if h is not None]
+    if not hs:
+        return {"v": None, "d": 0, "src": None, "why": "no watch row carries a citable handle"}
+    if prose is None:
+        return {"v": None, "d": len(hs), "src": None, "why": "no prose on the record"}
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415 -- the ONE handle parser
+    cited = _vf.cited_number_handles(prose)
+    return {"v": sum(1 for h in hs if h in cited), "d": len(hs), "src": prose_src, "why": "tested"}
+
+
+def _coverage_read(rec: dict, key: str, denom_key: str | None = None) -> dict:
+    """A producer's own coverage counter, read AS-IS -- quoted by the old report, so it is censused for
+    vacuity like any other instrument. ABSENT where the board measured no coverage or the key is missing."""
+    sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    cov = sb.get("coverage") if isinstance(sb.get("coverage"), dict) else None
+    if not cov or cov.get("declined") or not _is_count(cov.get(key)):
+        return {"v": None, "d": None, "src": None, "why": f"state_board.coverage.{key} absent"}
+    d = cov.get(denom_key) if denom_key else None
+    return {"v": int(cov[key]), "d": (int(d) if _is_count(d) else None),
+            "src": "state_board.coverage (render.board_coverage)", "why": "producer field"}
+
+
+# -- THE COUNT CHECK: a count the page spells out, against the counter the trace minted for its noun -----
+#: The trace's counter containers the check reads (all inside the registered `state_board` key). The NOUNS
+#: are never listed here: they are read off these containers' own keys (`_key_nouns`), plus CONTRACT
+#: C-I6's `state_board.served_counts[] = {noun, value}` where the block registers each count it printed.
+_COUNT_CONTAINERS = ("chain_counts", "coverage", "analogs")
+_KEY_WORD_RX = re.compile(r"[A-Z]?[a-z]+")
+_COUNT_CLAUSE_RX = re.compile(r"[.;:!?()\n]+|,\s+|\s+--\s+")
+_COUNT_BRACKET_RX = re.compile(r"\[[^\[\]\n]*\]")
+#: A clause carrying a citation handle reports a SERVED ROW or a cited document, and its figures are the
+#: verifier's to check (`verify._check_number_handle`); a board count is letters-only and carries no handle
+#: (`render.sb_chain_count`). MEASURED on the ten unseen 09-23 re-smoke pages before this rule: 9 of 38
+#: count/noun attachments were handle-bound position figures ("241,501 contracts [N31]") read as counts
+#: of the analog key `n_contracts`.
+_COUNT_HANDLED_CLAUSE_RX = re.compile(r"\[\s*[NE]\d", re.I)
+#: A signed number, a date or range glued by `-` / `/` (2026-12, 2-3) and a decimal or percent are one token
+#: each and none of them is a count: a count is a non-negative integer.
+_COUNT_TOKEN_RX = re.compile(r"[A-Za-z]+(?:-[A-Za-z]+)*|[-+]?\d[\d,]*(?:[-/]\d+)*(?:\.\d+)?%?")
+#: How many words after a count its noun may sit ("twenty-three other markets", "159 like states").
+_COUNT_NOUN_WINDOW = 3
+_SPELLED_COUNTS: dict = {}
+
+
+def _spelled_counts() -> dict:
+    """{words: n} for 0..999 -- the INVERSE of `state.rows.words_for_int`, the ONE producer of the page's
+    count words, built once. A count the block could have printed is a count this reads."""
+    if not _SPELLED_COUNTS:
+        # a leaf module that imports nothing from the estate, so eval still drags no `state/` machinery in
+        from leviathan.graphrag.state.rows import words_for_int  # noqa: PLC0415
+
+        _SPELLED_COUNTS.update({words_for_int(n): n for n in range(1000)})
+    return _SPELLED_COUNTS
+
+
+def _fold_noun(w: str) -> str:
+    """A plural folded to its singular so `chains` and `chain` are one noun (the morphology, not a list)."""
+    w = str(w or "").lower()
+    if len(w) > 4 and w.endswith("ies"):
+        return w[:-3] + "y"
+    if len(w) >= 4 and w.endswith("s") and not w.endswith("ss"):
+        return w[:-1]
+    return w
+
+
+def _key_nouns(key) -> set:
+    """The COUNT NOUNS a counter key names, read off the key itself: its plural words (`distinct_markets`
+    names markets, `loud_rows` rows, `n_candidates` candidates) and, for a `<noun>_counts` container, the
+    noun it counts (`chain_counts` counts chains). A key the producer renames moves the vocabulary with it."""
+    words = [w.lower() for w in _KEY_WORD_RX.findall(str(key or ""))]
+    nouns = {_fold_noun(w) for w in words if len(w) >= 4 and w.endswith("s") and not w.endswith("ss")}
+    if len(words) >= 2 and words[-1] in ("counts", "count"):
+        nouns.discard("count")
+        nouns.add(_fold_noun(words[0]))
+    return nouns
+
+
+def _count_pool(sb) -> dict:
+    """{noun: {values}} over every integer counter in the containers, each value filed under EVERY noun its
+    key PATH names: `chain_counts.distinct_sequences` answers for `chain` AND `sequence` (the count line
+    prints that number as "chains"), `analogs[i].n_candidates` for `analog` and `candidate`."""
+    pool: dict = {}
+    sb = sb if isinstance(sb, dict) else {}
+
+    def _walk(node, nouns: set, depth: int) -> None:
+        if depth > 3:
+            return
+        if isinstance(node, dict):
+            for k, v in node.items():
+                kn = nouns | _key_nouns(k)
+                if _is_count(v):
+                    for n in kn:
+                        pool.setdefault(n, set()).add(int(v))
+                elif isinstance(v, (dict, list)):
+                    _walk(v, kn, depth + 1)
+        elif isinstance(node, list):
+            for x in node:
+                if isinstance(x, (dict, list)):
+                    _walk(x, nouns, depth + 1)
+
+    for c in _COUNT_CONTAINERS:
+        if isinstance(sb.get(c), (dict, list)):
+            _walk(sb[c], _key_nouns(c), 0)
+    for x in (sb.get("served_counts") if isinstance(sb.get("served_counts"), list) else ()):
+        if isinstance(x, dict) and _is_count(x.get("value")):
+            words = _KEY_WORD_RX.findall(str(x.get("noun") or ""))
+            if words:
+                pool.setdefault(_fold_noun(words[-1]), set()).add(int(x["value"]))
+    return pool
+
+
+def _count_at(toks: list, i: int, table: dict):
+    """`(value, next_index)` for a count starting at `toks[i]`, or None. A digit count is an integer with no
+    decimal, no percent sign and not a bare calendar year (a thousands comma makes it a count); a spelled
+    count is read through `_spelled_counts`, with one `thousand` step."""
+    t = toks[i]
+    if t[0].isdigit():
+        if "." in t or t.endswith("%"):
+            return None
+        digits = t.replace(",", "")
+        if not digits.isdigit():
+            return None
+        v = int(digits)
+        if "," not in t and len(digits) == 4 and 1600 <= v <= 2099:
+            return None
+        return v, i + 1
+    for j in range(min(len(toks), i + 4), i, -1):
+        phrase = " ".join(x.lower() for x in toks[i:j])
+        if phrase in table:
+            v, k = table[phrase], j
+            if k < len(toks) and toks[k].lower() == "thousand":
+                v, k = v * 1000, k + 1
+                rest = _count_at(toks, k, table) if (k < len(toks) and not toks[k][0].isdigit()) else None
+                if rest is not None and rest[0] < 1000:
+                    v, k = v + rest[0], rest[1]
+            return v, k
+    return None
+
+
+def _count_check(prose, pool: dict) -> dict:
+    """Every count in the writer's prose (word or digit) that sits beside a noun the trace's own counter keys
+    mint, compared with EVERY counter under that noun. A FLOOR by construction: a printed count matching any
+    counter under its noun passes, so a mismatch is a count the trace carries under no key for that noun --
+    a figure the page served nowhere (a derived "the rest", a fused count, a stale one) -- or a count whose
+    producer registers it under no key yet (CONTRACT C-I6), which is why every mismatch is printed with its
+    clause. A count is read inside its own clause only, and a clause bound to a citation handle is a served
+    row's and is not read at all (`_COUNT_HANDLED_CLAUSE_RX`)."""
+    if not isinstance(prose, str) or not prose.strip() or not pool:
+        return {"checked": 0, "mismatches": []}
+    table = _spelled_counts()
+    checked, mism = 0, []
+    # every bracket is masked BEFORE the clause split (a grouped `[N41, N42]` carries its own comma), and a
+    # citation handle leaves a marker behind so its clause can be recognised as a served row's
+    text = _COUNT_BRACKET_RX.sub(
+        lambda m: " \x01 " if _COUNT_HANDLED_CLAUSE_RX.match(m.group(0)) else " ", prose)
+    for clause in _COUNT_CLAUSE_RX.split(text):
+        if "\x01" in clause:
+            continue
+        toks = _COUNT_TOKEN_RX.findall(clause)
+        i = 0
+        while i < len(toks):
+            got = _count_at(toks, i, table)
+            if got is None:
+                i += 1
+                continue
+            v, j = got
+            noun = None
+            for k in range(j, min(len(toks), j + _COUNT_NOUN_WINDOW)):
+                if _count_at(toks, k, table) is not None:
+                    break
+                if _fold_noun(toks[k]) in pool:
+                    noun = _fold_noun(toks[k])
+                    break
+            if noun is not None:
+                checked += 1
+                if v not in pool[noun]:
+                    mism.append({"noun": noun, "printed": v, "quote": " ".join(clause.split())[:200],
+                                 "trace_values": sorted(pool[noun])[:12]})
+            i = max(j, i + 1)
+    return {"checked": checked, "mismatches": mism}
+
+
+#: THE CENSUS's ROSTER: (name, kind, population). `kind` "bool" reports how many read True; "count" the sum.
+#: A name carrying "[producer]" is a producer's field read AS-IS -- the old report quoted it, so it is
+#: censused for vacuity beside the re-based reading that replaces it, and never blended with it.
+_INSTRUMENTS: tuple = (
+    ("n_sections", "count",
+     "'## ' headings rendered on the page, its Sources footer included"),
+    ("intent_ok", "bool",
+     "rows naming an expected intent whose router emitted a route; true where the deck's word is a word of "
+     "that row's own route (kind_history, then the lane)"),
+    ("tldr_direction", "bool",
+     "rows whose TL;DR DECLARED a direction (tldr_direction.declared) and whose board SETTLED one side more "
+     "often than the other; true where the two agree"),
+    ("tldr_direction.agree [producer]", "bool",
+     "answer._tldr_direction_trace's own flag: driver-sign basis (two_sided agrees with anything) against a "
+     "phrase match over the TL;DR"),
+    ("watch_cited", "count",
+     "watch rows whose citable [N] handle (state_board.watch_rows[].handle) the writer's prose cites"),
+    ("coverage.watch_cited [producer]", "count",
+     "render.board_coverage's tight watch read, over state_board.coverage.watch_rows"),
+    ("coverage.watch_referenced [producer]", "count",
+     "render.board_coverage's loose watch read, over state_board.coverage.watch_rows"),
+    ("coverage.events_referenced [producer]", "count",
+     "render.board_coverage's open-event read, over state_board.coverage.events_open"),
+    ("register_leaks", "count",
+     "internal tokens (register.register_leaks) left in the served body"),
+    ("desk_register_hits", "count",
+     "instrument words (register.desk_register_hits) on the page"),
+    ("count_mismatches", "count",
+     "counts (word or digit, outside handle-bound clauses) beside a noun the trace's own counter keys mint, "
+     "whose value no counter under that noun carries, of the counts checked -- a floor; until the block "
+     "registers what it printed (state_board.served_counts) a fan or anchor count the trace carries under no "
+     "key reads here too, so each one is quoted"),
+)
+
+
+def _instrument_row(rec: dict, r: dict | None = None) -> dict:
+    """ONE page's readings: `{name: {"v", "d", "src", "why"}}` -- `v` the reading (None = ABSENT), `d` the
+    page's own sub-denominator where the instrument has one (citable watch rows, counts checked), `src` the
+    text or field it read, `why` the reason it is absent. Plus two private carriers the census folds (the
+    page's count mismatches and whether the desk mandate ran on it)."""
+    rec = rec if isinstance(rec, dict) else {}
+    (body, body_src), (prose, prose_src) = _instrument_texts(rec, r)
+    out = r.get("out") if isinstance(r, dict) and isinstance(r.get("out"), dict) else None
+    if out is not None:
+        ns, ns_src = _n_sections_read(out)
+    elif body is not None:
+        ns, ns_src = _rendered_headings(body), body_src
+    else:
+        ns, ns_src = None, None
+    ok = rec.get("intent_ok")
+    td = rec.get("tldr_direction") if isinstance(rec.get("tldr_direction"), dict) else {}
+    agree = td.get("agree")
+    leaks = rec.get("register_leaks")
+    sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    pool = _count_pool(sb)
+    cc = _count_check(prose, pool)
+    desk = None
+    if body is not None:
+        try:
+            desk = len(reg.desk_register_hits(body))
+        except Exception:                               # noqa: BLE001 -- an instrument never breaks a report
+            desk = None
+    return {
+        "n_sections": {"v": ns, "d": None, "src": ns_src,
+                       "why": None if ns is not None else "no served body, no typed sections, no draft"},
+        "intent_ok": {"v": ok if isinstance(ok, bool) else None, "d": None, "src": "per-answer intent_ok",
+                      "why": None if isinstance(ok, bool) else "no expected intent, or no route emitted"},
+        "tldr_direction": _tldr_direction_read(rec),
+        "tldr_direction.agree [producer]": {
+            "v": agree if isinstance(agree, bool) else None, "d": None,
+            "src": "tldr_direction.agree" if isinstance(agree, bool) else None,
+            "why": None if isinstance(agree, bool) else "tldr_direction absent (GRAPHRAG_TLDR_COHERENCE off)"},
+        "watch_cited": _watch_cited_read(rec, prose, prose_src),
+        "coverage.watch_cited [producer]": _coverage_read(rec, "watch_cited", "watch_rows"),
+        "coverage.watch_referenced [producer]": _coverage_read(rec, "watch_referenced", "watch_rows"),
+        "coverage.events_referenced [producer]": _coverage_read(rec, "events_referenced", "events_open"),
+        "register_leaks": {"v": int(leaks) if _is_count(leaks) else None, "d": None,
+                           "src": "served body (the per-answer column)" if _is_count(leaks) else None,
+                           "why": None if _is_count(leaks) else "register_leaks absent"},
+        "desk_register_hits": {"v": desk, "d": None, "src": body_src if desk is not None else None,
+                               "why": None if desk is not None else "no page text on the record"},
+        "count_mismatches": {"v": (len(cc["mismatches"]) if cc["checked"] else None), "d": cc["checked"],
+                             "src": prose_src if cc["checked"] else None,
+                             "why": (None if cc["checked"] else
+                                     "no trace counter" if not pool else
+                                     "no prose" if prose is None else
+                                     "no count beside a noun the trace mints")},
+        "_mismatches": cc["mismatches"],
+        "_mandate": isinstance(rec.get("desk_register"), dict),
+    }
+
+
+def _safe_record(r: dict) -> dict:
+    """`_per_answer_record` for a report-time census, never raising: a report is written once per deck
+    after a paid arm, and one odd row must cost that row's readings, not the report."""
+    try:
+        return _per_answer_record(r, "convos" if ("convo" in r and "q" not in r) else "single")
+    except Exception:                                   # noqa: BLE001
+        return {"id": str(((r or {}).get("q") or {}).get("id"))}
+
+
+def instrument_census(per: list | None = None, rows: list | None = None) -> dict:
+    """THE CENSUS: every instrument of `_INSTRUMENTS` over a deck, with its value, its population, its
+    denominator `n` (the pages that carried a reading), how many DISTINCT readings it took, and whether it
+    is VACUOUS -- at least `_VACUITY_MIN_N` readings, all one value. None where the deck is too small to
+    tell; the report never quotes a vacuous instrument as a result.
+
+    `per` is a deck's per-answer records (a banked baseline's `per_answer`, read alone at $0) and `rows` the
+    live rows they were built from, when the caller holds them (the served body and the deck's expected
+    intents come from there). Either may be given; `rows` alone builds `per` through `_per_answer_record`.
+
+    THE DECK-LEVEL READS live here because only the deck can make them:
+      * THE INTENT VOCABULARY. A row whose expected word(s) the router emitted on NO row of this run is a
+        VOCABULARY MISMATCH -- named, removed from `intent_ok`'s denominator, never scored as a routing fail.
+      * THE REGISTER, PER CELL. `register_leaks` AND `desk_register_hits`, each with its population, split
+        by whether the desk mandate ran on the row (`desk_register` on the record) -- the two numbers the
+        precondition line quoted as one.
+      * THE COUNT MISMATCHES, each with its quote and the values the trace carries under its noun."""
+    import collections
+    if per is None:
+        per = [_safe_record(r) for r in (rows or []) if isinstance(r, dict)]
+    per = [p if isinstance(p, dict) else {} for p in (per or [])]
+    rows = rows if (isinstance(rows, list) and len(rows) == len(per)) else None
+    reads = [_instrument_row(p, rows[i] if rows is not None else None) for i, p in enumerate(per)]
+    vocab = None
+    if rows is not None:
+        adj, vocab = _deck_intent_reads(rows)
+        _mism = set(vocab["mismatched_rows"])
+        for i, rd in enumerate(reads):
+            _rid = str(((rows[i] or {}).get("q") or {}).get("id")) if isinstance((rows[i] or {}).get("q"),
+                                                                                 dict) else None
+            rd["intent_ok"] = {
+                "v": adj[i], "d": None, "src": ("the deck-adjudicated route read" if adj[i] is not None else None),
+                "why": (None if adj[i] is not None else
+                        "vocabulary mismatch: the router emitted this row's word on no row" if _rid in _mism else
+                        "no expected intent, or no route emitted")}
+    census: dict = {}
+    for name, kind, population in _INSTRUMENTS:
+        cells = [rd[name] for rd in reads]
+        vals = [c["v"] for c in cells if c["v"] is not None]
+        n = len(vals)
+        ds = [c["d"] for c in cells if c["v"] is not None and c["d"] is not None]
+        distinct = len({repr(v) for v in vals})
+        census[name] = {
+            "kind": kind,
+            "value": (None if not n else                  # ABSENT on every page is no value, never a 0
+                      sum(1 for v in vals if v is True) if kind == "bool" else sum(int(v) for v in vals)),
+            "n": n,
+            "denominator": (sum(int(d) for d in ds) if ds else None),
+            "distinct": distinct,
+            "vacuous": (None if n < _VACUITY_MIN_N else distinct == 1),
+            "constant": (vals[0] if (vals and distinct == 1) else None),
+            "population": population,
+            "sources": dict(collections.Counter(str(c["src"]) for c in cells if c["v"] is not None)),
+            "absent": dict(collections.Counter(str(c["why"]) for c in cells if c["v"] is None)),
+        }
+    cells_reg: dict = {}
+    for i, rd in enumerate(reads):
+        c = cells_reg.setdefault("mandate-lit" if rd["_mandate"] else "mandate-dark",
+                                 {"pages": 0, "register_leaks": 0, "register_leak_pages": 0, "register_n": 0,
+                                  "desk_register_hits": 0, "desk_hit_pages": 0, "desk_n": 0,
+                                  "desk_sources": {}})
+        c["pages"] += 1
+        lv, dv = rd["register_leaks"]["v"], rd["desk_register_hits"]["v"]
+        if lv is not None:
+            c["register_n"] += 1
+            c["register_leaks"] += lv
+            c["register_leak_pages"] += 1 if lv else 0
+        if dv is not None:
+            c["desk_n"] += 1
+            c["desk_register_hits"] += dv
+            c["desk_hit_pages"] += 1 if dv else 0
+            s = str(rd["desk_register_hits"]["src"])
+            c["desk_sources"][s] = c["desk_sources"].get(s, 0) + 1
+    return {"vacuity_min_n": _VACUITY_MIN_N, "pages": len(per),
+            "census": census,
+            "vacuous": [k for k, v in census.items() if v["vacuous"]],
+            "intent_vocabulary": vocab,
+            "register_cells": cells_reg,
+            "count_mismatches": [{"id": str(per[i].get("id")), **m}
+                                 for i, rd in enumerate(reads) for m in rd["_mismatches"]],
+            "rows": [{"id": str(per[i].get("id")), **{k: rd[k]["v"] for k, _, _ in _INSTRUMENTS}}
+                     for i, rd in enumerate(reads)]}
+
+
+def _instrument_census_safe(per: list | None, rows: list | None) -> dict:
+    """The census for an ARTIFACT, never raising: a failure is NAMED in the key rather than losing the
+    baseline a paid arm just wrote."""
+    try:
+        return instrument_census(per, rows)
+    except Exception as e:                              # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {str(e)[:160]}"}
+
+
+def _census_value(c: dict) -> str:
+    if c["kind"] == "bool":
+        return f"{c['value']} of {c['n']} true"
+    return f"{c['value']}" + (f" of {c['denominator']}" if c.get("denominator") is not None else "")
+
+
+def instrument_report(census: dict) -> list[str]:
+    """The census as report lines, ONE producer for the markdown and the JSON: every instrument prints
+    `<name>: <value> (population: <what it counted>, n=<denominator>)`; an ABSENT one says so and why; a
+    VACUOUS one is NOT quoted -- its line says what it read on every page, and the "vacuous instruments" line
+    names it. [] for an empty deck."""
+    if not isinstance(census, dict):
+        return []
+    if census.get("error"):
+        return ["## Instrument readings", "",
+                f"- **the instrument census FAILED on this deck and reads nothing: {census['error']}**"]
+    if not census.get("pages"):
+        return []
+    cen = census.get("census") or {}
+    L = ["## Instrument readings (every instrument with its population and its denominator)", ""]
+    for name, _kind, _pop in _INSTRUMENTS:
+        c = cen.get(name)
+        if not c:
+            continue
+        src = "; ".join(f"{s} x{k}" for s, k in sorted(c["sources"].items()))
+        pop = c["population"] + (f"; read from {src}" if src else "")
+        if not c["n"]:
+            why = "; ".join(f"{w} x{k}" for w, k in sorted(c["absent"].items()))
+            L.append(f"- {name}: ABSENT on every page (population: {pop}, n=0) -- {why}")
+        elif c["vacuous"]:
+            L.append(f"- {name}: NOT QUOTED -- VACUOUS, it read {c['constant']!r} on every one of its pages "
+                     f"(population: {pop}, n={c['n']})")
+        else:
+            tail = ("" if c["vacuous"] is False else
+                    f" -- too few pages to test for vacuity (< {census['vacuity_min_n']})")
+            L.append(f"- {name}: {_census_value(c)} (population: {pop}, n={c['n']}){tail}")
+    vac = census.get("vacuous") or []
+    L.append(f"- **vacuous instruments** (at least {census['vacuity_min_n']} pages, one reading on all of them "
+             f"-- broken on this deck and never a result): " + (", ".join(vac) if vac else "none"))
+    vo = census.get("intent_vocabulary")
+    if vo:
+        L.append(f"- intent vocabulary: the deck expects {vo['deck_words']}; the router emitted "
+                 f"{vo['router_words']} (words on the rows' own routes)"
+                 + (f"; **{len(vo['mismatched_rows'])} row(s) expect a word the router emitted on NO row of "
+                    f"this run ({', '.join(vo['unmatched_words'])}) -- a VOCABULARY MISMATCH, reported and "
+                    f"never scored as a routing fail**: {vo['mismatched_rows'][:8]}"
+                    if vo["mismatched_rows"] else ""))
+    for cell, c in sorted((census.get("register_cells") or {}).items()):
+        dsrc = "; ".join(f"{s} x{k}" for s, k in sorted(c["desk_sources"].items())) or "no page text"
+        L.append(f"- register, {cell} cell ({c['pages']} page(s)): register_leaks: {c['register_leaks']} on "
+                 f"{c['register_leak_pages']} page(s) (population: internal tokens in the served body, "
+                 f"n={c['register_n']}) | desk_register_hits: {c['desk_register_hits']} on "
+                 f"{c['desk_hit_pages']} page(s) (population: instrument words, read from {dsrc}, "
+                 f"n={c['desk_n']}). TWO POPULATIONS: a 0 in the first says nothing about the second")
+    cm = census.get("count_mismatches") or []
+    for m in cm[:10]:
+        L.append(f"  - count mismatch `{m['id']}`: printed {m['printed']} {m['noun']}(s); the trace carries "
+                 f"{m['trace_values']} under that noun -- \"{m['quote']}\"")
+    if len(cm) > 10:
+        L.append(f"  - ... and {len(cm) - 10} more count mismatch(es) in the artifact's `instruments` key")
+    return L
+
+
+def _instrument_panel(rows: list[dict]) -> list[str]:
+    """`report()`'s panel: the census over the live rows, never raising (a report is written once per deck)."""
+    return instrument_report(_instrument_census_safe(None, rows)) if rows else []
+
+
 def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool, eval_set: str,
                    graph_version: str | None, corpus_fp: str, via_orchestrator: bool = False,
                    mode: str | None = None, row_filter: dict | None = None) -> dict:
@@ -4858,7 +5594,12 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             # is ABSENT (not null, not empty) on every unfiltered run -- which keeps the byte-shape of
             # every artifact written before this key existed exactly as it was.
             **({"row_filter": row_filter} if row_filter else {}),
-            "per_answer": per}
+            "per_answer": per,
+            # LANE I (fix sitting 2) -- APPENDED AFTER `per_answer`, never interleaved: the instrument census
+            # (`instrument_census`), every instrument's value BESIDE its population and its denominator, the
+            # deck's vacuous instruments by name, the intent vocabulary, the register per cell and every
+            # count mismatch with its quote. The per-answer records above are untouched.
+            "instruments": _instrument_census_safe(per, rows)}
 
 
 def _successor_totals(per: list[dict]) -> dict:
@@ -5213,6 +5954,10 @@ def _write_baseline(doc: dict) -> None:
           f"strip_rate {doc['strip_rate']}, {doc['total_claims']} claims, "
           f"leaks {doc['register_leaks_total']}, mood {doc.get('banned_mood_words_total', 0)}, "
           f"scaffold_viol {doc.get('scaffold_violations', 0)}, intent {doc['intent_ok']}/{doc['intent_n']})")
+    _ins = doc.get("instruments")
+    if isinstance(_ins, dict) and "vacuous" in _ins:              # LANE I: named at write time, never quoted
+        print(f"  instruments: {len(_ins.get('census') or {})} censused over {_ins.get('pages')} page(s); "
+              f"vacuous: {', '.join(_ins['vacuous']) or 'none'}")
 
 
 def grounding_report(rows: list[dict]) -> list[str]:
@@ -5288,7 +6033,9 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
            judge_requested: bool = False) -> str:
     routed = sum(r["rubric"]["routed_right"] for r in rows)
     judged = [r["judge"] for r in rows if r.get("judge")]
-    intent_rows = [r for r in rows if r["rubric"].get("expected_intent")]
+    # LANE I: the header's intent line is the deck-adjudicated read over the rows it could SCORE -- the same
+    # producer `routing_report` and the census read (`_deck_intent_reads`), so the three can never disagree.
+    intent_rows = [a for a in _deck_intent_reads(rows)[0] if a is not None]
     lines = [f"# graphdev eval v3 — {model}", ""]
     # Run-validity gate (2026-07-19 RCA 8b): a run where the synthesis tier floored a material share
     # of turns measures the OUTAGE, not the pipeline -- its judge/strip aggregates must never be
@@ -5323,8 +6070,10 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
         lines.append(f"- **JUDGED {len(judged)}/{len(rows)}** — {len(rows) - len(judged)} judge call(s) "
                      "FAILED (see WARNs in the job log); judge averages cover judged rows only")
     if intent_rows:
-        iok = sum(1 for r in intent_rows if r["rubric"].get("intent_ok"))
-        lines.append(f"- **intent routed correctly: {iok}/{len(intent_rows)}** (numbers_only / reasoning / hybrid)")
+        iok = sum(1 for a in intent_rows if a)
+        lines.append(f"- **intent routed correctly: {iok}/{len(intent_rows)}** (numbers_only / reasoning / hybrid; "
+                     f"population: rows naming an expected intent whose router emitted a route, "
+                     f"n={len(intent_rows)})")
     if judged:
         j_avg = lambda key: sum(j.get(key, 0) for j in judged) / len(judged)  # noqa: E731
         halluc = sum(_n_halluc(j) for j in judged)
@@ -5336,6 +6085,12 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
     if any((r["out"].get("trace") or {}).get("planner") == "l2" for r in rows):
         lines += planner_report(rows) + [""]                           # L2 grounded-subgraph cascade panel
     lines += register_report(rows) + [""]                              # output-register discipline (leaked internal tokens)
+    # LANE I (fix sitting 2): EVERY instrument with its population and its denominator, the deck's VACUOUS
+    # instruments named rather than quoted, the register per cell in both populations, and each count the
+    # page printed that no trace counter under its noun carries. Never raises (`_instrument_panel`).
+    _inst_panel = _instrument_panel(rows)
+    if _inst_panel:
+        lines += _inst_panel + [""]
     # PRE-ARM E7: the S7 / S7b instruments. ABSENT on a deck with no board and no desk-register census,
     # so every banked report of every flag-off deck is byte-identical -- `state_report` returns [] and
     # the `if` never adds the blank line either.
@@ -5842,8 +6597,18 @@ def main() -> int:
     ap.add_argument("--convos", default=None,
                     help="conversation yaml -> multi-turn session eval (turns sequential per convo, convos "
                          "parallel; mechanics + continuity judge + cache/speed panels)")
+    ap.add_argument("--instruments-from", default=None,
+                    help="LANE I: re-read a BANKED baseline JSON's per_answer records through the instrument "
+                         "census ($0, no model call, no graph) and print every instrument with its population, "
+                         "its denominator and the deck's VACUOUS instruments")
     args = ap.parse_args()
     from pathlib import Path
+    if args.instruments_from:
+        import json as _json
+        _doc = _json.loads(Path(args.instruments_from).read_text(encoding="utf-8"))
+        _txt = "\n".join(instrument_report(instrument_census(list(_doc.get("per_answer") or []))))
+        print(_txt.encode("ascii", "backslashreplace").decode("ascii"))    # the console is cp1252
+        return 0
     if args.convos:
         if args.only_ids:                             # a convo deck has no ROW ids -- refuse rather than
             raise ValueError("--only-ids selects rows of a --queries deck and has no meaning for "

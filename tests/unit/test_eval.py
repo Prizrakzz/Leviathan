@@ -564,14 +564,20 @@ def test_baseline_json_carries_cascade_fields_and_arm_flags(monkeypatch):
 
 def test_baseline_json_carries_n_sections_and_answer_v2_arm(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_ANSWER_V2", "on")                  # P9-C arm identity + derived-view count
-    rows = [_mk_row("a", 0, 4, 2), _mk_row("b", 0, 6, 2)]
+    rows = [_mk_row("a", 0, 4, 2, answer="## Mechanism\nx"), _mk_row("b", 0, 6, 2),
+            _mk_row("c", 0, 6, 2, answer=""), _mk_row("d", 0, 6, 2, answer="")]
     rows[0]["out"]["structured"] = {"mechanism": "## Mechanism\nx",
                                     "sections": [{"kind": "mechanism", "heading": "Mechanism", "body": "x"}]}
+    rows[2]["out"]["structured"] = {"sections": [{"kind": "mechanism"}, {"kind": "record"}]}
     doc = gev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="v4",
                              graph_version="g", corpus_fp="c")
     assert doc["answer_v2"] == "on"
-    assert doc["per_answer"][0]["n_sections"] == 1
-    assert doc["per_answer"][1]["n_sections"] == 0                  # no structured/sections -> 0, never KeyError
+    # LANE I (fix sitting 2): RE-BASED ON THE RENDERED PAGE -- the served body's `## ` headings; the typed
+    # sections only where no body was served; ABSENT (None) where neither exists, never a fabricated 0.
+    assert doc["per_answer"][0]["n_sections"] == 1                  # the served body renders one heading
+    assert doc["per_answer"][1]["n_sections"] == 0                  # a served body with no heading: a real 0
+    assert doc["per_answer"][2]["n_sections"] == 2                  # no body served -> the typed sections
+    assert doc["per_answer"][3]["n_sections"] is None               # neither -> ABSENT, never 0
     monkeypatch.delenv("GRAPHRAG_ANSWER_V2")
     doc2 = gev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="v4",
                               graph_version="g", corpus_fp="c")
