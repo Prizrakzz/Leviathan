@@ -15,7 +15,6 @@ arming word. Hermetic: injected fake client, no provider, no network.
 from __future__ import annotations
 
 import pytest
-
 from leviathan.graphrag.numbers import agent as NA
 
 
@@ -167,7 +166,9 @@ def test_the_writer_seam_never_arms_a_borrowed_haiku_call(monkeypatch):
     # writer-only -- route_llm borrows it with model=HAIKU (answer.py:1951). An armed synth
     # seam must go inert on that call instead of 400ing the ROUTER and killing the answer
     # before the writer runs. The writer's own opus call must still arm.
-    from leviathan.graphrag import answer as an, providers as pv, extract as ex
+    from leviathan.graphrag import answer as an
+    from leviathan.graphrag import extract as ex
+    from leviathan.graphrag import providers as pv
     monkeypatch.setenv("GRAPHRAG_SYNTH_THINKING", "adaptive")
     seen = []
 
@@ -186,7 +187,8 @@ def test_the_writer_seam_never_arms_a_borrowed_haiku_call(monkeypatch):
 def test_the_writer_seams_carry_the_provider_gate_too(monkeypatch):
     # Q-0 refuter catch (2026-08-28): the writer seams gated on SEAT only -- a bedrock arm would
     # ship thinking/output_config onto the legacy InvokeModel path (unretryable 400, not a null).
-    from leviathan.graphrag import answer as an, providers as pv
+    from leviathan.graphrag import answer as an
+    from leviathan.graphrag import providers as pv
     monkeypatch.setenv("GRAPHRAG_SYNTH_THINKING", "adaptive")
     monkeypatch.setenv("GRAPHRAG_SYNTH_EFFORT", "xhigh")
     monkeypatch.setenv("GRAPHRAG_PROVIDER", "bedrock")
@@ -204,3 +206,74 @@ def test_the_writer_seams_carry_the_provider_gate_too(monkeypatch):
     an._call_opus("s", "u", model="claude-opus-5", tool={"name": "emit"})
     assert seen[-1].get("thinking") == {"type": "adaptive"}
     assert seen[-1].get("output_config") == {"effort": "xhigh"}
+
+
+# ── 09-29: THE THINKING CEILING (the research probe: 4 of 4 armed writer turns stopped at max_tokens=12000) ──
+def _writer_lanes(monkeypatch):
+    from leviathan.graphrag import providers as pv
+    seen = {"buffered": [], "streamed": []}
+
+    def buffered(client, system, user, **kw):
+        seen["buffered"].append(kw)
+        return {"ok": True}, None
+
+    def streamed(client, system, user, *, on_token, **kw):
+        seen["streamed"].append(dict(kw, on_token=on_token))
+        return {"ok": True}, None
+
+    monkeypatch.setattr(pv, "serving_call", buffered)
+    monkeypatch.setattr(pv, "serving_call_stream", streamed)
+    monkeypatch.setattr(pv, "make_client", lambda: object())
+    return seen
+
+
+def test_the_armed_writer_takes_the_thinking_ceiling_on_the_streamed_lane(monkeypatch):
+    from leviathan.graphrag import answer as an
+    monkeypatch.setenv("GRAPHRAG_SYNTH_THINKING", "adaptive")
+    monkeypatch.setenv("GRAPHRAG_PROVIDER", "anthropic")
+    seen = _writer_lanes(monkeypatch)
+    for seat in ("claude-opus-5", "claude-opus-5-5"):
+        an._call_opus("s", "u", model=seat, tool={"name": "emit"})
+        kw = seen["streamed"][-1]
+        assert kw["thinking"] == {"type": "adaptive"}
+        assert kw["max_tokens"] == an.THINKING_MAX_TOKENS == 48000
+        assert callable(kw["on_token"])
+    assert seen["buffered"] == []
+
+
+def test_the_thought_free_writer_is_head_the_turn_default_on_the_buffered_lane(monkeypatch):
+    from leviathan.graphrag import answer as an
+    monkeypatch.delenv("GRAPHRAG_SYNTH_THINKING", raising=False)
+    seen = _writer_lanes(monkeypatch)
+    an._call_opus("s", "u", model="claude-opus-5", tool={"name": "emit"})
+    assert seen["streamed"] == []
+    assert seen["buffered"][-1]["max_tokens"] == 12000 and "thinking" not in seen["buffered"][-1]
+
+
+def test_a_caller_ceiling_outranks_the_thinking_ceiling(monkeypatch):
+    from leviathan.graphrag import answer as an
+    monkeypatch.setenv("GRAPHRAG_SYNTH_THINKING", "adaptive")
+    monkeypatch.setenv("GRAPHRAG_PROVIDER", "anthropic")
+    seen = _writer_lanes(monkeypatch)
+    an._call_opus("s", "u", model="claude-opus-5", tool={"name": "emit"}, max_tokens=16000)
+    assert seen["streamed"][-1]["max_tokens"] == 16000
+
+
+def test_a_borrowed_haiku_call_and_a_pinned_temperature_stay_buffered(monkeypatch):
+    from leviathan.graphrag import answer as an
+    from leviathan.graphrag import extract as ex
+    monkeypatch.setenv("GRAPHRAG_SYNTH_THINKING", "adaptive")
+    monkeypatch.setenv("GRAPHRAG_PROVIDER", "anthropic")
+    seen = _writer_lanes(monkeypatch)
+    an._call_opus("s", "u", model=ex.HAIKU, tool={"name": "pick_contracts"})
+    an._call_opus("s", "u", model=ex.HAIKU, tool={"name": "plan"}, temperature=0)
+    assert seen["streamed"] == []
+    assert [k["max_tokens"] for k in seen["buffered"]] == [12000, 12000]
+    assert all("thinking" not in k for k in seen["buffered"])
+
+
+def test_the_5_5_seats_carry_a_price_row():
+    from leviathan.graphrag import providers as pv
+    assert pv.SERVING_PRICES["claude-opus-5-5"] == (4.0, 20.0)
+    assert pv.SERVING_PRICES["claude-sonnet-5-5"] == (2.0, 10.0)
+    assert pv.serving_cost_usd("claude-opus-5-5", 1_000_000, 1_000_000) == 24.0

@@ -18567,6 +18567,15 @@ def _synth_plain_evidence_on() -> bool:
             not in ("off", "0", "false", "no"))
 
 
+#: The writer's output ceiling when it THINKS (GRAPHRAG_SYNTH_THINKING=adaptive on a capable seat). The ceiling
+#: covers thinking plus the page; see `_call_opus`. 48,000 = four times the thought-free turn default.
+THINKING_MAX_TOKENS = 48000
+
+
+def _no_token(_piece: str) -> None:
+    """The streamed lane's callback when no reader is attached (the eval lane, a POST turn)."""
+
+
 def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temperature=None,
                max_tokens: int | None = None, effort: str | None = None) -> dict:
     """The real serving call — provider-routed (Anthropic API or Bedrock via providers.py) with the
@@ -18671,6 +18680,16 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
         #                 the router on a pre-4.6 seat, killing the answer before the writer runs.
     if _think is not None:
         kw["thinking"] = _think                        # both serving lanes accept it
+        # 09-29 THE THINKING CEILING (owner word: "expand the ceiling ... stop shooting ourselves in the
+        # foot"). `max_tokens` covers the model's THINKING plus the page, and thinking is billed as output.
+        # MEASURED on the research probe of 2026-09-29: four of four armed writer turns (claude-opus-5 and
+        # claude-opus-5-5, max tier) stopped at max_tokens=12000 with no page at all -- the turn default was
+        # sized for a thought-free writer (largest measured page 6,285 output tokens). The armed call takes
+        # THINKING_MAX_TOKENS unless its caller passed a ceiling of its own, and it rides the STREAMED lane
+        # (below): the buffered lane's transport bound is ~16k (the note above). A ceiling is not a spend:
+        # only generated tokens are billed. Unset GRAPHRAG_SYNTH_THINKING = HEAD, byte for byte.
+        if max_tokens is None:
+            kw["max_tokens"] = THINKING_MAX_TOKENS
     # Q-0 EFFORT: mode > env (the synth_model F5 precedence, one rung lower) -- a per-turn preset knob
     # must beat a process-wide default, or a task env would silently strip the tier the measurement
     # shipped it on. `effort` arrives ONLY from the mode-knob thread at the synthesis call site;
@@ -18681,8 +18700,11 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
             and pv.supports_effort(model)):            # provider gate + the EFFORT-probed seat set (F3:
         kw["output_config"] = _eff                     # ADAPTIVE_SEATS is a THINKING roster; 4-6/4-x are
         #                                                effort-UNPROBED and every banked arm ran opus-5)
-    if on_token is not None:
-        out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
+    _on_token = on_token
+    if _on_token is None and _think is not None and temperature is None:
+        _on_token = _no_token                          # the armed writer streams even with nobody listening
+    if _on_token is not None:
+        out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=_on_token, **kw)
     else:
         if temperature is not None:
             kw["temperature"] = temperature    # dispatch-only kw (D18); dropped if ever paired with on_token

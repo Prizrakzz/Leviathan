@@ -270,6 +270,11 @@ SERVING_PRICES: dict[str, tuple[float, float]] = {   # alias -> ($/MTok input, $
     "claude-haiku-4-5": (1.0, 5.0),
     "claude-opus-4-8": (5.0, 25.0),
     "claude-opus-5": (5.0, 25.0),
+    # 09-29: the 5.5 family, list price (platform docs read 2026-09-29), so a trial turn reports a measured
+    # cost instead of an absent one. NOTE: `serving_cost_usd` prices a cache read at 0.1x input; Opus 5.5's
+    # is 0.05x ($0.20 on $4), so its cache reads are OVERSTATED 2x here (docketed with the seat trial).
+    "claude-opus-5-5": (4.0, 20.0),
+    "claude-sonnet-5-5": (2.0, 10.0),
 }
 
 
