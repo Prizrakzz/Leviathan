@@ -244,9 +244,19 @@ def test_the_refusal_is_byte_identical_to_head_wherever_the_clause_does_not_fire
         f"call with one of the listed values (and say out loud, in the answer, which commodity and which "
         f"geography the figure belongs to), or find another table -- do NOT substitute a different "
         f"commodity's number for the one that was asked about. Nothing was queried.")
+    # FIX SITTING 2 (lane Q, Q-3 / PC-3) -- RE-BANKED, DECLARED. 'cocoa' is a commodity the estate's declared
+    # hierarchy KNOWS and the PSD universe does not carry, so it is now a `no_series` DECLINE: HEAD's message
+    # comes back VERBATIM behind ONE lead sentence naming the scope fact (the closed set -- the remedy -- is
+    # kept whole). A name no resolver knows keeps HEAD's refusal to the byte.
     with pytest.raises(A.CommodityOffCard) as e:
         A._check_commodity_class(_spec(tid, cid), reg)
-    assert str(e.value) == head
+    assert isinstance(e.value, A.CommodityNoSeries)
+    assert str(e.value) == A.no_series_note(tid, cid) + " " + head
+    unknown = "unobtainium"
+    with pytest.raises(A.CommodityOffCard) as e2:
+        A._check_commodity_class(_spec(tid, unknown), reg)
+    assert not isinstance(e2.value, A.CommodityNoSeries)
+    assert str(e2.value) == head.replace(repr(cid), repr(unknown))
 
 
 def test_an_undeclared_card_and_a_blank_commodity_are_untouched():

@@ -200,8 +200,12 @@ def test_a_the_quorum_row_carries_no_firing_claim_and_no_internal_vocabulary():
             assert banned not in low, banned
         for lingo in ("loudest rows", "declared drivers", "the pattern's own threshold", "in force"):
             assert lingo not in low, lingo
-    assert "the count here is short of that number" in short
-    assert "the count here is at or past that number" in met
+    # 09-26 S2 RE-BANK (lane N, N-2 / CONTRACT Y17): the line states the TWO NUMBERS and no comparison of them --
+    # "so the count here is at or past that number" read as the verdict on arm A (tariff F-N10, rice N-P).
+    assert "it asks for five, and three are counted here" in short
+    assert "it asks for two, and three are counted here" in met
+    for line in (short, met):
+        assert "short of that number" not in line and "at or past that number" not in line
 
 
 def test_a_the_non_opposed_join_stops_saying_the_false_sentence_and_names_the_alias():
@@ -368,9 +372,10 @@ def test_g_and_k_the_like_state_absence_is_a_ROW_and_it_hands_over_the_word_EPIS
     the section printed NOTHING. And the deep page declared no past state is like the present one and
     then wrote "on the 2011 analogue window" -- the writer had no other word for a dated window."""
     line = R.sb_analog_leg_absence("no_like_state")
-    assert line.startswith("BOARD ABSENCE a like state on this page: ")
+    # 09-26 S2 RE-BANK (lane N, N-1): the label and the sentence name the reader's objects, not "this page"
+    assert line.startswith("BOARD ABSENCE a like state on these markets: ")
     assert "no past state on this series is like this one under the likeness rule" in line
-    assert "this page carries no analogue and no base rate drawn from one" in line
+    assert "so no analogue is carried here and no base rate is drawn from one" in line
     assert "is an EPISODE -- a stretch of the record named by its dates" in line
     assert R.classify(line) == ("SB-X",)
     assert not any(ch.isdigit() for ch in line), "SB-X is letters and ISO dates only"
@@ -490,11 +495,13 @@ def test_M3_a_TIED_undeclared_fold_names_the_tie_and_issues_NO_instruction():
     tied = R.sb_phase_pair(_B40_FX, "CME palm oil", opposed=True, keep="IDR USD", keep_tied=True)
     assert "Read it under IDR USD" not in tied
     assert "declares them at the same confidence" in tied
-    assert "does not offer one" in tied
+    # 09-26 S2 RE-BANK (lane N, N-1): "this page does not offer one" -> the record's own ground
+    assert "the record gives no ground for preferring one of these names over another and none is offered" in tied
     # where one link IS strictly the highest-confidence one it is named AS THAT, and not as a
     # preference this page invented -- the fact is the graph's, never the tie-breaker's
     ranked = R.sb_phase_pair(_B40_FX, "CME palm oil", opposed=True, keep="MYR USD", keep_tied=False)
-    assert "MYR USD is the one of them the graph declares at the highest confidence" in ranked
+    # 09-26 S2 RE-BANK (lane N, N-1): "the graph" -> the reader's word for the declared model
+    assert "MYR USD is the one of them the model declares at the highest confidence" in ranked
     assert "same confidence" not in ranked
 
 
@@ -512,7 +519,9 @@ def test_M4_the_TWO_FOLDS_AGREE_because_they_read_the_same_two_facts():
                                      matched=("IDR_USD", "MYR_USD"),
                                      matched_measured=("IDR_USD", "MYR_USD"), n_matched=2,
                                      n_declared=3, threshold=2), series_of=smap)
-    assert "are one reading the graph signs differently here, and count once" in line
+    # 09-26 S2 RE-BANK (lane N, N-1): the fold words name the model, read off the ONE declared map
+    assert R.FOLD_RELATION_WORDS["unreconciled"] in line
+    assert R.FOLD_RELATION_WORDS["unreconciled"] == "are one reading the model signs differently here, and count once"
     assert "are one reading and count once here" not in line, "the ALIAS words are a DIFFERENT claim"
     # (2) A DECLARED PHASE PAIR reads as phases on BOTH lines, never as an alias of one another
     pf = R.phase_in_force("silver_noaa_oni", "oni_anom", 0.2)          # inside the line: none in force
@@ -677,14 +686,19 @@ def test_M9_showing_here_is_said_only_of_the_rows_that_WERE_READ():
     # RE-ANCHORED (review round 3, NEW-2): "are ON THIS PAGE" was false of a board carrying a
     # phase-opposed member, which is on the page and deliberately not in this number. The number is
     # the quorum's and did not move; the VERB now says which number it is.
-    assert "so four of the four are counted here" in line
-    assert "it asks for two, so the count here is at or past that number" in line
+    # 09-26 S2 RE-BANK (lane N, N-2 / Y17): the three unread conditions are NAMED and NOT COUNTED -- HEAD counted
+    # "four of the four" on one read condition; the count is the one reading
+    assert "three more are named by the pattern with no series read here, so not counted" in line
+    assert "it asks for two, and one is counted here" in line
+    assert "four of the four" not in line
     assert R.classify(line) == ("SB-C",), "the class token survives the rewording"
     # a pattern with NOTHING read says so and never says "showing"
     none_read = R.sb_convergence(_pattern(matched_measured=(), n_matched=3,
                                           matched_unmeasured=("a", "b", "c"), n_declared=3))
     assert "none of the three conditions it names is showing here" in none_read
-    assert "all three are named by the pattern with no series read here" in none_read
+    # 09-26 S2 RE-BANK (lane N, N-2): named in their own clause, not counted, and the count is none
+    assert "three are named by the pattern with no series read here, so not counted (a, b and c)" in none_read
+    assert "it asks for two, and none of them is counted here" in none_read
     assert R.classify(none_read) == ("SB-C",)
 
 
@@ -837,11 +851,15 @@ def test_NEW2_the_count_and_the_ENUMERATION_agree_on_the_b40_oversupply_row():
     # read here for ending stocks), so it counts against the pattern here". THE COUNT DID NOT MOVE (three of
     # the five counted); the sentence now names all five: one showing + one phase-opposed + one against + two
     # unread.
-    assert "so three of the five are counted here" in line
+    # 09-26 S2 RE-BANK (lane N, N-2 / Y17): the two unread conditions (export pace lag, USD index) are named and
+    # NOT counted -- HEAD's "three of the five" was one reading plus two conditions read nowhere. The count is one;
+    # the five still reach the reader: one showing + one phase-opposed + one against + two unread.
+    assert "it asks for three, and one is counted here" in line
+    assert "three of the five" not in line
     assert "are on this page" not in line
     assert "one of the five conditions it names is showing here" in line
     assert "so it is not counted here" in line
-    assert "two more are named by the pattern with no series read here" in line
+    assert "two more are named by the pattern with no series read here, so not counted" in line
     assert ("; one of them reads in the tail opposite the one the pattern names (Malaysian closing palm oil "
             "stocks, read here for ending stocks), so it counts against the pattern here; two more") in line
     for name in ("read here for La Nina", "IOD negative", "read here for ending stocks", "export pace lag",
@@ -852,11 +870,18 @@ def test_NEW2_the_count_and_the_ENUMERATION_agree_on_the_b40_oversupply_row():
     assert _ov["against"] == ("ending_stocks",) and _ov["unsided"] == ()
     assert (len(_ov["matched"]) + len(_ov["against"]) + len(_ov["unsided"])) == _ov["n_declared"]
     assert R.classify(line) == ("SB-C",)
-    # ONE PAGE, ONE PATTERN, ONE COUNT: the watch sentence carries the same number under the same verb
+    # ONE PAGE, ONE PATTERN, ONE COUNT: the watch reads the SAME producer (`render.pattern_count`).
+    # 09-26 S2 RE-BANK (lane N, N-2): at one counted of three asked the pattern is not at its own threshold on
+    # what this page reads, so the watch draws no "declared pattern at its own threshold" item off it (HEAD's
+    # item printed "three of the five counted here, and that pattern's own threshold is three" on one reading);
+    # the La Nina row keeps its membership and carries the quorum row's own count.
     watch = [R.sb_watch(w) for w in WA.nonobvious_rows(ctx["board"], analogs=ctx["analogs"])
              if w.get("kind_words") and "oversupply" in str(w.get("what") or "")]
-    assert watch and any("of the five counted here" in w for w in watch), watch
-    assert not any(" in all" in w for w in watch)
+    assert watch == [], watch
+    _ln = next(r for r in ctx["board"].rows
+               if r.contract == "malaysian_crude_palm_oil_cme" and r.driver_id == "La_Nina")
+    _pf = WA._pattern_facts(ctx["board"], _ln, list(ctx["board"].convergence), R.series_by_driver(ctx["board"]))
+    assert _pf["member"] is True and _pf["at_threshold"] is False and _pf["count"]["n_distinct"] == 1, _pf
 
 
 def test_NEW3_the_quorum_hole_clause_EXCLUDES_a_driver_whose_reading_this_block_prints():
@@ -1107,20 +1132,23 @@ def test_RW1_the_COCOA_SQUEEZE_row_never_denies_a_read_series_and_names_both_aga
             "and the longest dry-day run in the month, as a z-score for West Africa, read here for drought, "
             "which reads on the low side (shorter dry spells than usual, so wetter)), so they count against "
             "the pattern here") in line, line
-    assert "; the one counted here is named by the pattern with no series read here (export pace lag)" in line
-    assert "all one are" not in line
-    assert "it asks for three, so the count here is short of that number" in line
+    # 09-26 S2 RE-BANK (lane N, N-2 / Y17): the unread condition is NAMED and NOT COUNTED -- HEAD's "the one
+    # counted here is named by the pattern with no series read here" counted a condition read nowhere
+    assert "; one is named by the pattern with no series read here, so not counted (export pace lag)" in line
+    assert "all one are" not in line and "the one counted here" not in line
+    assert "it asks for three, and none of them is counted here" in line
     # THE COUNT IS THE WALK'S, UNCHANGED BY THE WORDS: the same row without the two keys counts the same
     bare = {k: v for k, v in row.items() if k not in ("against", "unsided")}
-    assert R.pattern_count(row, R.series_by_driver(bd))["n_distinct"] == 1
-    assert R.pattern_count(bare, R.series_by_driver(bd))["n_distinct"] == 1
+    assert R.pattern_count(row, R.series_by_driver(bd))["n_distinct"] == 0
+    assert R.pattern_count(bare, R.series_by_driver(bd))["n_distinct"] == 0
     assert R.classify(line) == ("SB-C",) and R.register_hits(line) == []
     assert REG.desk_register_hits(line) == [], REG.desk_register_hits(line)
     # the amplifier over harmattan x drought keeps its rank claim and says which side they sit on
     amp = next(i for i in row["interactions"] if set(i["when"]) == {"harmattan", "drought"})
     a = R.sb_amplifier("cocoa", amp)
+    # 09-26 S2 RE-BANK (lane N, N-1): the amplifier names the model through the desk table's ONE reader
     assert ("are all among the largest moves here; harmattan and drought read on the side opposite the one "
-            "the pattern names; the graph records the effect as") in a, a
+            "the pattern names; %s records the effect as" % REG.desk_phrase("the graph", 1)) in a, a
     assert R.classify(a) == ("SB-M",) and R.register_hits(a) == []
 
 
@@ -1134,9 +1162,10 @@ def test_RW1_every_clause_reads_its_own_key_and_a_row_without_them_is_HEADs_byte
                     matched_unmeasured=("China_state_reserves",))
     head = R.sb_convergence(base)
     assert R.sb_convergence(dict(base, against=(), unsided=())) == head, "empty lists are HEAD's row"
+    # 09-26 S2 RE-BANK (lane N, N-2 / Y17): the unread condition is named in its own clause and not counted
     assert ("none of the four conditions it names is showing here (none of those drivers has a series "
-            "read here); the one counted here is named by the pattern with no series read here (China state "
-            "reserves)") in head
+            "read here); one is named by the pattern with no series read here, so not counted (China state "
+            "reserves); it asks for two, and none of them is counted here") in head
     # (1)+(2) one reading on the other side: the parenthetical changes, the reading is named, singular
     one = R.sb_convergence(dict(base, against=("export_pace_lag",)),
                            names_of={"export_pace_lag": "US weekly exports, read here for export pace lag"})
@@ -1174,9 +1203,10 @@ def test_RW1_every_clause_reads_its_own_key_and_a_row_without_them_is_HEADs_byte
     assert "largest moves here; crude oil price reads on the side opposite the one the pattern names;" in one_side
     for l in (one, uns, s):
         assert R.register_hits(l) == [] and REG.desk_register_hits(l) == [], (l, REG.desk_register_hits(l))
-    # the amplifier's own "the graph records" is HEAD's and outside this clause; the clause adds no hit
+    # the amplifier's own "the graph records" was HEAD's one hit; 09-26 S2 RE-BANK (lane N, N-1): it names the
+    # model through the desk table's ONE reader, so neither line carries a desk hit and the clause adds none
     assert [h[0] for h in REG.desk_register_hits(one_side)] == [h[0] for h in REG.desk_register_hits(
-        R.sb_amplifier("malaysian_crude_palm_oil_cme", inter))] == ["the graph"]
+        R.sb_amplifier("malaysian_crude_palm_oil_cme", inter))] == []
     assert R.register_hits(one_side) == []
 
 

@@ -21,8 +21,15 @@ from leviathan.graphrag.numbers import registry as R
 # at HEAD (08d8dfd4, measured this sitting from a read-only `git archive` of HEAD's src + configs) and at
 # the tree with every C10 field declared: identical, 255,421 chars. A card edit that moves this pin is a
 # cache write on every numbers round of every turn -- re-bank it only with that cost written down.
-B9_NUMBERS_PROMPT_SHA256 = "3caa2d83e7752c7baa6f72cd3c07ee663632623889dc4c9e780bd02ffd95adc5"
-B9_NUMBERS_PROMPT_CHARS = 255421
+# FIX SITTING 2 (09-26), LANE Q -- RE-BANKED, DECLARED (PC-1 / PC-2): the silver_esr card's `note:` line, and ONLY
+# that line, moved (the national read is the fold over buyers, a balance is never summed, and the current marketing
+# year is a RULE named per tool result -- never a year in the prompt). Measured by lane_q/B9_diff.py on head_s2 vs
+# the tree: 2 lines moved (the old and the new note), both tool schemas byte-identical. THE COST, WRITTEN DOWN: one
+# new cached-prefix variant REPLACES the old one (the prompt takes no as-of, so it stays ONE sha across as-ofs) --
+# one cold cache write per numbers seat after the deploy (~98k tokens, ~$0.37 at claude-sonnet-5), not a new
+# write per turn. Was 3caa2d83e7752c7baa6f72cd3c07ee663632623889dc4c9e780bd02ffd95adc5 / 255,421 chars.
+B9_NUMBERS_PROMPT_SHA256 = "530d303434659a37f72a3ee3158f2a913c634efdb413e039e99609ec80b58e70"
+B9_NUMBERS_PROMPT_CHARS = 256024
 
 
 @pytest.fixture()

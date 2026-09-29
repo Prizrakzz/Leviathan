@@ -473,7 +473,9 @@ PERIOD_TOKEN_JOINS: Mapping = _BookJoins()
 
 
 def figure_token(shown: str, *, unit: str = "", figure_basis: str = "", period_words: str = "",
-                 period_role: str = "", period_kind: str = "", grain_words: str = "") -> str:
+                 period_role: str = "", period_kind: str = "", grain_words: str = "",
+                 value: Any = None, decimals: Optional[int] = None, lines: tuple = (),
+                 two_sided: bool = False) -> str:
     """THE FIGURE TOKEN (CONTRACT K2): ``"<shown> <unit> <figure_basis>, <period_words>[, <period_role>]"``
     -- every part omitted when empty -- the ONE string a writer copies when it copies a figure.
 
@@ -495,7 +497,22 @@ def figure_token(shown: str, *, unit: str = "", figure_basis: str = "", period_w
     its kind's own preposition (:data:`PERIOD_TOKEN_JOINS`: "325 Million Bushels for 2025/26"), and
     ``grain_words`` puts a CELL row's grain on the figure itself ("0.9 z for one United States growing cell
     (the driest of ten)", :meth:`RowIdentity.grain_words`) -- so the words that make a regional cell's figure
-    true travel with it into the sentence, exactly as the basis does."""
+    true travel with it into the sentence, exactly as the basis does.
+
+    **09-26 SITTING 2 (CONTRACT Y23, H-2) -- THE TOKEN CAN FORMAT THE FIGURE VALUE ITSELF, AND THEN IT IS
+    GROUPED.** Four TAIL keywords, all at HEAD's defaults on every existing call: where ``value`` is given
+    the figure text is :func:`figure_text` of that value at the card's precision (``decimals`` / ``lines`` /
+    ``two_sided``, the caller hands the card's own) WITH THE THOUSANDS SEPARATOR (``grouping=True``) -- the
+    measured defect was "241501 contracts", "5519 USD/metric ton" on eight of ten board pages while the
+    footer beside them printed "5,519". ``shown`` is then not read. ONLY A FIGURE VALUE PASSES THROUGH THIS
+    PATH: the period, the year and the handle ride ``period_words`` / the caller's own text and are never
+    formatted here (fence H2-a), and the verifier's comma parse (``verify._CLAIM_NUM``) reads the grouped
+    figure as the same magnitude (pinned). ``value=None`` -> HEAD's token byte for byte."""
+    if value is not None:
+        shown = figure_text(value, decimals=decimals, lines=tuple(lines or ()), two_sided=bool(two_sided),
+                            grouping=True)
+        if not shown:
+            return ""
     head = " ".join(p for p in (str(shown or "").strip(), str(unit or "").strip(),
                                 str(figure_basis or "").strip(), str(grain_words or "").strip()) if p)
     if not head:
@@ -506,6 +523,102 @@ def figure_token(shown: str, *, unit: str = "", figure_basis: str = "", period_w
         return ", ".join([head + " " + join + " " + pw] + ([pr] if pr else []))
     tail = [p for p in (pw, pr) if p]
     return ", ".join([head] + tail)
+
+
+#: 09-26 SITTING 2 (CONTRACT Y23, H2-d) -- THE UNIT OF A DIFFERENCE, WHERE IT IS NOT ITS LEVEL'S. A change row
+#: carries its LEVEL card's unit (a settle change is in the settle's currency per unit; a stock change in the
+#: stock's tonnes), with ONE declared exception: a percentile is a RANK on a 0-100 scale, and the difference of
+#: two ranks is in that scale's POINTS -- never "percentile" (which would read as a rank) and never "percent"
+#: (which would read as a relative move). The key is the level unit's own spelling of the rank (the unit the
+#: board writes on every percentile call, ``sb_call(unit="percentile")``); the value is the declared unit
+#: spelling class ``points`` (tables.yaml ``unit_spellings``), so the verifier's unit grammar already knows it.
+#: APPEND-NEVER-SORT; a level unit not listed here is its own change unit.
+CHANGE_UNIT_OF: dict = {"percentile": "points"}
+
+
+def change_unit(level_unit: str) -> str:
+    """THE UNIT A CHANGE ROW CARRIES (CONTRACT Y23, H-2 / H2-d): its LEVEL's unit, or -- for a rank -- the
+    rank's points (:data:`CHANGE_UNIT_OF`). ``""`` for a level with no unit (the caller then prints the
+    figure alone, HEAD's shape). The measured defect it closes: the tape's settle changes printed bare ("-410
+    over twenty-one sessions", "up 176 over sixty-three sessions") on five of ten board pages -- a move with
+    no unit is a number with no size."""
+    u = str(level_unit or "").strip()
+    if not u:
+        return ""
+    return CHANGE_UNIT_OF.get(" ".join(u.lower().split()), u)
+
+
+def _population_book() -> dict:
+    """``state_conventions.population_words`` -- ``{whole, window, contract_life}`` templates, declared ONCE
+    in the conventions book (lane N's clause 18) -- read through the conventions' own cached loader on use
+    (this module does no I/O at import). A missing or malformed book is ``{}``."""
+    try:
+        from leviathan.graphrag.state import lint as _lint
+        v = (_lint.load_conventions() or {}).get("population_words")
+        return {str(k): str(w) for k, w in dict(v).items()} if isinstance(v, dict) else {}
+    except Exception:                                   # noqa: BLE001 -- no book, no population words
+        return {}
+
+
+class _PopulationFields(dict):
+    """The placeholders a population template may name. A name the row does not carry is a KeyError, so a
+    template asking for a fact the population does not hold prints NOTHING (the caller's HEAD words) --
+    never a template with a hole in it."""
+
+    def __missing__(self, key):
+        raise KeyError(key)
+
+
+def population_words(pop: dict, *, book: Optional[dict] = None) -> str:
+    """THE CLAUSE NAMING THE POPULATION A PERCENTILE / RECORD / Z WAS TAKEN OVER (CONTRACT Y8, H-3 / P-3).
+
+    The measured defect: the tape's rank printed "the top of the window this read covers" / "the window
+    fetched" over a same-contract window of seven to fifteen months (4 of 10 treatment pages), and the ONI's
+    "93rd percentile of its own record" was a trailing 131-month window -- a standing on a window read as a
+    standing on the record. The words now come from the population the producer actually ranked over:
+
+      * ``whole`` true -> the book's ``whole`` words (the read reaches the series' first observation);
+      * ``basis == "contract_life"`` -> the ``contract_life`` words, with the first SESSION (``{day}``);
+      * otherwise -> the ``window`` words, with the window's first MONTH (``{month}``).
+
+    A template may name ``{month}`` / ``{day}`` (the first observation), ``{last_month}`` / ``{last_day}``,
+    ``{n}`` and ``{n_words}`` -- each derived here from ``pop`` by this module's own date and number words.
+    ``""`` when ``pop`` is empty (HEAD), when the book declares no template for the case, or when the template
+    names a fact ``pop`` does not carry. ``book`` overrides the conventions book (a deck's)."""
+    if not isinstance(pop, dict) or not pop:
+        return ""
+    b = _population_book() if book is None else dict(book or {})
+    basis = str(pop.get("basis") or "")
+    if pop.get("whole"):
+        tmpl = b.get("whole")
+    elif basis == "contract_life":
+        tmpl = b.get("contract_life")
+    else:
+        tmpl = b.get("window")
+    if not tmpl:
+        return ""
+    fields = _PopulationFields()
+    first, last = str(pop.get("first") or "").strip(), str(pop.get("last") or "").strip()
+    for key, tok in (("month", first), ("last_month", last)):
+        if _is_iso_day(tok) or _is_year_month(tok) or _is_bare_year(tok):
+            if month_words(tok):
+                fields[key] = month_words(tok)      # a date at month precision; a bare year as its year
+        elif tok:
+            fields[key] = tok                       # a period the row names in its own label ("2008/09"), as served
+    for key, tok in (("day", first), ("last_day", last)):
+        if _is_iso_day(tok) and day_words(tok):
+            fields[key] = day_words(tok)
+    try:
+        n = int(pop.get("n"))
+        if n > 0:
+            fields["n"] = str(n)
+            fields["n_words"] = words_for_int(n)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return str(tmpl).format_map(fields).strip()
+    except (KeyError, ValueError, IndexError):
+        return ""
 
 
 def cell_rule_for(*, axis: str = "", collapse: str = "", scope: str = "", basin_surfaces=(),
@@ -856,6 +969,13 @@ class StateRow:
     #: anchor contract's own declared home scope (lane W's feeder sets it; the render prints the declared
     #: clause). EMPTY on every other row, and then absent from :meth:`to_dict` (HEAD's shape).
     scope_resolution: str = ""
+    #: 09-26 SITTING 2 (CONTRACT Y8, H-3 / P-3): THE POPULATION A PERCENTILE / RECORD / Z OF THIS ROW WAS TAKEN
+    #: OVER -- ``{"first": ISO, "last": ISO, "n": int, "whole": bool, "basis": "series" | "window" |
+    #: "contract_life"}`` -- set by the feeder from the read's OWN bounds (``whole`` = the read reaches the
+    #: series' first observation) and the ``n`` the percentile producer used, one producer for both. EMPTY on
+    #: every row nobody measured it for, and then absent from :meth:`to_dict` (HEAD's shape); the words a reader
+    #: is shown come from :func:`population_words`, never from a phrase typed at a print site.
+    population: dict = field(default_factory=dict)
 
     @property
     def level_shown(self) -> Optional[float]:
@@ -904,6 +1024,8 @@ class StateRow:
         d["level_shown"] = self.level_shown
         if not d.get("scope_resolution"):
             d.pop("scope_resolution", None)             # 09-26: omitted when empty -- HEAD's shape
+        if not d.get("population"):
+            d.pop("population", None)                   # 09-26 sitting 2 (Y8): omitted when empty -- HEAD's shape
         return d
 
     def declined_windows(self) -> list:

@@ -1120,6 +1120,60 @@ def _unit_phrases_for(sent: str, number_calls: list, cited: list | None = None) 
     return tuple(sorted(set(_declared_vocab().phrases) | rows))
 
 
+# == 09-26 SITTING 2, LANE H (CONTRACT Y25, H-6 / PC-10) -- A QUANTITY IN THE YEAR RANGE IS READ BY ITS UNIT ==
+# THE MEASURED DEFECT (arm-A corn_wheat F13): "weekly export shipments of 1900 thousand MT [N58]" -- [N58] serves
+# 1,900.047 in "1000 MT" -- extracted NOTHING: rule (a) exempts a bare 1900-2099 token as a calendar year unless a
+# unit follows, and the unit tell is HEAD's closed list (`_UNIT_AFTER`) or the cited row's unit AS SPELLED
+# ("1000 MT"); the writer spelt the row's unit in words. A mutant "1950 thousand MT [N58]" passed clean.
+# THE RULE: the token is a quantity when it is followed by the cited row's OWN unit in any of its DECLARED
+# spellings -- its scale numeral in the estate's own number words (`rows.words_for_int`: 1000 -> "one thousand",
+# so the scale word is "thousand" exactly where that is a declared `unit_scale_words` member) and its unit word
+# in any member of its declared spelling class (`registry.unit_spellings`: mt / tonne / tonnes). Only a row unit
+# that CARRIES a scale numeral gains spellings: "<year> <scale> <unit>" is never a date, while a bare unit word
+# after a year ("in 2021 lots of ...") keeps HEAD's reading. Never magnitude, never binding alone.
+# REJECTED: a magnitude threshold; a longer `_UNIT_AFTER` list; "any 4-digit token next to a handle".
+def _row_unit_spellings(u) -> list:
+    """The DECLARED spellings of ONE served row unit that carries a leading scale numeral, as token tuples
+    (the unit as written excluded): {the numeral, its declared scale word} x {the unit word's declared
+    spelling class}. ``[]`` for a unit with no scale numeral, or where the registry / number words cannot be
+    read (HEAD's rule then stands alone)."""
+    toks = _unit_tokens(u)
+    i = 0
+    while i < len(toks) and _is_unit_numeral(toks[i]):
+        i += 1
+    scale, word = tuple(toks[:i]), tuple(toks[i:])
+    if not scale or not word:
+        return []
+    try:
+        from leviathan.graphrag.numbers import registry as _nreg
+        from leviathan.graphrag.state.rows import words_for_int
+        spell = dict(_nreg.unit_spellings() or {})
+        scale_words = {str(w) for w in (_nreg.unit_scale_words() or ())}
+    except Exception:  # noqa: BLE001 -- no declared spellings: HEAD's rule alone
+        return []
+    word_alts = [word]
+    for members in spell.values():
+        forms = [_unit_tokens(m) for m in (members or ())]
+        if word in forms:
+            word_alts += [f for f in forms if f and f not in word_alts]
+    scale_alts = [scale]
+    if len(scale) == 1:
+        try:
+            n = int(scale[0].replace(",", ""))
+        except ValueError:
+            n = 0
+        if n > 1:
+            full, one = str(words_for_int(n)), str(words_for_int(1))
+            scale_alts += [(w,) for w in sorted(scale_words) if full == f"{one} {w}"]
+    out: list = []
+    for sc in scale_alts:
+        for wd in word_alts:
+            t = tuple(sc) + tuple(wd)
+            if t != toks and t not in out:
+                out.append(t)
+    return out
+
+
 class _UnitGrammar:
     """The declared unit vocabulary one sentence is extracted with, at a CHARGE SITE. Built from phrase
     token tuples (declared + the sentence's own rows) and the rows' raw unit strings (for the year rule).
@@ -1183,6 +1237,13 @@ class _UnitGrammar:
             toks = [re.escape(t) for t in re.split(r"[\s" + chr(0x00a0) + r"]+", str(u).strip()) if t]
             if toks and re.search(r"[A-Za-z%]", u):
                 alts.append(r"[\s\-]*".join(toks))
+        # 09-26 SITTING 2 (Y25, H-6): the same rows' units in their DECLARED spellings -- "1900 thousand MT" is
+        # the "1000 MT" row's quantity, never the year 1900 (`_row_unit_spellings`)
+        for u in row_units or ():
+            for t in _row_unit_spellings(u):
+                alt = r"[\s\-]*".join(re.escape(x) for x in t)
+                if alt not in alts:
+                    alts.append(alt)
         self.row_after = (re.compile(r"\s*(?:" + "|".join(sorted(set(alts), key=lambda a: (-len(a), a)))
                                      + r")(?![A-Za-z])", re.I) if alts else None)
 

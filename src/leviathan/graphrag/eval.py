@@ -2167,7 +2167,13 @@ def _served_rows(out: dict) -> list[dict]:
                           "estimate_role": _alias_col(rr, "revision_stamp", "estimate_role"),
                           "value": rr.get("value"), "unit": rr.get("unit"),
                           "country": rr.get("country"),          # T2, the ROW half of the same read
-                          "knowledge_date": _alias_col(rr, "knowledge_date", "data_date")}
+                          "knowledge_date": _alias_col(rr, "knowledge_date", "data_date"),
+                          # FIX SITTING 2, LANE I (CONTRACT Y1 / Y15): the compiler's national-fold
+                          # MARKER, carried verbatim ONLY where the producer stamped one -- so the census's
+                          # `esr_national_rows` can tell a folded national row from one buyer's row on a
+                          # banked record. ABSENT on every row that carries no marker: every record built
+                          # before the fold (and every row the fold never touched) projects byte-identically.
+                          **({"_fold": rr["_fold"]} if "_fold" in rr else {})}
                          for rr in rows[:take] if isinstance(rr, dict)]})
             budget -= len(recs[-1]["rows"])
         except Exception:  # noqa: BLE001
@@ -4809,6 +4815,22 @@ def corpus_fingerprint() -> str:
 # counts `state_board.counters.BoardSidesFor/BoardSidesAgainst` or `state_board.row_states[].side` (the
 # board), `state_board.watch_rows[].handle` (render.py) and `state_board.served_counts[]` (render.py). Each
 # one's reader below names it; the lane's commit message states each contract in full.
+#
+# FIX SITTING 2 (09-26, lane I, CONTRACT Y15) -- THE RESIDUAL, AND WHAT "QUOTED" MEANS. (1) A value is a
+# RESULT only when the census ASSERTED it non-vacuous (`vacuous is False`, stamped `quoted`); an instrument
+# read on fewer than `_VACUITY_MIN_N` pages is printed for inspection and marked NOT A RESULT, because no
+# vacuity test could run on it. The deck-level pin (tests/unit/test_fix0926s2_lane_i.py) runs this census
+# over a COMMITTED fixture reduced from the arm-A baselines, both cells, and asserts that the quoted set
+# is exactly the non-vacuous set. (2) The RE-BASED FIELDS are censused too (threat I1-a): the declared
+# TL;DR token and the board's settled side basis each get their own row, so a writer that declares one
+# token on every page, or a board that settles one way on every page, is named rather than hidden behind
+# an ABSENT tldr_direction. (3) Six rows for THIS sitting's seams -- absence_binding, prose_ceiling,
+# duplicate_handles, esr_national_rows, held_rows_in_claims, window_draw -- each ABSENT until its producer
+# key is on the record and each with its population and n. (4) The desk register prints the FROZEN v1
+# table (register.DESK_REGISTER_V1_NAMES, owner decision 8) beside the extended one in every cell, so a
+# table that grows is never read as a treatment effect (threat I1-d). (5) The count check reads a count
+# printed beside a QUALIFIED noun the block registered ("thirty-four other markets") against THAT noun's
+# served counts only, never against every counter sharing its head word (threat I2-a).
 
 #: An instrument is VACUOUS on a deck when it carried at least this many readings and every one of them is
 #: the same value. Below it the census says the deck is too small to tell, rather than guessing.
@@ -5151,6 +5173,16 @@ def _count_pool(sb) -> dict:
             words = _KEY_WORD_RX.findall(str(x.get("noun") or ""))
             if words:
                 pool.setdefault(_fold_noun(words[-1]), set()).add(int(x["value"]))
+            # FIX SITTING 2 (threat I2-a): THE BLOCK'S OWN PRINTED NOUN, WHOLE. A qualified noun the block
+            # printed beside its count ("thirty-four other markets", "three like states") is filed under
+            # the WHOLE phrase too -- a TUPLE key, tokenized exactly as the prose is (`_COUNT_TOKEN_RX`),
+            # so `_count_check` reads a count printed beside that phrase against THAT phrase's counts only
+            # and never against every counter sharing its head word (the fan's markets vs the chain
+            # pool's markets). A one-word noun keeps the head-noun floor above and adds no phrase.
+            phrase = tuple(_fold_noun(t) for t in _COUNT_TOKEN_RX.findall(str(x.get("noun") or ""))
+                           if t[:1].isalpha())
+            if len(phrase) >= 2:
+                pool.setdefault(phrase, set()).add(int(x["value"]))
     return pool
 
 
@@ -5189,10 +5221,16 @@ def _count_check(prose, pool: dict) -> dict:
     a figure the page served nowhere (a derived "the rest", a fused count, a stale one) -- or a count whose
     producer registers it under no key yet (CONTRACT C-I6), which is why every mismatch is printed with its
     clause. A count is read inside its own clause only, and a clause bound to a citation handle is a served
-    row's and is not read at all (`_COUNT_HANDLED_CLAUSE_RX`)."""
+    row's and is not read at all (`_COUNT_HANDLED_CLAUSE_RX`).
+
+    THE BLOCK'S OWN NOUN FIRST (fix sitting 2, threat I2-a): where the words right after a count are a
+    qualified noun the block registered (a TUPLE key of `_count_pool`, from CONTRACT C-I6's
+    `served_counts[].noun`), the count is read against THAT noun's counts ONLY -- the longest registered
+    phrase wins -- and the head-noun floor applies only where no registered phrase follows the count."""
     if not isinstance(prose, str) or not prose.strip() or not pool:
         return {"checked": 0, "mismatches": []}
     table = _spelled_counts()
+    phrases = sorted((k for k in pool if isinstance(k, tuple)), key=len, reverse=True)
     checked, mism = 0, []
     # every bracket is masked BEFORE the clause split (a grouped `[N41, N42]` carries its own comma), and a
     # citation handle leaves a marker behind so its clause can be recognised as a served row's
@@ -5209,20 +5247,219 @@ def _count_check(prose, pool: dict) -> dict:
                 i += 1
                 continue
             v, j = got
-            noun = None
-            for k in range(j, min(len(toks), j + _COUNT_NOUN_WINDOW)):
-                if _count_at(toks, k, table) is not None:
-                    break
-                if _fold_noun(toks[k]) in pool:
-                    noun = _fold_noun(toks[k])
-                    break
+            noun = next((ph for ph in phrases
+                         if tuple(_fold_noun(t) for t in toks[j:j + len(ph)]) == ph), None)
+            if noun is None:
+                for k in range(j, min(len(toks), j + _COUNT_NOUN_WINDOW)):
+                    if _count_at(toks, k, table) is not None:
+                        break
+                    if _fold_noun(toks[k]) in pool:
+                        noun = _fold_noun(toks[k])
+                        break
             if noun is not None:
                 checked += 1
                 if v not in pool[noun]:
-                    mism.append({"noun": noun, "printed": v, "quote": " ".join(clause.split())[:200],
+                    mism.append({"noun": " ".join(noun) if isinstance(noun, tuple) else noun, "printed": v,
+                                 "quote": " ".join(clause.split())[:200],
                                  "trace_values": sorted(pool[noun])[:12]})
             i = max(j, i + 1)
     return {"checked": checked, "mismatches": mism}
+
+
+# -- FIX SITTING 2 (lane I, CONTRACT Y15): the readers of the re-based fields and of this sitting's seams --
+# Every reader returns `{"v", "d", "src", "why"}` (v None = ABSENT, why says which field was missing) plus,
+# where the report prints a breakdown, a private `"x"` dict the census folds into `details[<name>]`. None of
+# them reads prose to decide a fact; each reads the ONE producer field its contract names.
+def _absent(why: str, d=None) -> dict:
+    return {"v": None, "d": d, "src": None, "why": why}
+
+
+def _declared_token_read(rec: dict) -> dict:
+    """The TL;DR's DECLARED direction token (CONTRACT C-I3a / Y14), VERBATIM -- censused on its own so a
+    writer that declares one token on every page is NAMED (threat I1-a), which the tested
+    `tldr_direction` reading cannot do: a non-directional token is ABSENT there by design."""
+    td = rec.get("tldr_direction") if isinstance(rec.get("tldr_direction"), dict) else {}
+    tok = td.get("declared")
+    if not isinstance(tok, str) or not tok.strip():
+        return _absent("declared token absent (tldr_direction.declared)")
+    return {"v": tok, "d": None, "src": "tldr_direction.declared", "why": None}
+
+
+def _side_basis_read(rec: dict) -> dict:
+    """The board's SETTLED side balance `tldr_direction` is tested against, as the direction it asserts --
+    `higher` / `lower` through the walk's own side words (`_SIDE_DIRECTION`), `balanced` where both sides
+    settled equally often -- from the same `_board_sides` precedence the tested reading uses. ABSENT where
+    the board carries no settled side (threat I1-a: a basis that settles one way on every page is named)."""
+    sides = _board_sides(rec.get("state_board"))
+    if sides is None or not (sides[0] or sides[1]):
+        return _absent("no settled side on the board")
+    n_for, n_against, src = sides
+    v = ("balanced" if n_for == n_against else
+         _SIDE_DIRECTION["for"] if n_for > n_against else _SIDE_DIRECTION["against"])
+    return {"v": v, "d": None, "src": src, "why": None}
+
+
+def _writer_seam(rec: dict) -> dict:
+    ws = rec.get("writer_seam")
+    return ws if isinstance(ws, dict) else {}
+
+
+#: The writer seam's absence stamps the census reads (answer._seam_absence_claims + CONTRACT Y12). The seam
+#: stamps `absence_claims_checked` / `absence_rows_appended` on every run and the rest only when they moved
+#: (its own `out.get(k, 0) + 1`), so a missing sub-key under a present `absence_claims_checked` IS the
+#: producer's 0; Y12's two keys are "omitted when 0", and the report says on how many pages each was stamped.
+_ABSENCE_KEYS: tuple = ("absence_claims_checked", "absence_unbound", "absence_true", "absence_rows_appended",
+                        "absence_reason_corrected", "absence_bound_seat")
+
+
+def _absence_binding_read(rec: dict) -> dict:
+    """Absence claims the writer seam BOUND to a referent (checked minus unbound), of the claims it checked.
+    ABSENT where the seam did not run (no `absence_claims_checked`) and on a page that made no absence claim
+    (nothing to bind is not a binding of zero)."""
+    ws = _writer_seam(rec)
+    checked = ws.get("absence_claims_checked")
+    if not _is_count(checked):
+        return _absent("writer_seam.absence_claims_checked absent (the writer seam did not run)")
+    if not checked:
+        return _absent("no absence claim on the page", d=0)
+    x = {k: (int(ws[k]) if _is_count(ws.get(k)) else None) for k in _ABSENCE_KEYS}
+    bound = checked - (x["absence_unbound"] or 0)
+    return {"v": bound, "d": int(checked), "src": "writer_seam.absence_*", "why": None, "x": x}
+
+
+def _tier_of(rec: dict) -> str:
+    """The tier a page was served at: the router's honored mode, else the board's own mode stamp."""
+    md = rec.get("mode_decision") if isinstance(rec.get("mode_decision"), dict) else {}
+    sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    return str(md.get("honored") or sb.get("mode") or "unstated")
+
+
+def _prose_ceiling_read(rec: dict) -> dict:
+    """Whether the writer's prose sat within its tier's ceiling (writer_seam.prose_words <= prose_ceiling --
+    the ceiling is `response_contracts.prose_ceiling`, the seam's one producer), with the tier, the words,
+    the ceiling and CONTRACT Y20's cut census (`ceiling_cut_paragraphs`, `ceiling_kept_over`) where stamped."""
+    ws = _writer_seam(rec)
+    words, ceil = ws.get("prose_words"), ws.get("prose_ceiling")
+    if not (_is_count(words) and _is_count(ceil) and ceil > 0):
+        return _absent("writer_seam.prose_words / prose_ceiling absent (no board ceiling on the page)")
+    x = {"tier": _tier_of(rec), "words": int(words), "ceiling": int(ceil),
+         "cut": (int(ws["ceiling_cut_paragraphs"]) if _is_count(ws.get("ceiling_cut_paragraphs")) else None),
+         "kept_over": (int(ws["ceiling_kept_over"]) if _is_count(ws.get("ceiling_kept_over")) else None)}
+    return {"v": words <= ceil, "d": None, "src": "writer_seam.prose_words vs prose_ceiling", "why": None,
+            "x": x}
+
+
+def _duplicate_handles_read(rec: dict) -> dict:
+    """Groups of ONE served row identity the writer was handed under two handles
+    (writer_seam.served_row_duplicate_groups, answer._seam_served_duplicates), with the numbers ledger's own
+    stamp (CONTRACT Y22: `state_board.numbers_ledger` = {issued, reused, identity_value_conflict}) beside it
+    where the ledger ran and reused one."""
+    ws = _writer_seam(rec)
+    g = ws.get("served_row_duplicate_groups")
+    if not _is_count(g):
+        return _absent("writer_seam.served_row_duplicate_groups absent (the writer seam did not run)")
+    sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    nl = sb.get("numbers_ledger") if isinstance(sb.get("numbers_ledger"), dict) else None
+    x = {"rows_duplicated": (int(ws["served_rows_duplicated"]) if _is_count(ws.get("served_rows_duplicated"))
+                             else None),
+         "ledger": ({k: int(nl[k]) for k in ("issued", "reused", "identity_value_conflict")
+                     if _is_count(nl.get(k))} if nl is not None else None)}
+    return {"v": int(g), "d": None, "src": "writer_seam.served_row_duplicate_groups", "why": None, "x": x}
+
+
+_NATIONAL_FOLD_CARDS: dict = {}
+
+
+def _national_fold_cards() -> dict:
+    """{table: frozenset(declared metric names)} for every card that declares a geography axis
+    (`country_col`) AND a national relation to it (`axis_national` other than its declared `none`, "a cell is
+    a cell") -- read off the CARDS (configs/graphrag/numbers/tables.yaml, raw, so the serving whitelist never
+    hides a card from a census), never a table name. Built once; {} where the cards cannot be read."""
+    if not _NATIONAL_FOLD_CARDS:
+        try:
+            raw = yaml.safe_load((ex._CFG / "numbers" / "tables.yaml").read_text(encoding="utf-8")) or {}
+            for tid, spec in (raw.get("tables") or {}).items():
+                if not isinstance(spec, dict) or not spec.get("country_col"):
+                    continue
+                if spec.get("axis_national") in (None, "none"):
+                    continue
+                mets = spec.get("metrics")
+                _NATIONAL_FOLD_CARDS[str(tid)] = frozenset(
+                    (mets.keys() if isinstance(mets, dict) else
+                     (str((m or {}).get("name") or m) for m in mets) if isinstance(mets, list) else ()))
+        except Exception:                               # noqa: BLE001 -- an instrument never breaks a report
+            _NATIONAL_FOLD_CARDS.clear()
+        _NATIONAL_FOLD_CARDS.setdefault("", frozenset())    # built (even when empty): never re-read per page
+    return {k: v for k, v in _NATIONAL_FOLD_CARDS.items() if k}
+
+
+def _esr_national_read(rec: dict) -> dict:
+    """NATIONAL READS ON A BUYER-AXIS CARD, by what their rows ARE (CONTRACT Y1 / PC-1). Population: every
+    served call (`served_rows`) with NO asked destination (`country` None), of a metric the card DECLARES, on a
+    card declaring a national fold (`_national_fold_cards`), that returned rows. Each such call is
+    `folded` (a row carries the compiler's `_fold` marker), `one_buyer` (its rows carry exactly one buyer --
+    a single destination's row served where the page asked for the nation: the PC-1 defect), `buyer_rows`
+    (two or more buyers) or `unattributed` (no row names a buyer: a board-summed or window-aggregated row).
+    The reading is the one-buyer count, of the calls in the population."""
+    cards = _national_fold_cards()
+    calls = rec.get("served_rows")
+    if not cards:
+        return _absent("no card declares a national fold over a geography axis (tables.yaml unread)")
+    if not isinstance(calls, list):
+        return _absent("served_rows absent")
+    x = {"folded": 0, "one_buyer": 0, "buyer_rows": 0, "unattributed": 0}
+    for c in calls:
+        if not isinstance(c, dict) or c.get("country") not in (None, ""):
+            continue
+        mets = cards.get(str(c.get("table")))
+        if mets is None or str(c.get("metric")) not in mets:
+            continue
+        rows = [r for r in (c.get("rows") or []) if isinstance(r, dict)]
+        if not rows:
+            continue
+        buyers = {str(r.get("country")) for r in rows if r.get("country") not in (None, "")}
+        k = ("folded" if any("_fold" in r for r in rows) else
+             "one_buyer" if len(buyers) == 1 else "buyer_rows" if buyers else "unattributed")
+        x[k] += 1
+    n = sum(x.values())
+    if not n:
+        return _absent("no no-destination read of a national-fold card returned rows")
+    return {"v": x["one_buyer"], "d": n, "src": "served_rows (the card's country_col + axis_national)",
+            "why": None, "x": x}
+
+
+def _held_rows_read(rec: dict) -> dict:
+    """Rows held as LAST REVISED cited in the TL;DR (CONTRACT Y15; the stamp is Y5's
+    `period_behind.why == "last_revised"`, traced as `state_board.retention`). ABSENT until the retention
+    stamp is on the record. WHERE IT IS, the census reads the stamped population (`retention.stamped`) as the
+    denominator and STILL reads the TL;DR half ABSENT: no contracted trace key maps a held row to the [N]
+    handle a TL;DR cites (`row_states` carries no `period_behind`, `retention` names no row) -- a BLOCKER named
+    in the lane's evidence, never guessed at from prose or from a value join."""
+    sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    ret = sb.get("retention")
+    if not isinstance(ret, dict) or not ret:
+        return _absent("state_board.retention absent (the P-1 retention stamp is not on the record)")
+    st = ret.get("stamped")
+    got = _absent("no trace key maps a held row to its [N] handle (retention names no row): the TL;DR half "
+                  "is unreadable", d=(int(st) if _is_count(st) else None))
+    got["x"] = {"stamped": (int(st) if _is_count(st) else None)}
+    return got
+
+
+def _window_draw_read(rec: dict) -> dict:
+    """Items the WINDOW-BOUNDED draw appended (CONTRACT Y10: `bridge_query.window_draw.added`), of the stale
+    nodes it drew for (`stale`). ABSENT where the bridge query did not run, and where it ran with no
+    `window_draw` stamp -- the producer omits the key when no node was stale, so that absence is named
+    with both of its causes rather than read as a zero."""
+    bq = rec.get("bridge_query")
+    if not isinstance(bq, dict) or not bq:
+        return _absent("bridge_query absent (GRAPHRAG_BRIDGE_QUERY off on the page)")
+    wd = bq.get("window_draw")
+    if not isinstance(wd, dict) or not _is_count(wd.get("added")):
+        return _absent("bridge_query.window_draw absent (not built on the page, or no node was stale)")
+    x = {k: (int(wd[k]) if _is_count(wd.get(k)) else None)
+         for k in ("nodes", "stale", "added", "statements", "ms", "floor_unknown")}
+    return {"v": int(wd["added"]), "d": x["stale"], "src": "bridge_query.window_draw", "why": None, "x": x}
 
 
 #: THE CENSUS's ROSTER: (name, kind, population). `kind` "bool" reports how many read True; "count" the sum.
@@ -5257,6 +5494,31 @@ _INSTRUMENTS: tuple = (
      "whose value no counter under that noun carries, of the counts checked -- a floor; until the block "
      "registers what it printed (state_board.served_counts) a fan or anchor count the trace carries under no "
      "key reads here too, so each one is quoted"),
+    # -- FIX SITTING 2 (lane I, CONTRACT Y15), APPENDED: the v1 register table, the re-based fields, and this
+    # sitting's seams. `kind` "token" reports the distribution of the words read.
+    ("desk_register_hits.v1", "count",
+     "instrument words of the FROZEN v1 table (register.DESK_REGISTER_V1_NAMES, owner decision 8) on the "
+     "page -- the standing measure beside the extended table, so a table that grows is not a treatment effect"),
+    ("tldr_direction.declared", "token",
+     "the direction token the TL;DR declared (tldr_direction.declared, contract C-I3a), read verbatim"),
+    ("tldr_direction.basis", "token",
+     "the board's settled side balance tldr_direction is tested against (counters.BoardSides*, else "
+     "row_states[].side, else the rendered chains' side words), as the direction it asserts"),
+    ("absence_binding", "count",
+     "absence claims the writer seam bound to a referent (checked minus unbound), of the claims it checked, "
+     "on pages that made one (writer_seam.absence_*)"),
+    ("prose_ceiling", "bool",
+     "board pages whose writer prose sits within its tier's ceiling (writer_seam.prose_words <= prose_ceiling)"),
+    ("duplicate_handles", "count",
+     "served row identities the writer was handed under two handles (writer_seam.served_row_duplicate_groups)"),
+    ("esr_national_rows", "count",
+     "no-destination reads, of a declared metric, on a card declaring a national fold over its geography axis "
+     "(country_col + axis_national), whose rows are ONE buyer's -- of such reads that returned rows"),
+    ("held_rows_in_claims", "count",
+     "rows held as last revised (period_behind.why last_revised) cited in the TL;DR; the stamped population "
+     "(state_board.retention.stamped) is the denominator"),
+    ("window_draw", "count",
+     "items the window-bounded draw appended (bridge_query.window_draw.added), of the stale nodes it drew for"),
 )
 
 
@@ -5281,12 +5543,18 @@ def _instrument_row(rec: dict, r: dict | None = None) -> dict:
     sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
     pool = _count_pool(sb)
     cc = _count_check(prose, pool)
-    desk = None
+    desk = desk_v1 = None
     if body is not None:
         try:
-            desk = len(reg.desk_register_hits(body))
+            _hits = reg.desk_register_hits(body)
+            desk = len(_hits)
+            # I1-d: the FROZEN v1 names (owner decision 8), filtered off the SAME hit list -- the
+            # `register.count_desk_register(text, DESK_REGISTER_V1_NAMES)` rule without a second scan
+            _v1 = getattr(reg, "DESK_REGISTER_V1_NAMES", None)
+            desk_v1 = (sum(1 for h in _hits if h[0] in frozenset(str(n) for n in _v1))
+                       if isinstance(_v1, (tuple, list, frozenset, set)) else None)
         except Exception:                               # noqa: BLE001 -- an instrument never breaks a report
-            desk = None
+            desk = desk_v1 = None
     return {
         "n_sections": {"v": ns, "d": None, "src": ns_src,
                        "why": None if ns is not None else "no served body, no typed sections, no draft"},
@@ -5312,6 +5580,19 @@ def _instrument_row(rec: dict, r: dict | None = None) -> dict:
                                      "no trace counter" if not pool else
                                      "no prose" if prose is None else
                                      "no count beside a noun the trace mints")},
+        # -- FIX SITTING 2 (CONTRACT Y15), in roster order --
+        "desk_register_hits.v1": {"v": desk_v1, "d": None, "src": body_src if desk_v1 is not None else None,
+                                  "why": (None if desk_v1 is not None else
+                                          "no page text on the record" if desk is None else
+                                          "register.DESK_REGISTER_V1_NAMES absent")},
+        "tldr_direction.declared": _declared_token_read(rec),
+        "tldr_direction.basis": _side_basis_read(rec),
+        "absence_binding": _absence_binding_read(rec),
+        "prose_ceiling": _prose_ceiling_read(rec),
+        "duplicate_handles": _duplicate_handles_read(rec),
+        "esr_national_rows": _esr_national_read(rec),
+        "held_rows_in_claims": _held_rows_read(rec),
+        "window_draw": _window_draw_read(rec),
         "_mismatches": cc["mismatches"],
         "_mandate": isinstance(rec.get("desk_register"), dict),
     }
@@ -5368,18 +5649,24 @@ def instrument_census(per: list | None = None, rows: list | None = None) -> dict
         n = len(vals)
         ds = [c["d"] for c in cells if c["v"] is not None and c["d"] is not None]
         distinct = len({repr(v) for v in vals})
+        vacuous = None if n < _VACUITY_MIN_N else distinct == 1
         census[name] = {
             "kind": kind,
             "value": (None if not n else                  # ABSENT on every page is no value, never a 0
-                      sum(1 for v in vals if v is True) if kind == "bool" else sum(int(v) for v in vals)),
+                      sum(1 for v in vals if v is True) if kind == "bool" else
+                      dict(collections.Counter(str(v) for v in vals)) if kind == "token" else
+                      sum(int(v) for v in vals)),
             "n": n,
             "denominator": (sum(int(d) for d in ds) if ds else None),
             "distinct": distinct,
-            "vacuous": (None if n < _VACUITY_MIN_N else distinct == 1),
+            "vacuous": vacuous,
             "constant": (vals[0] if (vals and distinct == 1) else None),
             "population": population,
             "sources": dict(collections.Counter(str(c["src"]) for c in cells if c["v"] is not None)),
             "absent": dict(collections.Counter(str(c["why"]) for c in cells if c["v"] is None)),
+            # FIX SITTING 2 (Y15): a value is a RESULT only once the census ASSERTED it non-vacuous. An
+            # instrument read on fewer than `_VACUITY_MIN_N` pages could not be tested and is not quoted.
+            "quoted": vacuous is False,
         }
     cells_reg: dict = {}
     for i, rd in enumerate(reads):
@@ -5399,6 +5686,12 @@ def instrument_census(per: list | None = None, rows: list | None = None) -> dict
             c["desk_hit_pages"] += 1 if dv else 0
             s = str(rd["desk_register_hits"]["src"])
             c["desk_sources"][s] = c["desk_sources"].get(s, 0) + 1
+        # I1-d: THE FROZEN v1 TABLE beside the extended one, in the same cell, with its own n (appended keys)
+        v1 = rd["desk_register_hits.v1"]["v"]
+        if v1 is not None:
+            c["desk_v1_n"] = c.get("desk_v1_n", 0) + 1
+            c["desk_register_hits_v1"] = c.get("desk_register_hits_v1", 0) + v1
+            c["desk_v1_hit_pages"] = c.get("desk_v1_hit_pages", 0) + (1 if v1 else 0)
     return {"vacuity_min_n": _VACUITY_MIN_N, "pages": len(per),
             "census": census,
             "vacuous": [k for k, v in census.items() if v["vacuous"]],
@@ -5407,7 +5700,61 @@ def instrument_census(per: list | None = None, rows: list | None = None) -> dict
             "count_mismatches": [{"id": str(per[i].get("id")), **m}
                                  for i, rd in enumerate(reads) for m in rd["_mismatches"]],
             "rows": [{"id": str(per[i].get("id")), **{k: rd[k]["v"] for k, _, _ in _INSTRUMENTS}}
-                     for i, rd in enumerate(reads)]}
+                     for i, rd in enumerate(reads)],
+            # FIX SITTING 2 (Y15), APPENDED: the quoted set, and each new seam's breakdown
+            "quoted": [k for k, v in census.items() if v["quoted"]],
+            "details": _census_details(reads)}
+
+
+def _census_details(reads: list) -> dict:
+    """Each FIX-SITTING-2 seam's breakdown over the pages that carried its private `x` (Y15): every integer
+    field SUMMED with the number of pages that STAMPED it (a key no page stamped is not a zero), one level of
+    nesting flattened as `outer.inner`; the prose ceiling grouped BY TIER (the ceiling is per tier)."""
+    out: dict = {}
+    for name, _kind, _pop in _INSTRUMENTS:
+        xs = [rd[name]["x"] for rd in reads if isinstance(rd[name].get("x"), dict)]
+        if not xs:
+            continue
+        if name == "prose_ceiling":
+            tiers: dict = {}
+            for rd in reads:
+                x, v = rd[name].get("x"), rd[name]["v"]
+                if not isinstance(x, dict):
+                    continue
+                t = tiers.setdefault(x["tier"], {"pages": 0, "within": 0, "words": [], "ceiling": set(),
+                                                 "ratios": [], "cut": None, "kept_over": None})
+                t["pages"] += 1
+                t["within"] += 1 if v is True else 0
+                t["words"].append(x["words"])
+                t["ratios"].append(x["words"] / x["ceiling"])          # each page against ITS OWN ceiling
+                t["ceiling"].add(x["ceiling"])
+                for k in ("cut", "kept_over"):
+                    if x.get(k) is not None:
+                        t[k] = (t[k] or 0) + x[k]
+            out[name] = {"by_tier": {
+                tier: {"pages": t["pages"], "within": t["within"],
+                       "words_min": min(t["words"]), "words_max": max(t["words"]),
+                       "ceiling": sorted(t["ceiling"]),
+                       "max_ratio": round(max(t["ratios"]), 2),
+                       "cut_paragraphs": t["cut"], "kept_over": t["kept_over"]}
+                for tier, t in sorted(tiers.items())}}
+            continue
+        tot, stamped = {}, {}
+        for x in xs:
+            flat = {}
+            for k, v in x.items():
+                if isinstance(v, dict):
+                    flat.update({f"{k}.{kk}": vv for kk, vv in v.items()})
+                else:
+                    flat[k] = v
+            for k, v in flat.items():
+                tot.setdefault(k, None)
+                stamped.setdefault(k, 0)
+                if _is_count(v):
+                    tot[k] = (tot[k] or 0) + int(v)
+                    stamped[k] += 1
+        out[name] = {"pages": len(xs), "totals": tot, "stamped_pages": stamped}
+    return out
 
 
 def _instrument_census_safe(per: list | None, rows: list | None) -> dict:
@@ -5422,7 +5769,28 @@ def _instrument_census_safe(per: list | None, rows: list | None) -> dict:
 def _census_value(c: dict) -> str:
     if c["kind"] == "bool":
         return f"{c['value']} of {c['n']} true"
+    if c["kind"] == "token":
+        return ", ".join(f"{t} x{k}" for t, k in sorted((c.get("value") or {}).items()))
     return f"{c['value']}" + (f" of {c['denominator']}" if c.get("denominator") is not None else "")
+
+
+def _detail_lines(name: str, d) -> list[str]:
+    """The sub-line(s) under a FIX-SITTING-2 instrument (Y15): its breakdown, every field with the pages that
+    stamped it -- a field no page stamped says so and is never printed as a zero."""
+    if not isinstance(d, dict):
+        return []
+    if "by_tier" in d:
+        return [f"  - tier `{t}`: {x['within']} of {x['pages']} page(s) within the ceiling; prose "
+                f"{x['words_min']}-{x['words_max']} words against a ceiling of "
+                f"{'/'.join(str(c) for c in x['ceiling'])} (at most {x['max_ratio']}x); whole paragraphs cut: "
+                + ("not stamped" if x["cut_paragraphs"] is None else str(x["cut_paragraphs"]))
+                + "; kept over the ceiling: "
+                + ("not stamped" if x["kept_over"] is None else str(x["kept_over"]))
+                for t, x in d["by_tier"].items()]
+    tot, st = d.get("totals") or {}, d.get("stamped_pages") or {}
+    parts = [(f"{k} {tot[k]} (stamped on {st.get(k, 0)} page(s))" if st.get(k) else f"{k}: not stamped")
+             for k in tot]
+    return [f"  - breakdown over the {d.get('pages')} page(s) that carried one: " + "; ".join(parts)] if parts else []
 
 
 def instrument_report(census: dict) -> list[str]:
@@ -5438,6 +5806,7 @@ def instrument_report(census: dict) -> list[str]:
     if not census.get("pages"):
         return []
     cen = census.get("census") or {}
+    det = census.get("details") or {}
     L = ["## Instrument readings (every instrument with its population and its denominator)", ""]
     for name, _kind, _pop in _INSTRUMENTS:
         c = cen.get(name)
@@ -5452,12 +5821,21 @@ def instrument_report(census: dict) -> list[str]:
             L.append(f"- {name}: NOT QUOTED -- VACUOUS, it read {c['constant']!r} on every one of its pages "
                      f"(population: {pop}, n={c['n']})")
         else:
+            # FIX SITTING 2 (Y15): a reading no vacuity test could run on is printed for inspection and is
+            # NOT A RESULT -- the value is shown, the line says it was never asserted non-vacuous
             tail = ("" if c["vacuous"] is False else
-                    f" -- too few pages to test for vacuity (< {census['vacuity_min_n']})")
+                    f" -- UNTESTED, NOT A RESULT: fewer than {census['vacuity_min_n']} pages carried a "
+                    f"reading, so no vacuity test could run")
             L.append(f"- {name}: {_census_value(c)} (population: {pop}, n={c['n']}){tail}")
+        L += _detail_lines(name, det.get(name))
     vac = census.get("vacuous") or []
     L.append(f"- **vacuous instruments** (at least {census['vacuity_min_n']} pages, one reading on all of them "
              f"-- broken on this deck and never a result): " + (", ".join(vac) if vac else "none"))
+    if "quoted" in census:
+        q = census.get("quoted") or []
+        L.append(f"- **quoted as results** (each asserted non-vacuous on this deck: at least "
+                 f"{census['vacuity_min_n']} pages carried a reading and they differ; no other line on this "
+                 f"panel is a result): " + (", ".join(q) if q else "none"))
     vo = census.get("intent_vocabulary")
     if vo:
         L.append(f"- intent vocabulary: the deck expects {vo['deck_words']}; the router emitted "
@@ -5472,7 +5850,13 @@ def instrument_report(census: dict) -> list[str]:
                  f"{c['register_leak_pages']} page(s) (population: internal tokens in the served body, "
                  f"n={c['register_n']}) | desk_register_hits: {c['desk_register_hits']} on "
                  f"{c['desk_hit_pages']} page(s) (population: instrument words, read from {dsrc}, "
-                 f"n={c['desk_n']}). TWO POPULATIONS: a 0 in the first says nothing about the second")
+                 f"n={c['desk_n']})"
+                 # I1-d: the FROZEN v1 table's share of those same words, over the same pages -- a SUBSET of
+                 # the second population, never a third, so a table that grows is visible as growth
+                 + (f", of them on the FROZEN v1 table (register.DESK_REGISTER_V1_NAMES, owner decision 8, "
+                    f"the standing measure): {c['desk_register_hits_v1']} on {c['desk_v1_hit_pages']} page(s) "
+                    f"over the same {c['desk_v1_n']} page(s)" if "desk_v1_n" in c else "")
+                 + ". TWO POPULATIONS: a 0 in the first says nothing about the second")
     cm = census.get("count_mismatches") or []
     for m in cm[:10]:
         L.append(f"  - count mismatch `{m['id']}`: printed {m['printed']} {m['noun']}(s); the trace carries "
@@ -6597,16 +6981,27 @@ def main() -> int:
     ap.add_argument("--convos", default=None,
                     help="conversation yaml -> multi-turn session eval (turns sequential per convo, convos "
                          "parallel; mechanics + continuity judge + cache/speed panels)")
-    ap.add_argument("--instruments-from", default=None,
-                    help="LANE I: re-read a BANKED baseline JSON's per_answer records through the instrument "
-                         "census ($0, no model call, no graph) and print every instrument with its population, "
-                         "its denominator and the deck's VACUOUS instruments")
+    ap.add_argument("--instruments-from", default=None, nargs="+",
+                    help="LANE I: re-read one or more BANKED baseline JSONs' per_answer records through the "
+                         "instrument census ($0, no model call, no graph) and print every instrument with its "
+                         "population, its denominator and the deck's VACUOUS instruments. Several files are "
+                         "read as ONE deck (an arm cell's deep + max + quick baselines), so an instrument can "
+                         "reach the pages a vacuity test needs; pass one cell's files per call")
     args = ap.parse_args()
     from pathlib import Path
     if args.instruments_from:
         import json as _json
-        _doc = _json.loads(Path(args.instruments_from).read_text(encoding="utf-8"))
-        _txt = "\n".join(instrument_report(instrument_census(list(_doc.get("per_answer") or []))))
+        _per: list = []
+        _head: list = []
+        for _p in args.instruments_from:
+            _doc = _json.loads(Path(_p).read_text(encoding="utf-8"))
+            _pa = list(_doc.get("per_answer") or [])
+            _per += _pa
+            _head.append(f"{Path(_p).name} ({len(_pa)} page(s))")
+        _lines = instrument_report(instrument_census(_per))
+        if len(_head) > 1 and _lines:                  # ONE deck read from several files: name them all
+            _lines = _lines[:2] + [f"- deck read from {len(_head)} files: " + "; ".join(_head)] + _lines[2:]
+        _txt = "\n".join(_lines)
         print(_txt.encode("ascii", "backslashreplace").decode("ascii"))    # the console is cp1252
         return 0
     if args.convos:

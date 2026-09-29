@@ -421,7 +421,10 @@ def test_the_document_namespace_is_untouched_by_the_number_join():
           "sources": [{"ref": 1, "source": "usda_gain_corn", "date": "2021-03-18"}]}
     block = an._cited_sources_block(
         st, {"resolved": {"1": {"source": "usda_gain_corn", "date": "2021-03-18", "snippet": "x"}}}, [])
-    assert block.count("[1] ") == 1 and "[N1]" not in block
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-6 / CONTRACT Y26 -- declared): the footer spells the
+    # handle the body spells, so the one document row reads `[E1] ...`; the claim kept: ONE document row, and
+    # the [N] join never touches the document namespace
+    assert block.count("[E1] ") == 1 and "\n[1] " not in block and "[N1]" not in block
 
 
 def test_the_tidy_rides_the_same_verifier_gate_in_both_bodies():
@@ -451,8 +454,14 @@ def test_empty_read_label_carries_the_marker_and_no_value_or_unit(status):
 
 
 def test_empty_read_stamps_the_no_rows_scope_note_taxonomy():
-    for status, why in (("no_rows", "scope/coverage gap"), ("not_known", "not yet published"),
-                        ("error", "the lookup failed")):
+    # FIX SITTING 2 (lane Q, Q-4 / PC-4) -- RE-BANKED, DECLARED. `not_known` no longer reads "not yet published":
+    # `_exec` stamps the MEASURED reason (`empty_read_reason`), and "not yet published" is said ONLY by the reason
+    # that proves it (`not_yet_published`) and cascade's own window-after-the-as-of status. The claims this pin
+    # made stand: every empty read leads with the NO ROWS marker, forbids a zero, and names why.
+    for status, why in (("no_rows", "scope/coverage gap"), ("not_known", "not a timing claim"),
+                        ("error", "the lookup failed"), ("store_gap", "not a timing claim"),
+                        ("not_yet_published", "not yet published"), ("no_series", "carries no series"),
+                        ("future_unpublished", "not yet published")):
         note = na._no_rows_note(status)
         assert note.startswith("NO ROWS RETURNED (") and why in note
         assert "not zero" in note.lower() and "never a measured value of 0" in note
