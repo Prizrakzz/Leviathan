@@ -1642,7 +1642,10 @@ def test_k9_3_the_head_residual_under_one_printed_name_is_flag_independent(monke
          # the ICCO period is a SEASON, not a marketing year).
          ("USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) cocoa ice Ivory Coast MY2025 "
           "= 15.12 %"),
-         "ICCO COCOA stocks-to-use ratio cocoa ice Ivory Coast 2025 season = 0.42 ratio"),
+         # RE-BANKED 09-26 SITTING 2 (lane H, PC-8): the ICCO card declares `country_axis: global` (the WORLD cocoa
+         # balance sheet), so the asked commodity and country are no longer printed as its scope; the residual this
+         # case pins -- one printed name, one card unit, 36x apart, the flag moving neither line -- is unchanged.
+         "ICCO COCOA stocks-to-use ratio 2025 season = 0.42 ratio"),
     )
     for (mt, mm, mv), (st, sm, sv), commodity, country, period, want_mint, want_sib in cases:
         row = maprow(mt, mm)

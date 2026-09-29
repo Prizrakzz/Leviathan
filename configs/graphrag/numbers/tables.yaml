@@ -1017,15 +1017,26 @@ tables:
                                  aggregate_labels: {sum: "gross new sales booked"}}
       changes_1000mt:           {label: "weekly net changes", unit: "1000 MT", desc: "net change in outstanding sales",
                                  period_sum: true, aggregate_labels: {sum: "net changes in outstanding sales"}}
+    # FIX SITTING 2 (09-26), LANE Q (PC-1 / PC-2): the note follows the COMPILER. The national read is
+    # `query.national_fold` (the card's own `axis_national: sum`, one marketing year, never one buyer's row);
+    # a balance is never summed across observations (`query.BalanceSumRefused`, `period_sum: false`); and the
+    # current marketing year is the one producer's (`query.current_marketing_year`), named on every tool
+    # result -- so this note carries the RULE and no year (B9: one prompt sha across as-ofs).
     notes: >
       Units are 1000 MT (the transform divides raw MT by 1000). commodity = contract slug. Pass country=<name>
-      for a per-destination (buyer) read, or OMIT country for the national total (agg=sum for a marketing-year
-      total, agg=series over a week window with period_start/end). Destination names resolve to FAS codes via
-      esr_destinations.yaml; an unrecognised name returns no rows (never a silent national total). The US is the
-      REPORTER, never a destination. period = the marketing-year START year as an integer (MY 2025/26 -> 2025),
-      the same convention silver_psd uses; the current MY at a mid-2026 as-of is 2025, and period=2026 returns
-      no rows because that marketing year has not opened. When unsure, omit period and window with
-      period_start/period_end instead — a wrong year reads as "no data" and is indistinguishable from one.
+      for a per-destination (buyer) read, or OMIT country for the national figure: agg=latest reads the newest
+      week summed over every destination, for ONE marketing year (pass period to choose it; the row names its
+      week and its year), and agg=sum totals a FLOW (weekly exports, gross new sales, weekly net changes) over a
+      window or a marketing year. Outstanding sales is a BALANCE: it is never summed or averaged across weeks
+      or marketing years (its national figure is agg=latest), and such a read is declined. agg=series with no
+      country returns one row per destination per week, so no single row of it is a national figure.
+      Destination names resolve to FAS codes via esr_destinations.yaml; an unrecognised name returns no rows
+      (never a silent national total). The US is the REPORTER, never a destination. period = the
+      marketing-year START year as an integer (MY 2025/26 -> 2025), the same convention silver_psd uses. The
+      current marketing year is the one whose start month most recently passed at the as-of; each lookup
+      result names it as current_marketing_year wherever the estate calendar declares the commodity's start
+      month, and a marketing year that has not opened returns no rows. When unsure, omit period and window
+      with period_start/period_end instead — a wrong year reads as "no data" and is indistinguishable from one.
 
   silver_fred_fx:
     description: >

@@ -254,9 +254,11 @@ def test_fix2_a_resolved_row_survives_the_outlook_register_that_used_to_delete_i
     is now emitted -- head first, snippet pre-cleared at row scope -- and the marker is answerable."""
     _d, _pruned, block, body = _cotton(reg.OUTLOOK)
     rows = [ln for ln in body.split("\n") if ln.startswith("[")]
-    assert any(ln.startswith("[3] USDA WASDE (2014-01-01)") for ln in rows)
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-6 / CONTRACT Y26 -- declared): the footer spells the handle the body spells in BOTH cells, so a row the prose cites as [Ek] reads `[Ek] ...`; the claim this pin keeps is unchanged.
+    assert any(ln.startswith("[E3] USDA WASDE (2014-01-01)") for ln in rows)
     assert not any("78 cents per pound" in ln for ln in rows)     # the LEVEL is still refused
-    assert sorted(ln[1] for ln in rows) == ["1", "2", "3", "4", "6"]
+    import re as _re
+    assert sorted(_re.match(r"\[E?(\d+)\]", ln).group(1) for ln in rows) == ["1", "2", "3", "4", "6"]
     assert "## Sources" in block
 
 
@@ -283,7 +285,8 @@ def test_fix2_a_snippet_carrying_newlines_still_renders_as_one_line():
     rows = [ln for ln in block.split("\n") if ln.startswith("[")]
     # CYCLE-10-AMEND (2026-08-08), REVIEW MINOR 4: the row now TERMINATES itself (trailing "."), so no
     # sentence splitter of the `([.!?;]\s+)` family can fuse it with the row below. One line, one unit.
-    assert rows == ["[1] USDA WASDE (2014-01-01): Line one line two line three."]
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-6 / CONTRACT Y26 -- declared): the footer spells the handle the body spells in BOTH cells, so a row the prose cites as [Ek] reads `[Ek] ...`; the claim this pin keeps is unchanged.
+    assert rows == ["[E1] USDA WASDE (2014-01-01): Line one line two line three."]
 
 
 def test_fix2_a_row_whose_snippet_is_entirely_refused_keeps_its_attribution():
@@ -293,7 +296,8 @@ def test_fix2_a_row_whose_snippet_is_entirely_refused_keeps_its_attribution():
     v = {"enabled": True, "resolved": {"1": {"source": "usda_wasde", "date": "2014-01-01",
                                              "snippet": "Prices are forecast at 78 cents per pound."}}}
     block = an._cited_sources_block(d, v, [], market_register=reg.OUTLOOK)
-    assert "[1] USDA WASDE (2014-01-01)" in block and "78 cents" not in block
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-6 / CONTRACT Y26 -- declared): the footer spells the handle the body spells in BOTH cells, so a row the prose cites as [Ek] reads `[Ek] ...`; the claim this pin keeps is unchanged.
+    assert "[E1] USDA WASDE (2014-01-01)" in block and "78 cents" not in block
     assert an._prune_orphan_evidence_handles(d, v, market_register=reg.OUTLOOK) == 0
     assert "[E1]" in d["tldr"]
 
@@ -325,7 +329,7 @@ def test_fix3_evidence_exists_the_row_is_emitted_and_the_marker_is_KEPT():
         d, pruned, block, _body = _cotton(mr)
         for ref in ("1", "2", "3", "4", "6"):
             assert ("[E%s]" % ref) in (d["tldr"] + d["mechanism"]), (mr, ref)
-            assert ("[%s] " % ref) in block, (mr, ref)
+            assert ("[E%s] " % ref) in block, (mr, ref)          # PC-6 (declared): the body's spelling
         assert pruned == 2, mr                                # [E5] and [E7] only -- see below
 
 
@@ -338,6 +342,7 @@ def test_fix3_evidence_genuinely_absent_the_marker_is_PRUNED():
     assert "revised down by 800,000 bales." in d["mechanism"]     # the sentence survives, minus the token
     assert "Reduced planting intentions followed." in d["mechanism"]
     assert "[5] " not in block and "[7] " not in block
+    assert "[E5] " not in block and "[E7] " not in block          # PC-6: neither spelling
 
 
 def test_fix3_the_prune_reads_the_EMISSION_decision_not_a_parallel_rule():
@@ -415,8 +420,10 @@ def _served(d, v, mr):
 
 
 def _rows_reaching(body, refs):
+    # RE-BANKED 09-26 (PC-6, declared): a row reaches the reader under the spelling the body uses -- `[Ek]`
+    # where the prose cites `[Ek]` (every `_amend_doc` fixture does), `[k]` where it writes `[k]`
     import re
-    return [r for r in refs if re.search(r"(?m)^\[" + re.escape(r) + r"\]", body)]
+    return [r for r in refs if re.search(r"(?m)^\[E?" + re.escape(r) + r"\]", body)]
 
 
 def test_amend_major1_a_row_whose_ref_is_ten_reaches_the_reader_on_an_outlook_turn():
@@ -436,6 +443,11 @@ def test_amend_major1_the_root_cause_is_pinned_the_body_pass_would_still_delete_
     the SAME pre-cleared row to the body-wide pass and it is still deleted, because the deleter reads the
     row's own marker as a level. This pin fails the moment anyone puts the footer back inside sanitize."""
     _refs, d, v = _amend_doc(1, first=10)
+    # RE-BANKED 09-26 (PC-6, declared): the fixture's prose writes the BARE `[10]` so the footer row keeps the
+    # bare spelling this root-cause pin is about (a body citing `[E10]` now gets `[E10] ...`, which the
+    # register reads as a citation) -- the mechanism pinned is unchanged: the body pass reads a bare `[10]`
+    # row marker as a level and deletes it.
+    d["tldr"] = d["tldr"].replace("[E10]", "[10]")
     footer = an._cited_sources_block(d, v, [], market_register=reg.OUTLOOK)
     assert "[10] " in footer                                    # emitted, clean, one line
     through_the_body_pass = reg.sanitize(footer, market_register=reg.OUTLOOK)
@@ -462,7 +474,7 @@ def test_amend_the_register_gate_is_still_not_relaxed_by_the_new_assembly():
     _refs, d, v = _amend_doc(1, first=10,
                              snippet="U.S. cotton prices are forecast at 78 cents per pound.")
     _pruned, body = _served(d, v, reg.OUTLOOK)
-    assert "[10] USDA WASDE (2014-01-01)" in body               # the ATTRIBUTION reaches the reader
+    assert "[E10] USDA WASDE (2014-01-01)" in body              # the ATTRIBUTION reaches the reader (PC-6)
     assert "78 cents per pound" not in body                     # the LEVEL does not
     assert reg.register_leaks(body) == []
 
@@ -519,7 +531,7 @@ def test_amend_minor3_the_second_walk_is_still_FRESH_and_that_is_why_it_is_a_wal
     # writes; a declared row the prose does not cite is no longer emitted.
     d["mechanism"] = (d.get("mechanism") or "") + " An episode bullet [E99]."
     block = an._cited_sources_block(d, v, [], market_register=reg.OUTLOOK)
-    assert "[99] USDA WASDE (2014-01-01)" in block
+    assert "[E99] USDA WASDE (2014-01-01)" in block                 # PC-6 (declared): the body's spelling
 
 
 def test_amend_the_off_arm_footer_still_rides_INSIDE_the_body_pass():

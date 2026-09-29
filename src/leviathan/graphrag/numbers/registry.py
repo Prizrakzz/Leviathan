@@ -1223,3 +1223,146 @@ def sheet_spec(table: str, sheet_id: str, reg: Optional[NumbersRegistry] = None)
         return {}
     sp = (getattr(ts, "sheets", None) or {}).get(str(sheet_id or ""))
     return sp.model_dump() if sp is not None else {}
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE CARD-TO-WASDE LINE MAP (the 09-26 fix sitting 2, lane P, CONTRACT Y6 / P-1 (i))
+# ---------------------------------------------------------------------------------------------------
+#: THE MEASURED DEFECT IT SERVES (recon N-2, fact 2 on every as-of turn). ``silver_psd`` dates each row by the
+#: month the vendor LAST touched that marketing year (``transforms/bronze_to_silver/usda_psd.py``: "Calendar_Year
+#: and Month together ARE the release stamp"), so at a historical as-of every marketing year revised after it is
+#: invisible: at 2024-03-01 the newest US soybean year the store shows is MY2020 (known 2024-01-12) while the
+#: SAME page's WASDE sheet reads 2023/24 (known 2024-02-08). WASDE's store is release-partitioned with REAL
+#: publication dates (the card's ``vintage_dates_real: true``), so where a PSD balance-sheet line IS a WASDE
+#: line, the newest marketing year USDA had printed by the as-of can be read from WASDE's own history.
+#:
+#: A DECLARED MAP, NEVER A LABEL MATCH: ``(source table, source metric) -> {table, metric, scope}``. Only the
+#: six balance-sheet QUANTITY lines map, each onto the WASDE line that prints the same quantity (the WASDE
+#: card's ``unit_from_sheet`` lines). Everything else is UNMAPPED on purpose and takes the last-revised label
+#: alone: ``su_ratio`` is PSD's ending stocks over DOMESTIC use (its own card says it is not WASDE's
+#: stocks/use), area and yield have no WASDE line on the card, and the ``silver_psd_attributes`` use lines
+#: (crush, feed, FSI) are not WASDE card metrics. ``scope: reporter`` is the RULE for the WASDE region: the
+#: source card's own reporter country (its ``country_axis: reporter``) in the query layer's ONE country form
+#: (``query._canon_country``: "United States" -> "united_states", the WASDE region spelling) -- never a typed
+#: country table. The WASDE commodity is the source slug's declared FAMILY (``commodity_families``, keyed by
+#: the hierarchy node) or the slug itself, and only where WASDE's card declares an ``all_classes`` sheet for
+#: it. Graded by :func:`check_wasde_line_map`. The rejected lexical form: matching the two cards' LABELS
+#: ("ending stocks" == "ending stocks"), or a table of PSD-to-WASDE commodity names.
+WASDE_TABLE: str = "silver_wasde"
+WASDE_LINE_OF: dict = {
+    ("silver_psd", "production_mt"):       {"table": WASDE_TABLE, "metric": "production",       "scope": "reporter"},
+    ("silver_psd", "exports_mt"):          {"table": WASDE_TABLE, "metric": "exports",          "scope": "reporter"},
+    ("silver_psd", "imports_mt"):          {"table": WASDE_TABLE, "metric": "imports",          "scope": "reporter"},
+    ("silver_psd", "beginning_stocks_mt"): {"table": WASDE_TABLE, "metric": "beginning_stocks", "scope": "reporter"},
+    ("silver_psd", "ending_stocks_mt"):    {"table": WASDE_TABLE, "metric": "ending_stocks",    "scope": "reporter"},
+    ("silver_psd", "consumption_mt"):      {"table": WASDE_TABLE, "metric": "domestic_total",   "scope": "reporter"},
+}
+#: The scope RULES a map entry may name. ``reporter``: the source card's reporter country, canonicalised.
+WASDE_SCOPE_RULES: tuple = ("reporter",)
+
+
+def wasde_commodities(reg: Optional[NumbersRegistry] = None) -> frozenset:
+    """The commodities WASDE's card declares its OWN whole balance sheet for (``sheets`` with ``serves:
+    all_classes``) -- the only commodities a mapped line may be read for. Empty when the card declares none."""
+    try:
+        ts = (reg or load_registry()).get(WASDE_TABLE)
+    except Exception:  # noqa: BLE001 -- an unknown card declares nothing
+        return frozenset()
+    return frozenset(str(sp.commodity) for sp in (getattr(ts, "sheets", None) or {}).values()
+                     if str(getattr(sp, "serves", "") or "") == "all_classes")
+
+
+def wasde_line_for(table: str, metric: str, scope: str, *, commodity: Optional[str] = None,
+                   reg: Optional[NumbersRegistry] = None) -> Optional[dict]:
+    """THE WASDE LINE ONE SOURCE SERIES IS (CONTRACT Y6), resolved for its scope -- ``{"table", "metric",
+    "country", "scope", "commodity"}`` -- or ``None``: an unmapped ``(table, metric)``, a scope rule this
+    reader does not know, a scope the query layer cannot canonicalise, or (when ``commodity`` is given) a
+    commodity whose family WASDE declares no whole balance sheet for. ``commodity`` absent -> the line with
+    ``"commodity": ""``. NEVER RAISES."""
+    base = WASDE_LINE_OF.get((str(table or ""), str(metric or "")))
+    if not base or str(base.get("scope") or "") not in WASDE_SCOPE_RULES:
+        return None
+    try:
+        # lazy: query imports this module
+        from leviathan.graphrag.numbers.query import _canon_country
+        region = str(_canon_country(str(scope or "").strip()) or "")
+    except Exception:  # noqa: BLE001
+        region = ""
+    if not region:
+        return None
+    com = ""
+    if commodity is not None:
+        c = str(commodity or "").strip()
+        fam = str(class_scope(str(table), c, reg).get("family") or "") or c
+        if not fam or fam not in wasde_commodities(reg):
+            return None
+        com = fam
+    return {"table": str(base["table"]), "metric": str(base["metric"]), "country": region,
+            "scope": str(base["scope"]), "commodity": com}
+
+
+def check_wasde_line_map(reg: Optional[NumbersRegistry] = None) -> list[str]:
+    """THE MAP'S LINT (CONTRACT Y6, B13). Every entry, against the facts its reader relies on:
+
+      1. the source card and metric exist, and the target is a metric of ``silver_wasde``;
+      2. the target is a balance-sheet QUANTITY line (``unit_from_sheet``) -- the only kind of WASDE line a
+         PSD quantity can be;
+      3. every mapped source metric of ONE card declares ONE unit -- the map carries balance-sheet
+         quantities only, so a ratio, an area or a yield mapped by mistake declares a unit its siblings do
+         not share (the cards' own declarations decide, never a typed unit list);
+      4. the scope rule is known, the source card declares the axis the rule reads (``reporter``) and the
+         target card has a country axis to put it on;
+      5. WASDE declares at least one whole balance sheet (a map with no commodity to read is dead config).
+    Empty == clean. NEVER RAISES (a registry that does not load is reported as one problem). Its caller is
+    its own deck until ``config_check.main`` carries a roster entry for it (config_check.py is not this
+    lane's file -- the ``check_metric_lags`` precedent)."""
+    try:
+        reg = reg or load_registry()
+    except Exception as exc:  # noqa: BLE001
+        return [f"wasde_line_map: the numbers registry did not load: {exc}"]
+    errs: list[str] = []
+    units: dict = {}
+    try:
+        wts = reg.get(WASDE_TABLE)
+    except Exception:  # noqa: BLE001
+        return [f"wasde_line_map: the target card {WASDE_TABLE!r} is not in the registry"]
+    if not getattr(wts, "country_col", None):
+        errs.append(f"wasde_line_map: {WASDE_TABLE!r} declares no country axis for a scope rule to land on")
+    if not wasde_commodities(reg):
+        errs.append(f"wasde_line_map: {WASDE_TABLE!r} declares no all_classes sheet, so no line can be read")
+    for (table, metric), line in sorted(WASDE_LINE_OF.items()):
+        who = f"wasde_line_map {table}.{metric}"
+        try:
+            sts = reg.get(table)
+        except Exception:  # noqa: BLE001
+            errs.append(f"{who}: the source card is not in the registry")
+            continue
+        sm = (sts.metrics or {}).get(metric)
+        if sm is None:
+            errs.append(f"{who}: the source metric is not on its card")
+            continue
+        if str(line.get("table") or "") != WASDE_TABLE:
+            errs.append(f"{who}: the target table {line.get('table')!r} is not {WASDE_TABLE!r}")
+            continue
+        tm = (wts.metrics or {}).get(str(line.get("metric") or ""))
+        if tm is None:
+            errs.append(f"{who}: the target metric {line.get('metric')!r} is not on {WASDE_TABLE!r}")
+            continue
+        if not getattr(tm, "unit_from_sheet", None):
+            errs.append(f"{who}: the target {line.get('metric')!r} is not a balance-sheet quantity line "
+                        f"(unit_from_sheet)")
+        rule = str(line.get("scope") or "")
+        if rule not in WASDE_SCOPE_RULES:
+            errs.append(f"{who}: unknown scope rule {rule!r}")
+        elif str(getattr(sts, "country_axis", "") or "") != rule:
+            errs.append(f"{who}: scope rule {rule!r} on a card whose country_axis is "
+                        f"{getattr(sts, 'country_axis', None)!r}")
+        units.setdefault(table, {}).setdefault(str(getattr(sm, "unit", "") or ""), []).append(metric)
+    for table, by_unit in sorted(units.items()):
+        if len(by_unit) > 1:
+            shown = {u: sorted(m) for u, m in sorted(by_unit.items())}
+            errs.append(f"wasde_line_map {table}: the mapped metrics declare {len(by_unit)} units ({shown}) "
+                        f"-- a balance-sheet quantity map carries ONE")
+        if "" in by_unit:
+            errs.append(f"wasde_line_map {table}: mapped metrics {sorted(by_unit[''])} declare no unit")
+    return errs

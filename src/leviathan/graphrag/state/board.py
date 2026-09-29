@@ -1256,6 +1256,16 @@ class Board:
         # cost per turn (``ms`` over ``nodes`` regime nodes, ``rows`` kept) and why a read did not happen.
         if self.action_ledger:
             out["action_ledger"] = dict(self.action_ledger)
+        # 09-26 SITTING 2 (CONTRACT Y5 THE TRACE; verifier seam P3): the board-level retention stamp summed over
+        # the rows' OWN measured stamps (`feeders.retention_census`), APPENDED LAST and OMITTED WHEN EMPTY -- no
+        # probe read on a live as-of or offline board, so every such payload keeps HEAD's keys.
+        try:
+            from leviathan.graphrag.state import feeders as _fd  # lazy: board.py stays lane-free
+            _ret = _fd.retention_census([r.state for r in self.rows])
+        except Exception:                               # noqa: BLE001 -- a census never costs the trace
+            _ret = {}
+        if _ret:
+            out["retention"] = _ret
         return out
 
     @staticmethod
@@ -1276,18 +1286,26 @@ class Board:
         run = (st.run or {}) if st is not None else {}
         if run.get("declined"):
             run = {}
-        return {"contract": r.contract, "driver_id": r.driver_id,
-                "series_key": r.series_key or "",
-                "level_shown": (st.level_shown if st is not None else None),
-                "unit": (st.unit if st is not None else ""),
-                "z": _v(getattr(st, "z", None)), "percentile": _v(getattr(st, "percentile", None)),
-                "run_direction": str(run.get("direction") or ""),
-                "run_length": run.get("length"),
-                "level_date": str((getattr(st, "level_date", "") or "")),
-                "knowledge_date": str((getattr(st, "knowledge_date", "") or "")),
-                "status": (getattr(st, "status", "") or "") if st is not None else "",
-                "loud": bool(r.legs.get("loud")), "silver_status": r.silver_status,
-                "coverage_tier": r.coverage_tier}
+        out = {"contract": r.contract, "driver_id": r.driver_id,
+               "series_key": r.series_key or "",
+               "level_shown": (st.level_shown if st is not None else None),
+               "unit": (st.unit if st is not None else ""),
+               "z": _v(getattr(st, "z", None)), "percentile": _v(getattr(st, "percentile", None)),
+               "run_direction": str(run.get("direction") or ""),
+               "run_length": run.get("length"),
+               "level_date": str((getattr(st, "level_date", "") or "")),
+               "knowledge_date": str((getattr(st, "knowledge_date", "") or "")),
+               "status": (getattr(st, "status", "") or "") if st is not None else "",
+               "loud": bool(r.legs.get("loud")), "silver_status": r.silver_status,
+               "coverage_tier": r.coverage_tier}
+        # 09-26 FIX SITTING 2 (CONTRACT C-I3b): A RENDERED ROW CARRIES THE SIDE ITS READING SETTLES -- ``for`` /
+        # ``against`` / ``unsettled``, stamped by the render (``render.board_side``: ``walk._chain_direction`` on the
+        # row's own hop) on the rows it printed and read here, never re-derived. Appended LAST and OMITTED on a
+        # row the render did not print, so an unrendered row -- and every board-off payload -- keeps HEAD's keys.
+        _side = str(getattr(r, "board_side", "") or "")
+        if _side:
+            out["side"] = _side
+        return out
 
 
 def board_knobs_of(mode: str) -> Optional[BoardKnobs]:

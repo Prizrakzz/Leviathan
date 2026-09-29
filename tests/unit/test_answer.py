@@ -803,7 +803,9 @@ def test_an_undeclared_ref_the_verifier_resolved_gets_its_row_and_survives_the_p
     foot = an._cited_sources_block(structured, vreport, [])
     rows = [ln for ln in foot.splitlines() if ln.startswith("[")]
     # the ledger's row first, then the resolved-undeclared rows in ascending ref order
-    assert [r.split("]")[0] + "]" for r in rows] == ["[3]", "[1]", "[2]", "[7]"], rows
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-6 / CONTRACT Y26 -- declared): the flag-off footer
+    # spells the handle the body spells (every ref here is cited as [Ek]); the ORDER this pin keeps is unchanged
+    assert [r.split("]")[0] + "]" for r in rows] == ["[E3]", "[E1]", "[E2]", "[E7]"], rows
     assert "26.4 per cent" in foot and "28 percent" in foot and "45 per cent" in foot
     # the SEAM footer spells the handle the prose spells, for these rows too
     seam = an._cited_sources_block(structured, vreport, [], seam_lints=True)

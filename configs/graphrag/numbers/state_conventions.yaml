@@ -454,7 +454,7 @@ window_anchor_words:
 # retrieved", which is the DRAW's law and stays the words of a draw-sourced receipt. ONE %s: the action
 # at its own precision and the document that reports it.
 regime_words:
-  ledger: "the newest dated policy action the record holds on this link as known at this page's date is %s; the model treats a policy as in force until a later dated action on the same link"
+  ledger: "the newest dated policy action the record holds on this link as known at the date of these readings is %s; the model treats a policy as in force until a later dated action on the same link"
 
 # THE SCOPE CLAUSE (CONTRACT P14, W-5): a driver the model declares for the WORLD whose world series is
 # fenced here, read on the anchor market's own declared home scope -- the row's identity prints that
@@ -476,3 +476,63 @@ positioning_words:
 # ("row" is the instrument's word, measured: the first phrasing counted one desk-register hit).
 slot_words:
   answered_by_row: "this is the reading the question's subject resolves to, answered by this reading itself because its declared links into the price are one step"
+
+# =====================================================================================================
+# THE 09-26 FIX SITTING 2's ROW WORDS (lane N) -- declared once, read by state/render.py `book_words`
+# =====================================================================================================
+# Each book below has ONE reader in state/render.py (or state/rows.py for `population_words`, lane H's
+# `population_words`) and is held to clause 18's rules by lane N's deck (tests/unit/test_fix0926s2_lane_n.py
+# grades every entry through `lint._row_word_errs`: ASCII, digit-free, underscore-free, register-clean on all
+# four detectors and on the desk register, each placeholder exactly once). `lint.ROW_WORD_BOOKS` (a file this
+# lane does not own) does not list them yet; that extension is the orchestrator's (BUILD_N.md).
+
+# THE PATTERN QUORUM'S CLAUSE WORDS (N-2, CONTRACT Y17). COUNT WORDS ONLY -- never "met", "in force", "at or
+# past": the verdict stays refused (doctrine M-2; `firing.fire_contract` owns firing). The quorum line prints
+# FOUR populations, each in its own clause and each from its own list: the conditions COUNTED (read, in the
+# tail the pattern names), the ones read AGAINST it, the ones read UNSIDED, and the ones named with NO READING
+# here -- and only the first is counted. MEASURED (arm A, 7 of 10 treatment pages): the old line folded the
+# unread conditions into the count it set beside the pattern's own number ("four of six counted, threshold
+# three" on one read condition), and the writer then called the pattern "in force".
+quorum_words:
+  asks: "it asks for"
+  counted: "counted here"
+  unread: "named by the pattern with no series read here, so not counted"
+
+# WHAT POPULATION A PERCENTILE, A RECORD OR A Z WAS TAKEN OVER (CONTRACT Y8, lane H's `rows.population_words`
+# formats these; N prints them wherever "of its own record" printed): the whole series, a trailing window
+# (its first month), or one contract's own life (its first session).
+population_words:
+  whole: "of its own record"
+  window: "of its record since {month}"
+  contract_life: "of this contract's own sessions since {day}"
+
+# THE SEASON-AVERAGE PRICE PAIR'S OWN WINDOW (N-4, CONTRACT Y19): a pair read over a PAST episode's own
+# marketing years is named with that window -- the years the episode ran -- and never as "what the market did
+# after". A pair whose years cover the read's own marketing year prints HEAD's line.
+window_words:
+  analogue: "over the past episode's own marketing years, {span}, the years that episode ran and not the years after it"
+  baseline: "from the marketing year before the past episode to the year it ran, {span}, and not the years after it"
+
+# THE SETTLED SIDES BESIDE WHAT IS PRICED (CONTRACT Y13 / M-4): the words the ASKED SIDES line prints beside the
+# board's own settled side counts (C-I3b) and the front price's handle.
+ask_sides_words:
+  lead: "of the readings on this market above"
+  for: "toward a higher price"
+  against: "toward a lower price"
+  unsettled: "settling neither way"
+  front: "beside the front price"
+  standing: "and its standing"
+
+# THE LIKE-STATE HEADER'S TWO POPULATIONS (LEFTOVERS m4): "sat like this" wherever the header counts at least
+# one like state; where the like states it counts are zero, the pick's own seat in the compared pool
+# (`pool_rank`): the nearest at seat one, {ordinal} nearest past it, and a pick with no seat is one compared.
+like_state_words:
+  like: "the series sat like this in {month}"
+  nearest: "the nearest past state of this series is {month}"
+  ranked: "the {ordinal} nearest past state of this series is {month}"
+  compared: "a past state of this series compared with it is {month}"
+
+# THE OTHER POLE'S FAR EDGE (rice N-J / LEFTOVERS N-L4): a far edge printed off a seed that is the pole NOT in
+# force on its reading says whose edge it is -- {pole} is that pole's own `phase_pairs` words ("the cool phase").
+pole_edge_words:
+  other: "declared for {pole}, which is not the phase this reading puts in force"

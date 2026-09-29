@@ -1987,7 +1987,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         p_lines, p_trace = _price_pair(price_request, sg, graph, groups, qfn, asof, near,
                                        extra_number_calls, len(extra_number_calls),
                                        futures_newest_first=futures_newest_first,
-                                       vintage_role=vintage_role)
+                                       vintage_role=vintage_role, **_dq)
         if p_trace and p_trace.get("price_leg"):
             try:
                 sg.trace["quantify_price_leg"] = p_trace
@@ -4576,7 +4576,8 @@ def _price_call(commodity: str, region: str, value: float, my_label: str, asof, 
 
 
 def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list, base: int,
-                *, futures_newest_first: bool | str = False, vintage_role: bool = False) -> tuple:
+                *, futures_newest_first: bool | str = False, vintage_role: bool = False,
+                display=None) -> tuple:
     """SEAM B synthesis. The settled US farm-price consequence pair for the FOCUS contract over its nearest
     analogue-era window's MY span. Returns (block_lines, fired) -- ([], None) on ANY honest decline: no map
     (market-price/non-US slug), no derived focus window, <2 MYs, or either endpoint not status=='ok' (PAIR-
@@ -4662,10 +4663,26 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
                  + (" (all classes)" if commodity == "wheat" else "")
                  + f", marketing-year ({_paren})")
         verb = "rose from" if p_b >= p_a else "fell from"         # direction is prose; the level is the [N] row
+        # 09-26 FIX SITTING 2 (lane N, N-4 / CONTRACT Y19): THE PAIR NAMES ITS OWN WINDOW WHERE IT IS NOT THE READ'S.
+        # The two marketing years are the ANALOGUE window's own span (`_my_span(windows[0])`, widened back one
+        # year when the episode sat inside one), and the line printed them bare after "PRICE-RESPONSE" -- MEASURED
+        # on arm A (6 of 10 treatment pages): the tariff page read "the season-average farm price fell across the
+        # FOLLOWING marketing year" off the 2018 episode's OWN MY2017/18 -> MY2018/19 pair, and the 09-25 deep PM
+        # read "predates that loss". Where the pair's years cover the as-of's own marketing year (the read's span,
+        # `_covering_my`, the estate's one calendar) the line is HEAD's; elsewhere it names the window the pair
+        # sits in, in the book's words (`state_conventions.window_words`), never as what came after. Only where the
+        # quantify request carries the analyst DISPLAY key (a board turn, the K7 idiom): flag-off bytes are HEAD's.
+        # CORRECT, NEVER DELETE: the pair, its handles and its figures are unchanged.
+        _win = ""
+        if display:
+            _cur = _covering_my(str(asof or "")[:10], focus)
+            if _cur is None or not (int(my_a) <= int(_cur) <= int(my_b)):
+                _win = _price_pair_window_words(windows[0], focus, lab_a, lab_b)
         lines = [
             f"- [N{h_a}] {label} MY{lab_a}: {_fmt_price(p_a, u_a)}" + _series_tag(c_a["query"]),
             f"- [N{h_b}] {label} MY{lab_b}: {_fmt_price(p_b, u_b)}" + _series_tag(c_b["query"]),
-            (f"PRICE-RESPONSE on avg_farm_price: {label} {verb} {_fmt_price(p_a, u_a)} [N{h_a}] (MY{lab_a}) "
+            (f"PRICE-RESPONSE on avg_farm_price{(', ' + _win) if _win else ''}: {label} {verb} "
+             f"{_fmt_price(p_a, u_a)} [N{h_a}] (MY{lab_a}) "
              f"to {_fmt_price(p_b, u_b)} [N{h_b}] (MY{lab_b}) -- {_tail}; "
              f"render under '## The record', the level is the [N] row and the direction is prose."),
         ]
@@ -4681,6 +4698,27 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
         #                                                           turn_spend_unknown; a bare None left
         #                                                           "unknown" indistinguishable from
         #                                                           "never ran" and 2 paid reads scored 0
+
+
+def _price_pair_window_words(window, focus: str, lab_a: str, lab_b: str) -> str:
+    """THE SEASON-AVERAGE PAIR'S OWN WINDOW, in the conventions book's words (09-26 fix sitting 2, lane N, N-4;
+    CONTRACT Y19): ``state_conventions.window_words`` -- ``analogue`` where the pair's two years are the past
+    episode's own (the episode crossed a marketing-year boundary), ``baseline`` where `_my_span` widened the
+    pair back one year because the episode sat inside one (its first year PRECEDES the episode). ``""`` where the
+    book cannot be read -- HEAD's line, never a guessed word. The book is read through the board's one reader
+    (``state.render.book_words``), lazily: this module keeps no import-time dependency on the state package."""
+    try:
+        from leviathan.graphrag.state.render import book_words
+    except Exception:  # noqa: BLE001 -- no reader, no words (HEAD's line)
+        return ""
+    try:
+        widened = _covering_my(str(window[0])[:10], focus) == _covering_my(str(window[1])[:10], focus)
+    except Exception:  # noqa: BLE001 -- an unreadable window is read as the episode's own span
+        widened = False
+    tpl = book_words("window_words", "baseline" if widened else "analogue")
+    if not tpl or "{span}" not in tpl:
+        return ""
+    return tpl.replace("{span}", "MY%s to MY%s" % (lab_a, lab_b))
 
 
 # ── RV-READING: the directional price leg on a FIRED cross-commodity pair (2026-08-29) ────────────────

@@ -242,12 +242,13 @@ def _vintage_partition_bounds(spec: NumberQuery, ts: TableSpec) -> list[str]:
         return []
     w: list[str] = []
     asof_y = int(spec.asof[:4])
-    if ts.vintage_dates_real and spec.period:
+    _floor = first_release_floor(ts, spec.period)     # FIX SITTING 2 (Q-4): ONE producer, same bytes
+    if _floor:
         # REAL publication dates only (silver_wasde): no release mentioning marketing year Y is
         # published before Y's calendar year (WASDE first projects MY Y in May of Y) — the lower
         # bound shrinks the projected daily grid from (asof - 1973) candidates to ~(asof - Y) without
         # excluding any qualifying vintage. The upper bound lives in _guard (release <= asof, native).
-        w.append(f"{col} >= {_q(_fmt_pdate(f'{int(str(spec.period)[:4])}-01-01', ts.vintage_partition_format))}")
+        w.append(f"{col} >= {_q(_fmt_pdate(_floor, ts.vintage_partition_format))}")
     if not spec.period and ts.period_col and ts.period_sql_type == "int":
         if spec.period_start and spec.period_end:
             # source END-year labels covering the window, +1/+2 margin
@@ -980,6 +981,345 @@ def _newest_first_applies(spec: NumberQuery, ts: Optional[TableSpec], newest_fir
     return bool(getattr(ts, "contract_month_col", None))
 
 
+# === FIX SITTING 2 (09-26), LANE Q -- THE NATIONAL READ ON A DESTINATION AXIS IS A FOLD (CONTRACT Y1), A BALANCE
+#     IS NEVER SUMMED ACROSS ITS OBSERVATIONS (Y2), AND THE CURRENT MARKETING YEAR HAS ONE PRODUCER (Y3) ======
+#
+# THE MEASURED DEFECT (recon N-1, LIVE IN PROD, PC-1). A no-destination `agg=latest` read on silver_esr compiled
+# `ORDER BY data_date DESC, <order without country>, value LIMIT 1`: the newest week holds ONE ROW PER BUYER, so
+# LIMIT 1 kept the buyer with the SMALLEST value. 33 of 33 such rows on the fifty banked traces are exactly 0.0
+# (Costa Rica, El Salvador, Guatemala, Canada, Netherlands, Nicaragua, Mexico) and five pages printed one of them
+# as the nation ("Weekly export shipments read 0 1000 MT [N16]" while the national week was 775.39 kMT). The card
+# already DECLARES the truth -- `axis_national: sum` (tables.yaml silver_esr; registry.TableSpec) -- and nothing
+# compiled it. `_total_order`'s S1 note kept ONE BUYER'S row byte-stable, never the nation's.
+#
+# THE FIX IS THE CARD'S OWN DECLARATION, COMPILED. `national_fold` reads `axis_national` (never a table name --
+# `feeders.DESTINATION_GRAIN_TABLES` is the board's set and is not read here); a no-destination `latest` read on
+# a card declaring a rule in FOLD_RULES compiles as the SUM over the declared country axis for the newest period
+# on/before the as-of, every other grain column held as a GROUP BY key (the marketing year included -- a fold
+# across marketing years would add next-year commitments to this year's, the Q1-a threat). ONE row comes back,
+# carrying `_fold = {axis, rule, n}` (n = buyers summed, the SQL's own `count(value)`), and a newest period
+# that holds two marketing years is resolved ONLY by the estate calendar (Y3) or DECLINED BY NAME.
+#
+# REJECTED, and why: filtering zero rows (the smallest non-zero buyer is still one buyer); a destination
+# blacklist (a typed list standing in for the card's declared axis); a prompt line telling the model to pass
+# agg=sum (the compiler would still serve one buyer to every other caller -- the cascade's esr_exports current
+# leg compiles through this very branch); re-adding `country` to the tiebreak (the lexicographically first
+# buyer is still one buyer).
+FOLD_RULES: tuple = ("sum",)
+"""The ``axis_national`` values the compiler FOLDS (registry.AXIS_NATIONAL's Literal names three; ``none``
+declares a CELL axis -- a row there IS a cell and HEAD's read stands; ``mean_of_cells`` is declared but not
+folded here, so a no-country read on such a card DECLINES rather than serve one cell as the national figure)."""
+
+NATIONAL_FOLD_DECLINES: tuple = ("two_marketing_years", "undeclared_rule", "no_period_axis")
+"""The closed words a :class:`NationalFoldDeclined` carries on ``.reason`` (append-never-sort)."""
+
+FOLD_MARKER = "_fold"
+_FOLD_N_ALIAS = "_fold_n"              # count(value): the buyers the sum covered -> `_fold["n"]`, then stripped
+_FOLD_GROUPS_ALIAS = "_fold_years"     # the newest period's group count (one per marketing year) -> stripped
+_BALANCE_ALIAS_PREFIX = "_bal_"        # count(DISTINCT <observation axis>) on a balance aggregate -> stripped
+
+MY_BASIS: tuple = ("calendar", "no_declared_start", "not_marketing_year")
+"""The closed ``basis`` words :func:`current_marketing_year` returns beside its year (append-never-sort)."""
+
+
+class NationalFoldDeclined(ValueError):
+    """A no-destination latest read on a card declaring ``axis_national`` that the compiler cannot fold
+    honestly (CONTRACT Y1). ``.reason`` is one word of :data:`NATIONAL_FOLD_DECLINES`; the message names it
+    and says what read would serve. The agent returns it as status ``declined`` (absence_reason
+    ``declined``); ``two_marketing_years`` is raised by :func:`run` after the fetch (the newest period's MY set
+    is a fact of the rows), the other two by :func:`build_sql` before any SQL exists."""
+
+    def __init__(self, reason: str, detail: str = ""):
+        self.reason = str(reason)
+        super().__init__(f"national read DECLINED ({self.reason}) -- {detail}".rstrip(" -"))
+
+
+class BalanceSumRefused(ValueError):
+    """``agg`` in (sum, mean) over MORE THAN ONE observation of a metric whose card declares
+    ``period_sum: false`` -- a BALANCE (silver_esr ``outstanding_sales_1000mt``), which is never summed over
+    weeks or across marketing years (CONTRACT Y2). MEASURED, never guessed: the aggregate SQL counts the
+    distinct values of every observation axis it covered and :func:`run` refuses when any exceeds one, so a
+    window that holds ONE week of ONE marketing year still serves (that sum is the fold over buyers). A
+    ``period_sum: true`` flow and an undeclared metric compile exactly as HEAD. ``.axes`` maps each
+    observation axis to the count the read spanned."""
+
+    def __init__(self, metric: str, label: str, axes: dict, words: dict, *, detail: str = ""):
+        self.reason = "balance_over_periods"
+        self.metric = str(metric)
+        self.axes = {str(k): int(v) for k, v in (axes or {}).items()}
+        spans = detail or ("this read spanned " + ", ".join(
+            f"{n} {words.get(a, a)}{'' if n == 1 else 's'}" for a, n in self.axes.items()))
+        super().__init__(
+            f"lookup DECLINED -- {label} ({metric}) is a BALANCE (its card declares period_sum: false), so it "
+            f"is never summed or averaged across more than one observation; {spans}. The "
+            f"national balance for one week is agg=latest with no country (the newest week summed over every "
+            f"destination, one marketing year); one buyer's balance is agg=latest with that country. No figure "
+            f"was served.")
+
+
+def national_fold(ts, spec) -> Optional[str]:
+    """The fold rule for THIS spec, or None (HEAD's compile). Non-None ONLY when ``spec.agg == "latest"``,
+    ``spec.country is None``, the card sets ``country_col`` and its ``axis_national`` is in FOLD_RULES. Reads
+    the card's DECLARATION, never a table name."""
+    if ts is None or str(getattr(spec, "agg", None) or "latest") != "latest":
+        return None
+    if getattr(spec, "country", None) is not None or not getattr(ts, "country_col", None):
+        return None
+    rule = getattr(ts, "axis_national", None)
+    return rule if rule in FOLD_RULES else None
+
+
+def _undeclared_national(ts, spec) -> bool:
+    """A no-country latest read on a card whose ``axis_national`` names a national relation this compiler
+    does not fold (``mean_of_cells`` today): one row of that axis is never the national figure. ``none`` (a
+    CELL axis) and an undeclared card are HEAD's read."""
+    if ts is None or str(getattr(spec, "agg", None) or "latest") != "latest":
+        return False
+    if getattr(spec, "country", None) is not None or not getattr(ts, "country_col", None):
+        return False
+    rule = getattr(ts, "axis_national", None)
+    return rule is not None and rule != "none" and rule not in FOLD_RULES
+
+
+def _int_cell(v) -> Optional[int]:
+    """A count cell as an int, whichever backend stringified it (Athena VarChar, pg `_stringify`, sqlite int)."""
+    try:
+        return int(float(str(v)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _col_alias_map(ts, extras: list) -> dict:
+    """{raw column -> the alias `_extras` surfaces it under}, READ OFF `_extras` itself (the bare column or the
+    `_sel_date` expression it built), so no second copy of the alias rules exists."""
+    out: dict = {}
+    for c in ts.group_cols():
+        for expr, alias in extras:
+            if expr == c or expr == _sel_date(ts, c):
+                out[c] = alias
+                break
+    return out
+
+
+def _observation_aliases(ts, extras: Optional[list] = None) -> list:
+    """The aliases of the card's declared grain members OTHER than the commodity and the country axis -- the
+    axes ONE observation is keyed on (silver_esr: the marketing year and the week). Order = the grain's."""
+    extras = _extras(ts) if extras is None else extras
+    amap = _col_alias_map(ts, extras)
+    out: list = []
+    for c in ts.group_cols():
+        if c in (ts.commodity_col, ts.country_col):
+            continue
+        a = amap.get(c)
+        if a and a not in out:
+            out.append(a)
+    return out
+
+
+def _is_balance_agg(spec, ts) -> bool:
+    """agg in (sum, mean) on a metric whose card declares ``period_sum: false`` (Y2). None/true -> HEAD."""
+    if str(getattr(spec, "agg", None) or "") not in ("sum", "mean") or ts is None:
+        return False
+    m = (getattr(ts, "metrics", None) or {}).get(getattr(spec, "metric", None))
+    return m is not None and getattr(m, "period_sum", None) is False
+
+
+def _axis_words(ts) -> dict:
+    """alias -> the card's own noun for one step of that axis (the refusal's span words)."""
+    pw = str(getattr(ts, "period_words", None) or "period")
+    pt = str(getattr(ts, "period_type", None) or "")
+    return {"data_date": pw, "period": {"marketing_year": "marketing year"}.get(pt, pt or "period")}
+
+
+# -- Y3: THE CURRENT MARKETING YEAR, ONE PRODUCER OVER THE ESTATE'S ONE CALENDAR ----------------------------
+@functools.lru_cache(maxsize=512)
+def _hierarchy_node(value: str) -> Optional[str]:
+    """The causal node a contract slug maps to in the DECLARED contract hierarchy (hierarchy.contract_to_node),
+    or None. Any failure (the gitignored hierarchy absent) is None -- the calendar is then read on the value."""
+    try:
+        from leviathan.graphrag import hierarchy as _H
+        r = _H.contract_to_node(str(value))
+        return str(r[0]) if r else None
+    except Exception:  # noqa: BLE001 -- no hierarchy, no node: the value itself is read next
+        return None
+
+
+def _calendar_start(key) -> Optional[int]:
+    """The start month the estate calendar (``cascade.MY_START_MONTH`` through ``cascade._my_start``) DECLARES
+    for ``key``, or None where ``_my_start`` would fall to its undeclared ``_MY_DEFAULT_START``. The two
+    declared branches are ``_my_start``'s own (the exact key, then its family rule), read here only to know
+    whether the default fired -- the month itself is always ``_my_start``'s answer (pinned equal key by key)."""
+    c = str(key or "").strip().lower()
+    if not c:
+        return None
+    # lazy: cascade imports this module at load
+    from leviathan.graphrag.numbers import cascade as _C
+    declared = c in _C.MY_START_MONTH or any(k in c for k in _C.MY_START_MONTH)
+    return int(_C._my_start(c)) if declared else None
+
+
+@functools.lru_cache(maxsize=512)
+def _node_contracts(node: str) -> tuple:
+    """The contracts the DECLARED hierarchy maps to ``node`` (hierarchy.contracts_for_nodes), or () -- how a
+    card that keys its rows by a NODE name (silver_wasde's 'rice', 'soybean_oil') reaches the calendar, whose
+    keys are contract-level where the contracts' years differ from the family default."""
+    try:
+        from leviathan.graphrag import hierarchy as _H
+        return tuple(str(c) for c in _H.contracts_for_nodes([str(node)]))
+    except Exception:  # noqa: BLE001 -- no hierarchy: nothing to resolve through
+        return ()
+
+
+def _calendar_key(commodity) -> Optional[str]:
+    """The key the estate calendar DECLARES a start month for, reached through the declared hierarchy: the
+    value's node (a contract slug -> its node), the value itself, then -- for a value that IS a node -- its
+    contracts, admitted only when every one the calendar declares agrees on ONE month. None where nothing is
+    declared (never the calendar's default)."""
+    for key in (_hierarchy_node(str(commodity or "")), commodity):
+        if _calendar_start(key) is not None:
+            return str(key).strip().lower()
+    declared = [(c, _calendar_start(c)) for c in _node_contracts(str(commodity or "").strip().lower())]
+    declared = [(c, m) for c, m in declared if m is not None]
+    if declared and len({m for _, m in declared}) == 1:
+        return declared[0][0]
+    return None
+
+
+def _current_my(ts, commodity, asof) -> tuple:
+    """:func:`current_marketing_year` on a card already in hand."""
+    if ts is None or str(getattr(ts, "period_type", None) or "") != "marketing_year":
+        return (None, "not_marketing_year")
+    key = _calendar_key(commodity)
+    if key is None:
+        return (None, "no_declared_start")
+    from leviathan.graphrag.numbers import cascade as _C
+    return (_C._covering_my(str(asof or "")[:10], key), "calendar")
+
+
+def current_marketing_year(table: str, commodity: str, asof: str, *, reg=None) -> tuple:
+    """(my_start_year: int | None, basis: str) -- CONTRACT Y3. ONE producer over the estate's ONE calendar:
+    ``numbers.cascade._covering_my(asof, <key>)``, where the key is the card's commodity value resolved through
+    the DECLARED contract hierarchy node first (``soybeans_cbot`` -> ``soybeans``), the value itself second
+    (``soybean_oil_cbot``, ``rough_rice_cbot``), and a NODE value's own contracts third (silver_wasde ``rice`` ->
+    ``rough_rice_cbot``), only where they agree on one month (`_calendar_key`). ``basis`` is a word of
+    :data:`MY_BASIS`:
+    ``not_marketing_year`` for a card whose ``period_type`` is not ``marketing_year`` (or no card at all);
+    ``no_declared_start`` where the calendar would fall to its default (the ESR rice class slugs -- rice opens in
+    August, the default says September -- and every slug the calendar does not name). NEVER the default."""
+    try:
+        ts = (reg or load_registry()).get(str(table))
+    except Exception:  # noqa: BLE001 -- no card, no marketing year
+        return (None, "not_marketing_year")
+    return _current_my(ts, commodity, asof)
+
+
+def marketing_year_label(start_year) -> str:
+    """'2026' -> '2026/27': a marketing year in the split-label spelling, from its START year."""
+    y = int(start_year)
+    return f"{y}/{(y + 1) % 100:02d}"
+
+
+def first_release_floor(ts, period) -> Optional[str]:
+    """The ISO day before which NO release mentioning ``period`` exists, on a card whose vintage dates ARE
+    publication dates (``vintage_dates_real``): 1 January of the period's START year (WASDE first projects
+    marketing year Y in May of Y). ONE rule, two readers: ``_vintage_partition_bounds`` (the sargable lower
+    bound, byte-identical to its inline form, raising on a junk period exactly as it did) and the agent's
+    ``empty_read_reason`` (``not_yet_published`` only where this floor lies after the as-of). None on every
+    other card and when no period is asked."""
+    if not (getattr(ts, "vintage_dates_real", False) and period):
+        return None
+    return f"{int(str(period)[:4])}-01-01"
+
+
+def _fold_preference(spec, ts) -> str:
+    """The ORDER BY term that puts the calendar's CURRENT marketing year first when the newest period holds
+    more than one (the carry week at a year's turn) -- "" when the spec pins a period, when the calendar names
+    no current year, or when the card's period is not an int label (no rule spells it). The choice is then
+    CHECKED after the fetch (`_apply_national_fold`): an ambiguous week the calendar cannot resolve DECLINES."""
+    if getattr(spec, "period", None) or not getattr(ts, "period_col", None):
+        return ""
+    if str(getattr(ts, "period_sql_type", None) or "") != "int":
+        return ""
+    cur, _basis = _current_my(ts, getattr(spec, "commodity", None), getattr(spec, "asof", None))
+    if cur is None:
+        return ""
+    return f"CASE WHEN period = {int(cur) + int(getattr(ts, 'period_offset', 0) or 0)} THEN 0 ELSE 1 END"
+
+
+def _fold_sql(src: str, extras: list, spec, ts, order_alias: str) -> str:
+    """The Y1 fold over a deduplicated/filtered row source (``src`` = ``FROM (...) AS _v [WHERE _rn = 1]``):
+    SUM over the country axis, GROUP BY every other surfaced alias (the observation axes), the knowledge stamp
+    the NEWEST member's (``max`` -- a week whose buyers sit on two vintages is one national week known once its
+    newest member is), the buyer count and the newest period's group count riding as two internal aliases.
+    ORDER BY the chronological alias DESC NULLS LAST (explicit, the `_series_order` law), the calendar's
+    preference, then the group keys in `_order_aliases` order; LIMIT 1."""
+    aliases = [a for _, a in extras]
+    kd_axis = order_alias == "knowledge_date"          # a card whose date IS its knowledge date keys on it
+    keys = [a for a in aliases if a != "country" and (kd_axis or a != "knowledge_date")]
+    need = ("year", "month") if order_alias.startswith("(") else (order_alias,)
+    if not keys or any(a not in keys for a in need):
+        raise NationalFoldDeclined("no_period_axis",
+                                   f"{ts.id} surfaces no chronological axis to identify its newest "
+                                   f"observation, so the national figure cannot be summed for one period")
+    cols = ["sum(value) AS value"]
+    if "knowledge_date" in aliases and not kd_axis:
+        cols.append("max(knowledge_date) AS knowledge_date")
+    cols += keys
+    cols += [f"count(value) AS {_FOLD_N_ALIAS}",
+             f"count(*) OVER (PARTITION BY {order_alias}) AS {_FOLD_GROUPS_ALIAS}"]
+    tail = [t for t in [_fold_preference(spec, ts)] if t] + [a for a in _order_aliases(extras, False) if a in keys]
+    return (f"SELECT {', '.join(cols)} {src} GROUP BY {', '.join(keys)}"
+            f" ORDER BY {order_alias} DESC NULLS LAST" + "".join(f", {t}" for t in tail) + " LIMIT 1")
+
+
+def _apply_national_fold(rows: list, spec, ts) -> list:
+    """POST-FETCH (Y1): the folded row as served -- ``_fold`` stamped, the two internal aliases stripped, and
+    the newest period's marketing-year set CHECKED: more than one group and no pinned period -> the row must be
+    the calendar's current year, else :class:`NationalFoldDeclined` ``two_marketing_years``. NEW dicts, never
+    the executor's own (a session cache hands the same list back). A row without the fold's count is not the
+    fold SQL's row (an executor that ignored the SQL) and is returned untouched."""
+    rule = national_fold(ts, spec)
+    if rule is None or not rows or not isinstance(rows[0], dict) or _FOLD_N_ALIAS not in rows[0]:
+        return rows
+    r = rows[0]
+    groups = _int_cell(r.get(_FOLD_GROUPS_ALIAS)) or 1
+    if groups > 1 and not getattr(spec, "period", None):
+        cur, basis = _current_my(ts, getattr(spec, "commodity", None), getattr(spec, "asof", None))
+        want = (None if cur is None or str(getattr(ts, "period_sql_type", None) or "") != "int"
+                else int(cur) + int(getattr(ts, "period_offset", 0) or 0))
+        if want is None or _int_cell(r.get("period")) != want:
+            why = ("the estate calendar declares no marketing-year start for this commodity"
+                   if basis == "no_declared_start" else
+                   "the estate calendar's current marketing year is not among them")
+            raise NationalFoldDeclined(
+                "two_marketing_years",
+                f"the newest {str(getattr(ts, 'period_words', None) or 'period')} on or before the as-of "
+                f"carries rows for {groups} marketing years and {why}, so no one year can be summed without "
+                f"choosing it; pass period=<the marketing-year START year> to read one")
+    out = {k: v for k, v in r.items() if k not in (_FOLD_N_ALIAS, _FOLD_GROUPS_ALIAS)}
+    out[FOLD_MARKER] = {"axis": str(getattr(ts, "country_axis", None) or "country"), "rule": rule,
+                        "n": _int_cell(r.get(_FOLD_N_ALIAS))}
+    return [out] + list(rows[1:])
+
+
+def _apply_balance_guard(rows: list, spec, ts) -> list:
+    """POST-FETCH (Y2): refuse a balance aggregate that spanned more than one observation, MEASURED by the
+    SQL's own count(DISTINCT) per observation axis; otherwise strip the counts (NEW dicts). An executor that
+    returned no counts (it did not run this SQL) is returned untouched."""
+    if not rows or not _is_balance_agg(spec, ts) or not isinstance(rows[0], dict):
+        return rows
+    keys = [k for k in rows[0] if str(k).startswith(_BALANCE_ALIAS_PREFIX)]
+    if not keys:
+        return rows
+    spans = {k[len(_BALANCE_ALIAS_PREFIX):]: (_int_cell(rows[0].get(k)) or 0) for k in keys}
+    if any(n > 1 for n in spans.values()):
+        m = (ts.metrics or {}).get(spec.metric)
+        raise BalanceSumRefused(spec.metric, str(getattr(m, "label", None) or spec.metric), spans,
+                                _axis_words(ts))
+    return [{k: v for k, v in r.items() if not str(k).startswith(_BALANCE_ALIAS_PREFIX)}
+            if isinstance(r, dict) else r for r in rows]
+
+
 def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = ATHENA_DB,
               futures_newest_first: bool | str = False, ym_lag: bool = False,
               roll_inputs: bool = False) -> str:
@@ -1087,10 +1427,37 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     sel = f"{val} AS value" + "".join(f", {e} AS {a}" for e, a in extras)
     roll_sel = _roll_input_projection(spec, ts, roll_inputs)   # "" unless the caller armed it (fail-closed)
     order = _order_col(ts)
+    # FIX SITTING 2 (09-26), LANE Q, CONTRACT Y1 / Y2 -- read off the CARD, before any branch compiles:
+    # `fold` is the declared national rule (None -> HEAD's read, byte for byte); a card declaring a national
+    # relation this compiler does not fold DECLINES here, before any SQL exists; `balance` names the
+    # observation axes a balance aggregate must be measured over (empty -> HEAD's aggregate SQL).
+    fold = national_fold(ts, spec)
+    if fold is None and _undeclared_national(ts, spec):
+        raise NationalFoldDeclined(
+            "undeclared_rule",
+            f"{spec.table} declares its national figure as {getattr(ts, 'axis_national', None)!r} over its "
+            f"country axis, which this compiler does not fold; one row of that axis is never the national "
+            f"figure -- name one with country=<name>")
+    if fold is not None and not order:
+        raise NationalFoldDeclined(
+            "no_period_axis",
+            f"{spec.table} has no chronological axis, so its newest observation cannot be identified to sum "
+            f"over its country axis")
+    balance = _observation_aliases(ts, extras) if _is_balance_agg(spec, ts) else []
+    if _is_balance_agg(spec, ts) and not balance:
+        raise BalanceSumRefused(spec.metric, spec.metric, {}, _axis_words(ts),
+                                detail=f"{spec.table} surfaces no observation axis by alias, so how many "
+                                       f"observations the aggregate would span cannot be measured")
 
     def _agg(sql: str) -> str:
         fn = {"mean": "avg"}.get(spec.agg, spec.agg)
         # subquery ALIAS: optional on Athena/Presto, REQUIRED by Postgres — one SQL string serves both backends
+        if balance:
+            # Y2: the SAME aggregate, plus how many distinct values of every observation axis it covered --
+            # `run()` refuses a balance that spanned more than one (a MEASUREMENT of the rows summed, never a
+            # guess from the window) and strips the counts. A flow (`period_sum: true`) never reaches here.
+            counts = "".join(f", count(DISTINCT {a}) AS {_BALANCE_ALIAS_PREFIX}{a}" for a in balance)
+            return f"SELECT {fn}(value) AS value{counts} FROM ({sql}) AS _v"
         return f"SELECT {fn}(value) AS value FROM ({sql}) AS _v"
 
     table = ts.athena_table or spec.table                     # agent-facing id -> physical Glue table
@@ -1197,6 +1564,10 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
             alias = dict(extras)
             order_alias = (alias[_sel_date(ts, ts.date_col)] if ts.date_col
                            else "(year * 100 + month)")
+            if fold is not None:
+                # Y1: the NATIONAL figure the card declares -- the sum over its country axis for the newest
+                # period on/before the as-of, one marketing year (see `_fold_sql`). Never one buyer's row.
+                return _fold_sql(f"FROM ({inner}) AS _v WHERE _rn = 1", extras, spec, ts, order_alias)
             return base + f" ORDER BY {order_alias} DESC, {_total_order(extras, inc_country)} LIMIT 1"
         else:
             base += f" ORDER BY {_series_order(extras, inc_country, newest_first=nf)}"
@@ -1206,6 +1577,14 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     base = f"SELECT {sel} FROM {db}.{table} WHERE {where}"
     if spec.agg in ("sum", "mean", "max", "min"):
         return _agg(base) + f" LIMIT {int(spec.limit)}"
+    if spec.agg == "latest" and order and fold is not None:  # Y1: the non-vintage twin of the national fold
+        alias = dict(extras)
+        order_alias = alias.get(_sel_date(ts, ts.date_col)) if ts.date_col else "(year * 100 + month)"
+        if not order_alias:                                   # a date axis the extras do not surface by alias
+            raise NationalFoldDeclined("no_period_axis",
+                                       f"{spec.table} surfaces its date axis under no alias, so its newest "
+                                       f"observation cannot be identified to sum over its country axis")
+        return _fold_sql(f"FROM ({base}) AS _v", extras, spec, ts, order_alias)
     if spec.agg == "latest" and order:                        # the single most-recent observation on/before asof
         # W3 CURVE FIX (2026-07-31): on a PER-EXPIRY table with delivery months NAMED, 'latest' means the
         # newest session PER EXPIRY -- one row per contract_month -- not one row overall. The tool schema
@@ -1559,6 +1938,8 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
         rows = resort_rows_chronological(rows, spec, ts)     # S1: DESC fetch -> ASC presentation (raw rows)
     if spec.agg == FRONT_EXPIRY_AGG:
         rows = select_front_expiry(rows, spec, ts)           # A': run the ONE named rule, keep ONE row
+    rows = _apply_national_fold(rows, spec, ts)              # Y1: the fold's marker; its MY set checked
+    rows = _apply_balance_guard(rows, spec, ts)              # Y2: a balance over >1 observation is refused
     rows = _apply_sheet_units(rows, spec, ts)                # K22: the sheet names the unit; `_sheet` stripped
     rows = _apply_unit_overrides(rows, spec, ts)
     return _apply_country_names(rows, spec, ts)              # country_name_ref cards: raw value -> display name

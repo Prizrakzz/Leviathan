@@ -423,7 +423,10 @@ def test_K1_A5_a_board_receipt_past_the_menu_keeps_its_marker_and_gets_its_foote
         pruned = an._prune_orphan_evidence_handles(st, rep)
         return st["mechanism"], pruned, an._cited_sources_block(st, rep, [])
     body, pruned, foot = served(ev, an._evidence_chunks_kw(vf, led))
-    assert pruned == 0 and ("[E%d]" % k) in body and ("[%d] " % k) in foot, (body, foot)
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-6 / CONTRACT Y26 -- declared): the footer spells the
+    # handle the body spells in BOTH cells, so the receipt's row is `[E<k>] ...` beside a body citing [E<k>].
+    # The claim kept: the receipt past the menu keeps its marker AND gets its footer row.
+    assert pruned == 0 and ("[E%d]" % k) in body and ("[E%d] " % k) in foot, (body, foot)
     body0, pruned0, foot0 = served(list(menu), {})               # HEAD's threading
     assert pruned0 == 1 and ("[E%d]" % k) not in body0 and ("[%d] " % k) not in foot0
 
@@ -539,11 +542,17 @@ def test_K19_the_state_mandate_names_the_record_the_way_the_boards_rows_do():
     the record ("CHAIN the one this page carries") -- and with the register off it is HEAD's object."""
     from leviathan.graphrag.state import render as R
     # the NAME is the rows' own: the render's absence reasons speak of the record as "this page"
+    # 09-26 S2 RE-BANK (lane N, N-1 -- declared): the writer copied "this page" off BOTH halves of this binding
+    # (31 of the fifty pages), so the mandate's desk name moved to "the market record" and the rows' page-talk
+    # to "here"; the rows that NAME the record use the mandate's one constant, and "this page" is in neither
+    # half. HEAD's ">= 3" was the count of the retired phrase; the binding it guarded (one name, the rows') holds.
     _why = " ".join(str(v) for v in R.ABSENCE_WHY.values())
-    assert _why.count(N.MANDATE_BLOCK_READER_NAME) >= 3, _why[:200]
+    assert N.MANDATE_BLOCK_READER_NAME in _why, _why[:200]
+    assert "this page" not in _why and "this page" not in N.state_board_mandate(nonobvious=True, chain=True,
+                                                                                desk=True)
     desk = N.state_board_mandate(nonobvious=True, chain=True, desk=True)
     # 09-25 (A-5): the movement names the record's LEADING chains, never the page's own verb
-    assert "the block" not in desk and "take this page's leading chains" in desk
+    assert "the block" not in desk and "take %s's leading chains" % N.MANDATE_BLOCK_READER_NAME in desk
     assert N.state_board_mandate() is N.SYSTEM_STATE_BOARD_MANDATE
     assert N.check_literals() == []
 

@@ -1081,10 +1081,18 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # `positioning_asymmetry` (the handles of the block lines that print lane R's record-extreme lead), default
     # the empty tuple, so every existing caller is byte-identical (checked below). DECLARED RE-BANK: this pin's
     # claim -- appended at the tail, in order added, default-off value == HEAD's bytes -- is kept.
+    # ...and the 09-26 fix sitting 2 (lane M, CONTRACT Y13 / M-4) appends TWO more after
+    # `positioning_asymmetry`: `ask_sides` (the handles of the block lines carrying lane N's ASK-SIDES lead,
+    # default the empty tuple) and `ask_sides_balanced` (the board's own count read, default True -- inert
+    # without `ask_sides`). DECLARED RE-BANK: the claim kept is unchanged -- appended at the tail, in the
+    # order added, and the default-off value renders HEAD's bytes (checked below).
     _APPENDS = [n for n in ("numbers_budget", "state_board", "desk_register", "watch_selection",
                             "register_licence", "state_chain", "ask_head", "horizon_row",
-                            "positioning_asymmetry")
+                            "positioning_asymmetry", "ask_sides", "ask_sides_balanced")
                 if n in _tail]
+    if "ask_sides" in _tail:
+        assert params["ask_sides"].default == () and params["ask_sides_balanced"].default is True
+        assert an._system(ask_sides=(), ask_sides_balanced=True) == base
     if "ask_head" in _tail:
         assert params["ask_head"].default == () and params["horizon_row"].default is False
         assert an._system(ask_head=(), horizon_row=False) == base

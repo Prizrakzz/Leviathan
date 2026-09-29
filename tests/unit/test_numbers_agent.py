@@ -1090,7 +1090,10 @@ def test_an_empty_country_read_names_the_spelling_axis_and_a_served_read_does_no
     out = A.answer_numbers("US corn stocks to use?", asof="2026-09-16", client=empty,
                            query_fn=lambda sql: [])
     note = out["calls"][0]["scope_note"]
-    assert note.startswith(A._no_rows_note(out["calls"][0]["status"]))     # the marker still leads
+    # FIX SITTING 2 (lane Q, Q-4) -- RE-BANKED, DECLARED: the marker's `why` is the MEASURED reason the payload
+    # carries (`absence_reason`; a PSD card's revision-dated vintages -> `store_gap`), no longer the status word.
+    assert out["calls"][0]["absence_reason"] == "store_gap"
+    assert note.startswith(A._no_rows_note(out["calls"][0]["absence_reason"]))     # the marker still leads
     assert "THE COUNTRY SPELLING IS THE FIRST THING TO RULE OUT" in note
     assert "'united_states'" in note
     assert "never as a fact about whether the source publishes the figure" in note

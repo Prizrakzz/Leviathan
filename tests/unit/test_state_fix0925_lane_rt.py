@@ -398,9 +398,13 @@ def test_RT8_the_count_line_counts_the_rest_and_carries_no_pool_census():
     counts = {"distinct_sequences": 100, "total": 513, "state_two_hops": 271, "with_document": 0,
               "distinct_unnamed_markets": 3, "cross_market_event": 0, "cross_market_event_rendered": 0}
     line = R.sb_chain_count(counts, k=2, anchor_label="CME palm oil", slots=("top", "pair"))
-    assert line.startswith("CHAIN COUNT into CME palm oil: one hundred chains of cause, two of them carried "
-                           "above, one here for a reason other than rank; the rest are counted here, not followed "
-                           + REG.desk_phrase("hop", 0) + " by " + REG.desk_phrase("hop", 0))
+    # 09-26 S2 RE-BANK (lane N, N-4 / CONTRACT Y19): the line prints at the HEAD of the chains ("carried below")
+    # and states the FURTHER count itself -- "the rest" left the subtraction to the writer (F10 "beyond those")
+    assert line.startswith("CHAIN COUNT into CME palm oil: one hundred chains of cause; the two carried below are "
+                           "followed " + REG.desk_phrase("hop", 0) + " by " + REG.desk_phrase("hop", 0)
+                           + ", one of them here for a reason other than rank, and the other ninety-eight are "
+                           "counted here, not followed " + REG.desk_phrase("hop", 0) + " by "
+                           + REG.desk_phrase("hop", 0)), line
     for census in ("sequence", "ways in all", "past one link", "five hundred thirteen", "two hundred seventy-one"):
         assert census not in line, census
     assert R.classify(line) == ("SB-P",) and R.register_hits(line) == [] and REG.count_desk_register(line) == 0

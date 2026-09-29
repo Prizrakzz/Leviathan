@@ -923,7 +923,7 @@ def test_chain_the_non_obvious_watch_variant_survives_the_renumbering():
     both = N.state_board_mandate(nonobvious=True, chain=True)
     assert N.MANDATE_WATCH_NONOBVIOUS.replace("(4) WATCH", "(5) WATCH") in both
     assert "the next scheduled print" not in both          # HEAD's watch movement is gone
-    assert "the items the block nominates" in both
+    assert "the forward items the block sets out for this market" in both   # 09-26 s2 (N-1): re-banked
     assert N.MANDATE_CHAIN_MOVEMENT in both
     # and the chain-only arm keeps HEAD's watch movement, renumbered and otherwise untouched
     chain_only = N.state_board_mandate(chain=True)
@@ -1070,9 +1070,11 @@ def test_chain_a_renumbering_that_lost_a_movement_is_caught_by_arithmetic():
     "saying plainly that the record does not settle it",
     # anti-padding (threat E2) and the count line
     "Narrate those leading chains and not the rest of the driver model",
-    # 09-25 (A-5): the count line gets ONE plain clause and one number -- palm/rape narrated the whole line
-    "where the block prints a COUNT line of further chains, give it one plain clause -- how many further "
-    "chains run into this market, one number -- and move on",
+    # 09-25 (A-5): the count line gets ONE plain clause and one number -- palm/rape narrated the whole line.
+    # RE-BANKED 09-26 SITTING 2 (lane N, N-4): the number is the FURTHER count the line itself prints (corn/wheat
+    # F10 printed the pool total as "beyond those"), copied as printed, with the markets the line names
+    "where the block prints a COUNT line, give it one plain clause -- the number of further chains it "
+    "prints, as it prints it, and the markets it names -- and move on",
     # ROUND 2, review MAJOR 4: the chain under the print line is RENDERED IN ONE LINE, never dropped,
     # so the writer is ordered to give it its sentence -- the other half of the 2026-09-17 deviation
     "Where the block gives a chain in a single line, that chain still gets its sentence",
@@ -1143,8 +1145,8 @@ def test_chain_the_top_chain_is_NARRATED_even_when_the_block_gives_it_one_line()
     assert "that chain still gets its sentence" in m
     assert "never reaches the reader without one" in m
     # the count clause is still there and is still about the REST -- the one-line chain is not a count
-    assert "prints a COUNT line of further chains, give it one plain clause" in m
-    assert m.index("gives a chain in a single line") > m.index("one number -- and move on")
+    assert "prints a COUNT line, give it one plain clause" in m                       # 09-26 s2 (N-4)
+    assert m.index("gives a chain in a single line") > m.index("the markets it names -- and move on")
     # 09-25 (A-5): and the order no longer rides the page's own rendering verb at all -- the writer copied
     # "the one chain the page renders in full" onto the cocoa page; the chains are the record's LEADING ones
     assert "renders" not in m and "in full" not in m
@@ -1190,11 +1192,13 @@ def test_chain_the_flag_scoped_TABLE_and_the_flag_scoped_LITERAL_agree_in_both_s
         for movement, _h, _f in N.mandate_movements(chain=chain):
             assert movement in lit, (chain, movement)
         assert ("CHAIN" in lit) is chain
-    # THE FLAG-OFF BYTES, banked
+    # THE FLAG-OFF BYTES, banked. RE-BANKED 09-26 SITTING 2 (lane N, N-1, declared DM4): movement (2)'s
+    # "the newest dated document behind the page" now reads "behind this answer" (the SB-L line's own words) --
+    # the claim kept: the chain=False literal is ONE banked string and the function returns it by identity.
     assert hashlib.sha256(N.SYSTEM_STATE_BOARD_MANDATE.encode("utf-8")).hexdigest() == (
-        "26cf673ec832026dc0315e11d1fd7b211440bf10759f86791e3d0d1802c8dc4f")
+        "68b9697644dedc77724d65bea6c10bf122f03cc0c71af3a31e9225578eb6445b")
     assert N.state_board_mandate() is N.SYSTEM_STATE_BOARD_MANDATE
-    assert len(N.SYSTEM_STATE_BOARD_MANDATE) == 3495
+    assert len(N.SYSTEM_STATE_BOARD_MANDATE) == 3498
 
 
 def test_chain_the_movement_carries_no_word_budget():
@@ -1350,7 +1354,8 @@ def test_0925_A5_the_chain_movement_names_chains_by_mechanism_and_counts_in_one_
             assert gone not in m, (desk, gone)
         assert "take %s's leading chains, in the order it gives them" % rec in m, desk
         assert "Name every chain by what it links -- where it starts and the market it reaches" in m
-        assert "give it one plain clause -- how many further chains run into this market, one number" in m
+        assert ("give it one plain clause -- the number of further chains it prints, as it prints it"
+                in m)                                                          # 09-26 s2 (N-4): re-banked
     assert N.check_literals() == []
     assert N.state_board_mandate(chain=False) is N.SYSTEM_STATE_BOARD_MANDATE      # chain off: HEAD's object
 

@@ -671,7 +671,10 @@ def test_m1_the_row_side_reads_the_receipt_never_the_rendered_label():
     label = an.cit.from_number(call, 1).label
     # RE-BANKED 09-23 FIX ROUND -- D3 label correction (09-23 recon cocoa F1, the ICCO season lost): a series read
     # now RENDERS its headline row's own season; the row side below still reads the RECEIPT, never this label.
-    assert "ICE cocoa 2024/25 season = 4,723 1000 MT" in label
+    # RE-BANKED 09-26 SITTING 2 (lane H, PC-8): the ICCO card declares `country_axis: global` (the WORLD balance
+    # sheet), so the asked commodity is no longer printed as the series' scope ("ICE cocoa"); the claim this pin
+    # keeps -- the headline row's own season rendered on the figure -- is unchanged.
+    assert "ICCO COCOA production 2024/25 season = 4,723 1000 MT" in label and "ICE cocoa" not in label
     assert an._receipt_period_text(call) == "2024/25"        # ...but the receipt has one, and says it
     st = _st("The ICCO placed world production for the 2024/25 cocoa year at [N1].")
     census = an._resolve_number_handles(st, [call], handle_prose=True)

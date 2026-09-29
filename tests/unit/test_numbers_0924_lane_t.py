@@ -34,8 +34,15 @@ from leviathan.graphrag.numbers import stats as ST
 
 # B9 -- the SAME constants round 1 banked (test_numbers_card_fields.py), re-measured this sitting on the
 # head0a76 shadow and on the tree: identical (fix_round_0924/t_work/b9/B9full_{head,tree}.out).
-B9_NUMBERS_PROMPT_SHA256 = "3caa2d83e7752c7baa6f72cd3c07ee663632623889dc4c9e780bd02ffd95adc5"
-B9_NUMBERS_PROMPT_CHARS = 255421
+# FIX SITTING 2 (09-26), LANE Q -- RE-BANKED, DECLARED (PC-1 / PC-2): the silver_esr card's `note:` line, and ONLY
+# that line, moved (the national read is the fold over buyers, a balance is never summed, and the current marketing
+# year is a RULE named per tool result -- never a year in the prompt). Measured by lane_q/B9_diff.py on head_s2 vs
+# the tree: 2 lines moved (the old and the new note), both tool schemas byte-identical. THE COST, WRITTEN DOWN: one
+# new cached-prefix variant REPLACES the old one (the prompt takes no as-of, so it stays ONE sha across as-ofs) --
+# one cold cache write per numbers seat after the deploy (~98k tokens, ~$0.37 at claude-sonnet-5), not a new
+# write per turn. Was 3caa2d83e7752c7baa6f72cd3c07ee663632623889dc4c9e780bd02ffd95adc5 / 255,421 chars.
+B9_NUMBERS_PROMPT_SHA256 = "530d303434659a37f72a3ee3158f2a913c634efdb413e039e99609ec80b58e70"
+B9_NUMBERS_PROMPT_CHARS = 256024
 B9_TOOL_SCHEMA_SHA256 = "fea04e3d23c49344b4ce4e19e9ff61f73b93703fcada017442106bfbbb60bab8"
 B9_STATS_TOOL_SCHEMA_SHA256 = "f11a75a605db17f8f8c2ac7801dae55d475924f6df7b90d3d8b55412588699c7"
 

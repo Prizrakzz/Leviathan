@@ -56,7 +56,19 @@ from typing import Optional
 #: fills the same slots with the name the board's own rows give the record. The retired `_desk_block_name`
 #: ran a word-boundary regex over the finished mandate with a typed plural exemption.
 MANDATE_BLOCK_SELF_NAME: str = "the block"
-MANDATE_BLOCK_READER_NAME: str = "this page"
+#: 09-26 FIX SITTING 2 (lane N, N-1; recon N-5): THE RECORD'S READER-FACING NAME IS THE READER'S OWN OBJECT. It
+#: was "this page" (K19: the name the board's own rows gave themselves), and the writer COPIED it -- "Nothing
+#: else on this page cleared the bar", "The chain the page carries into corn", "the chains this page could trace":
+#: page-talk on 7 of 10 arm-A treatment pages and 25 of 30 older ones. The name is now an object a desk reader
+#: already holds -- the market record -- so a writer that copies it writes about the market, never the
+#: machinery. It is a SINGULAR noun whose head ends the phrase, which is what every reader of the slot needs:
+#: the mandate templates' "{record} only orders" / "{record}'s own count" and answer.py's five cascade desk
+#: variants ("... on {_PAGE_NAME}", "{_PAGE_NAME}'s own words", "{_PAGE_NAME.upper()} CARRIES ...") all stay
+#: grammatical. READERS: `state_board_mandate(desk=True)` (the base, watch-nonobvious and chain templates);
+#: `answer._SYSTEM_CASCADE_WALK_DESK` / `_WALK_MANDATE_DESK` / `_CONTEXT_DESK` / `_DEEP_DESK` / `_XCCY_DESK`
+#: (answer.py:498 imports it); `tests/unit/test_desk_register_vocabulary.py`; `tests/unit/test_name_binding_lint.py`.
+#: REJECTED: a find-and-replace of "this page" in the writer's output, or a ban list the writer is told to avoid.
+MANDATE_BLOCK_READER_NAME: str = "the market record"
 
 _T_SYSTEM_STATE_BOARD_MANDATE = (
     "THE STATE OF THE WORLD block above is this turn's board: every driver the graph declares for the "
@@ -77,7 +89,7 @@ _T_SYSTEM_STATE_BOARD_MANDATE = (
     "present it as what will happen; when {record} says no documents exist for it, say so. The "
     "RECENCY rows belong to this movement and are owed to the reader like any other evidence: give "
     "each layer its own plain sentence -- the newest knowledge date the number rows carry, the newest "
-    "dated document behind the page, the session the board price tape runs through -- so the reader "
+    "dated document behind this answer, the session the board price tape runs through -- so the reader "
     "learns how far each layer reaches instead of inferring one edge from another. "
     "(3) SPILLOVERS: name the other markets {record} declares the same loud state moves, each with "
     "the sign word {record} gives for THAT market and with its lag words where {record} states them "
@@ -221,9 +233,11 @@ SYSTEM_DESK_REGISTER_MANDATE = (
     "as the reason. Keep every citation "
     "handle exactly where it is; changing a word never changes a figure. "
     "TWO MORE RULES, BOTH ABOUT HOW A FACT IS SPELLED AND NEITHER ABOUT WHICH FACT. A PATTERN IS "
-    "NAMED BY ITS CONDITIONS AND NEVER BY ITS SCORE: say which conditions this market is meeting, in "
-    "the market's own words, and whether the pattern is in force -- the crush margin is wide and the "
-    "meal basis is firm, two of its conditions are met, and it is not in force -- but do not print the "
+    "NAMED BY ITS CONDITIONS AND NEVER BY ITS SCORE: say which of its conditions this market is showing, "
+    "in the market's own words, and which read on the other side or carry no reading here -- the crush "
+    "margin is wide and the meal basis is firm, two of its conditions, while export pace reads on the "
+    "other side -- and never call the pattern in force or met, because the record counts its conditions "
+    "and does not decide that; do not print the "
     "number a pattern needs to fire, and do not print the size of the roster it draws from, because a "
     "reader shown a score and not a condition can check neither. THAT IS A RULE ABOUT SCORING "
     "MACHINERY AND NOT ABOUT COUNTING: a count in words is a fact about the market and is owed to the "
@@ -238,16 +252,23 @@ SYSTEM_DESK_REGISTER_MANDATE = (
 #: The RECENCY half, appended by :func:`desk_register_mandate` ONLY when the board's own mandate ships
 #: on the same turn -- the leg that supplies the three dated facts it instructs about, and the only leg
 #: on which :data:`RECENCY_LEDGER_SENTENCE`'s tape line is a sentence the writer has been told to write.
+#: 09-26 FIX SITTING 2 (lane N, N-1): THE LAYERS BY NAME, NEVER THE PAGE. The clause told the writer, in so many
+#: words, to "write the newest number behind this page was known" -- and it did ("The numbers behind this page
+#: were known through 25 September 2026", max; "The newest number on this page was known ...", palm/rape). The
+#: three facts are unchanged; each is now named by its LAYER (the figures, the dated documents, the board price
+#: tape), and the sentence that named the banned words in order to forbid them ("a knowledge date or a number
+#: row") names the layer instead, so the clause carries no desk-register word of its own.
 DESK_REGISTER_RECENCY_CLAUSE = (
     " One more phrase is the market's own and stays exactly as the blocks give it: the board price "
     "tape, which is the sentence you are told to write for the tape layer. The RECENCY movement keeps "
     "every one of its three facts and changes only their "
-    "words: say the newest and oldest dates the numbers on this page carry, the date of the newest "
-    "document behind it, and the session the board price tape runs through -- three dated facts, each "
+    "words: name each layer by what it is -- the figures, the dated documents, the board price tape -- "
+    "and give the newest and oldest dates the figures carry, the date of the newest dated document, and "
+    "the session the board price tape runs through: three dated facts, each "
     "about the layer it names, and none of them dating the answer as a whole. Where the blocks above "
-    "or the movement that asks for this reach for a knowledge date or a number row, those are the "
-    "blocks' words and not yours: write the newest number behind this page was known, and then the "
-    "date, in the same desk spelling every other date on the page wears."
+    "or the movement that asks for this name a layer in their own working words, those words are not "
+    "yours: write that the newest figure was known on its date, in the same desk spelling every other "
+    "date wears."
 )
 
 #: The four movements, the heading each lands under, and the FALLBACK where that heading is a licensed
@@ -372,9 +393,11 @@ MANDATE_WATCH_HEAD_RX: str = (
 )
 _T_MANDATE_WATCH_NONOBVIOUS: str = (
     "(4) WATCH: close with "
-    "the items {record} nominates, and give each one you keep its mechanism, the dated reading it "
-    "rests on and the reading that would show it wrong, as concrete items with their dates; never a "
-    "generic caution. Where nothing cleared the bar, say so plainly rather than filling the space. The "
+    "the forward items {record} sets out for this market, and give each one you keep its mechanism, the "
+    "dated reading it rests on and the reading that would show it wrong, as concrete items with their "
+    "dates; never a generic caution. Where fewer items bear on this market than there is room for, say "
+    "which readings you weighed and left and why, in the market's own words -- a reading that belongs to "
+    "another market is named as that market's -- rather than filling the space. The "
     "scheduled prints are NOT watch items here; {record} names them once, in its own dated note, and "
     "that note is where they stay."
 )
@@ -480,8 +503,8 @@ _T_MANDATE_CHAIN_MOVEMENT: str = (
     "market against another, make the call on the pair where the chain ends: one sentence naming "
     "which of the two the record leans toward and the reading that carries it, or saying plainly "
     "that the record does not settle it. Narrate those leading chains and not the rest of the driver "
-    "model; where {record} prints a COUNT line of further chains, give it one plain clause -- how many "
-    "further chains run into this market, one number -- and move on: the line's other counts describe "
+    "model; where {record} prints a COUNT line, give it one plain clause -- the number of further chains "
+    "it prints, as it prints it, and the markets it names -- and move on: the line's other counts describe "
     "{record}'s own reading, never the market. Where {record} gives a chain in a single line, that "
     "chain still gets its sentence: say what it links and which way it pushes, in {record}'s own "
     "words -- a turn whose "
@@ -537,8 +560,8 @@ MANDATE_WATCH_NUMBER_CHAIN: str = "(5) WATCH: close with "
 #: written in the reader's words from the first draft (graded below by the same four detectors and the
 #: desk register as every other shipped literal here).
 MANDATE_ASK_HEAD: str = (
-    "THE ASK: this page opens with the figures this question asked for, computed for you and printed "
-    "under their own handles ({handles}). In the TL;DR, state each of them exactly as printed -- the "
+    "THE ASK: the ASKED lines that open the notes above carry the figures this question asked for, "
+    "computed for you and printed under their own handles ({handles}). In the TL;DR, state each of them exactly as printed -- the "
     "figure, its unit, its period and its handle -- or say in one clause why it does not bear on the "
     "call. Your call on the question may not say the opposite of what those figures show, and no figure "
     "of your own is computed from them."
@@ -547,7 +570,7 @@ MANDATE_ASK_HEAD: str = (
 #: outcome (a chain on the question's OWN markets, read on that market's own price) or its one-line decline
 #: when no such chain fits -- so the clause names the LINE, never a chain that may not be there.
 MANDATE_HORIZON_ROW: str = (
-    "THE HORIZON: this question sets a horizon, and this page's ASKED HORIZON line states what the price "
+    "THE HORIZON: this question sets a horizon, and the ASKED HORIZON line states what the price "
     "did after the past times its reading sat this far out, over that band -- or why the record gives no "
     "range for it. The TL;DR's horizon clause states that line in its own words -- the range it prints, "
     "as history, or its own reason there is no middle figure or no range -- and never a forecast of your "
@@ -587,12 +610,40 @@ def ask_head_mandate(handles) -> str:
 #: (D18: positioning is context, never a cause the graph declares). REJECTED: a "reversal" phrase injected by
 #: the writer seam or appended post-writer.
 MANDATE_POSITIONING_ASYMMETRY: str = (
-    "THE POSITION AT ITS RECORD'S END: this page prints the position under {handles} at the end of its own "
-    "record and quotes, beside it, the driver model's own words on what a position that far out means. "
+    "THE POSITION AT ITS RECORD'S END: the position under {handles} sits at the end of its own record, and "
+    "the driver model's own words on what a position that far out means are quoted beside it. "
     "Wherever the answer uses that position, carry those words beside it as the model's reading, in the "
     "model's own words and with no figure or direction of your own added to them -- or say in one clause "
     "why they do not bear on the call."
 )
+
+
+#: 09-26 FIX SITTING 2 (lane N, CONTRACT Y13 / M-4): THE CALL WEIGHED AGAINST WHAT IS PRICED. MEASURED (arm A: max
+#: PM F2, deep PM F-2, rice PM F-6): three TL;DRs gave a lean and never set it against the front price the same
+#: block printed. The block's ASKED SIDES line (``render.sb_ask_sides``) prints the board's SETTLED side counts as
+#: served figures beside the front price's handle; this clause asks the writer to weigh the one against the other,
+#: or to say why not. It carries NO figure, NO direction word and NO arithmetic: the counts are the line's own.
+MANDATE_ASK_CALL: str = (
+    "THE CALL AGAINST WHAT IS PRICED: the ASKED SIDES line under {handles} counts the readings on this market "
+    "that settle each side and prints the front price beside them. In the TL;DR, state the lean those counts "
+    "give, weighed against that front price and its standing, or say in one clause why they settle no lean."
+)
+MANDATE_ASK_CALL_BALANCED: str = (
+    "THE CALL AGAINST WHAT IS PRICED: the ASKED SIDES line under {handles} counts as many readings on this "
+    "market settling one side as the other and prints the front price beside them. In the TL;DR, name both "
+    "legs, each with the readings that carry it, weighed against that front price and its standing."
+)
+
+
+def ask_call_mandate(handles, *, balanced: bool = False) -> str:
+    """:data:`MANDATE_ASK_CALL` (or its balanced twin) with the handles of the block line carrying
+    ``render.ASK_SIDES_LEAD``, in block order. ``""`` for no handle -- the clause never ships over a block that
+    printed no such line (CONTRACT Y13; ``answer._ask_sides_printed`` finds them, the ``_ask_head_printed``
+    idiom)."""
+    joined = _join_handles(handles)
+    if not joined:
+        return ""
+    return (MANDATE_ASK_CALL_BALANCED if balanced else MANDATE_ASK_CALL).format(handles=joined)
 
 
 def positioning_asymmetry_mandate(handles) -> str:
@@ -849,10 +900,14 @@ def age_in_periods(knowledge_date: Optional[str], asof: str) -> dict:
 #: `render._RECENCY_LAYER_WORDS["numbers"]` scores `newest number` and the retired `newest knowledge
 #: date` is the wording the mandate beside it bans. NOTHING ELSE in the literal moves, and it is
 #: UNSHIPPED (WP-A9), so this changes no served byte on any flag.
+#: 09-26 FIX SITTING 2 (lane N, N-1): the words an EMPTY recency layer prints -- a fact about the layer ("not
+#: carried here"), never about the page ("not carried on this page", which the writer copied as page-talk).
+RECENCY_NOT_CARRIED: str = "not carried here"
+
 RECENCY_LEDGER_SENTENCE = (
-    "The figures on this page are read as of {asof}, and each carries the date it was known; the "
-    "newest number is {kd_max} and the oldest {kd_min}. The newest dated document behind this "
-    "answer is {record_through}. The board price tape runs through {tape_edge}. Each of those is a "
+    "The figures are read as of {asof}, and each carries the date it was known; the "
+    "newest number is {kd_max} and the oldest {kd_min}. The newest dated document is "
+    "{record_through}. The board price tape runs through {tape_edge}. Each of those is a "
     "fact about the layer it names, and none dates the others."
 )
 
@@ -890,7 +945,7 @@ def recency_ledger(*, asof: str, kd_max: str = "", kd_min: str = "", record_thro
 
     EVERY DATE GOES THROUGH :func:`iso_date` (pre-arm round 1): this sentence's whole job is to state a
     vintage, and a vintage stated as ``20260904`` is the one the PM lens refused outright."""
-    none_words = "not carried on this page"
+    none_words = RECENCY_NOT_CARRIED
     return RECENCY_LEDGER_SENTENCE.format(
         asof=iso_date(asof) or none_words, kd_max=iso_date(kd_max) or none_words,
         kd_min=iso_date(kd_min) or none_words,
@@ -1015,7 +1070,7 @@ def knowledge_edges(bd, extra_kd=()) -> tuple:
 
 
 def recency_rows(bd, *, kd_min: str = "", record_through: str = "", tape_edge: str = "",
-                 extra_kd=(), doc_dates=()) -> dict:
+                 extra_kd=(), doc_dates=(), layers: Optional[dict] = None) -> dict:
     """The three SB-L lines (sec 6.2, 6.5 (2)) as ``{layer: text}``, in the design's own layer order.
 
     THREE SEPARATE ROWS AND NOT ONE SENTENCE, because the render's SB-L class is per layer and because a
@@ -1071,14 +1126,64 @@ def recency_rows(bd, *, kd_min: str = "", record_through: str = "", tape_edge: s
     # would have the block print, in the reader's own prose, the exact spelling the mandate beside it
     # now forbids -- from the block the writer is told to transcribe. `iso_date` declines rather than
     # guessing, so a value it cannot read prints exactly as it printed before.
+    # 09-26 FIX SITTING 2 (lane N, CONTRACT Y11 / M-2): THE NUMBERS LINE NAMES THE POPULATION IT RANGES OVER.
+    # Its edges are :func:`knowledge_edges` over the board's current readings -- and, where the caller threads
+    # them, the served number calls beside them -- so the line says which, and never "here" alone: seven arm-A
+    # treatment pages printed an oldest or newest date the page's own figures contradicted because the line
+    # spoke of one layer as if it were the page. An empty edge prints the layer's own fallback words
+    # (:data:`RECENCY_NOT_CARRIED`), never "on this page" (N-1).
+    # The class's own words ("the newest number here is known", lint's SB-L sample) lead, and the population
+    # the edges range over closes the clause.
+    _pop = ("the current readings and the figures served beside them" if extra_kd
+            else "the current readings")
     newest = (f"the newest number here is known {kd_max}" if kd_max
-              else "the newest number here is not carried on this page")
+              else f"the newest number here is not carried by {_pop}")
     numbers = (f"read as of {iso_date(bd.asof)}; {newest}"
-               + (f" and the oldest {oldest}" if oldest else ""))
-    text_line = (f"the newest dated document behind this answer is "
-                 f"{text or 'not carried on this page'}")
-    tape_line = (f"the board price tape runs through {tape_edge or 'not carried on this page'}")
+               + (f" and the oldest {oldest}" if oldest else "")
+               + (f", across {_pop}" if kd_max else ""))
+    # THE PAGE-WIDE LAYERS (Y11), printed ONLY where the answer seam hands them in (``answer._recency_layers``:
+    # one producer at prompt-build time over the menu the writer was handed and every served call). Each part is
+    # the producer's own (oldest, newest, n); a part it omitted prints nothing. The writer copies the line and
+    # never computes a range of its own.
+    _ly = dict(layers or {}) if isinstance(layers, dict) else {}
+    _rows = _layer_edges(_ly.get("rows"))
+    if _rows is not None:
+        numbers += (f"; across the {words_for_count(_rows[2])} figures served for this answer, the newest "
+                    f"number was known {_rows[1]} and the oldest {_rows[0]}")
+    _dl = _layer_edges(_ly.get("docs"))
+    if _dl is not None:
+        text_line = (f"the newest dated document behind this answer is {text or _dl[1]}; across the "
+                     f"{words_for_count(_dl[2])} dated documents handed to this answer, the newest is {_dl[1]} "
+                     f"and the oldest {_dl[0]}")
+    else:
+        text_line = (f"the newest dated document behind this answer is "
+                     f"{text or RECENCY_NOT_CARRIED}")
+    tape_line = (f"the board price tape runs through {tape_edge}" if tape_edge
+                 else f"the board price tape is {RECENCY_NOT_CARRIED}")
     return {"numbers": numbers, "text": text_line, "tape": tape_line}
+
+
+def _layer_edges(part) -> Optional[tuple]:
+    """One recency layer's ``(oldest, newest, n)`` from ``answer._recency_layers`` (Y11), each date through
+    :func:`iso_date`, or ``None`` for a missing / unreadable part (the line then prints nothing for it)."""
+    try:
+        a, b, n = tuple(part)[:3]
+        a, b, n = iso_date(a), iso_date(b), int(n)
+    except Exception:                                   # noqa: BLE001 -- an odd part says nothing
+        return None
+    if not a or not b or n <= 0:
+        return None
+    return (a, b, n)
+
+
+def words_for_count(n) -> str:
+    """A count in words through the ONE producer (``rows.words_for_int``), lazily imported like every other
+    reader here; the digits where the producer cannot be read."""
+    try:
+        from leviathan.graphrag.state.rows import words_for_int
+        return words_for_int(int(n))
+    except Exception:                                   # noqa: BLE001 -- a count still prints
+        return str(n)
 
 
 def check_literals() -> list:
@@ -1141,15 +1246,18 @@ def check_literals() -> list:
     _hzn = ("MANDATE_HORIZON_ROW", MANDATE_HORIZON_ROW)
     # 09-26 (A-4, CONTRACT P9): the record-extreme clause, graded as it SHIPS (formatted with its handles)
     _pos = ("MANDATE_POSITIONING_ASYMMETRY", positioning_asymmetry_mandate(("[N14]", "[N15]", "[N16]")))
+    # 09-26 SITTING 2 (Y13): the call-against-what-is-priced clause, both forms, graded as they SHIP
+    _call = ("MANDATE_ASK_CALL", ask_call_mandate(("[N21]",)))
+    _callb = ("MANDATE_ASK_CALL_BALANCED", ask_call_mandate(("[N21]",), balanced=True))
     try:
         from leviathan.graphrag.register import count_desk_register as _cdr
-        for _n, _t in (_ask, _hzn, _pos):
+        for _n, _t in (_ask, _hzn, _pos, _call, _callb):
             if _cdr(_t):
                 errs.append(f"narration.{_n}: {_cdr(_t)} desk-register charge(s)")
     except Exception as exc:                        # noqa: BLE001 -- named, never raised onward
         errs.append(f"narration: could not grade the ask / horizon clauses: {exc}")
     for name, text in (("SYSTEM_STATE_BOARD_MANDATE", SYSTEM_STATE_BOARD_MANDATE),
-                       _watch_mandate, _chain_mandate, _desk_mandate, _ask, _hzn, _pos,
+                       _watch_mandate, _chain_mandate, _desk_mandate, _ask, _hzn, _pos, _call, _callb,
                        ("RECENCY_LEDGER_SENTENCE", RECENCY_LEDGER_SENTENCE),
                        ("SYSTEM_RECENCY_CLAUSE", SYSTEM_RECENCY_CLAUSE),
                        _desk):

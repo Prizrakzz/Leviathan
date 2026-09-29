@@ -326,7 +326,8 @@ def test_K1_an_unaddressed_receipt_and_event_still_render_in_their_own_classes()
                     lag_band=parse_lag("0-2 quarters"), event_date="2025-03-10")
     ev = R.sb_event(row, receipt_handle=None, published="2025-03-19", board="CBOT soybeans",
                     window={"opens": None, "declined": "lag_unparsed"}, asof=ASOF)
-    assert "by a document this page carries no address for" in ev and R.classify(ev) == ("SB-D",)
+    # 09-26 S2 RE-BANK (lane N, N-1): the fallback names the document, never "this page"; SB-D still classifies it
+    assert "by a document with no address here" in ev and R.classify(ev) == ("SB-D",)
     sig = inspect.signature(R.render_board)
     for k in ("evidence_address", "ask_rows", "page_markets"):
         assert k in sig.parameters and sig.parameters[k].default is None

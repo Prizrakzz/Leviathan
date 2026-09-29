@@ -1311,7 +1311,10 @@ def test_the_fifteen_anchor_shapes_render_at_ZERO_register_trips_with_their_AMPL
                 # 27 times and the instrument's own `board` 142 times per rendered block, and the PM
                 # lens charged both by name on the served answers.
                 assert "are all among the largest moves here" in l, (shape, mode, l)
-                assert "the graph records the effect as " in l, (shape, mode, l)
+                # 09-26 S2 RE-BANK (lane N, N-1): the amplifier names the model through the desk table's ONE
+                # reader (`register.desk_phrase`), as RW-1's unsided clause already did
+                from leviathan.graphrag import register as _REG
+                assert "%s records the effect as " % _REG.desk_phrase("the graph", 1) in l, (shape, mode, l)
                 assert R.classify(l) == ("SB-M",), (shape, mode, R.classify(l), l)
                 # THE READ SPLIT, wherever the walk produced one: the clause is whole, never a
                 # truncated "carries no series" with the object of the sentence fenced away.
@@ -1482,6 +1485,14 @@ def test_S8_the_stage2_kwarg_tail_is_EXTENDED_by_state_chain_and_not_moved():
     lane owes is that the kwarg EXISTS, defaults off, threads through, and reads no environment on the
     way -- all four asserted below."""
     params = list(inspect.signature(S.fill_stage2).parameters)
+    # 09-26 S2 RE-BANK (lane N, CONTRACT Y11): the tail is APPENDED to once more -- `recency_layers`, the
+    # page-wide recency layers lane M's writer seam hands the RECENCY rows, lands LAST, keyword-only, default
+    # None, so every caller that omits it is HEAD's call exactly. Nothing before it moved; the pins below read
+    # the tail as it stood before this append.
+    assert params[-1] == "recency_layers", params[-3:]
+    _rl = inspect.signature(S.fill_stage2).parameters["recency_layers"]
+    assert _rl.default is None and _rl.kind is inspect.Parameter.KEYWORD_ONLY
+    params = params[:-1]
     # 09-23 (CONTRACT.md C2/I-3): the tail is APPENDED to once more -- `evidence_ordinals`, the turn's
     # own {source_key: [E] ordinal} map, lands AFTER `state_chain`, keyword-only, default None, so
     # every caller that omits it is HEAD's call exactly. `state_chain` keeps its place before it.
@@ -2139,12 +2150,18 @@ def test_ANALOG_the_COUNT_BESIDE_A_PICK_IS_A_POPULATION_THE_PICK_IS_A_MEMBER_OF(
                    if [str(p["date"]) for p in (r["out"].get("picked") or ())] == list(dates))
         pool = _ranked_pool(rec)
         assert len(pool) == int(rec["out"]["n_candidates"]), (mode, len(pool))
+        # 09-26 S2 RE-BANK (lane N, LEFTOVERS m4): where the header's own like-state count is ZERO the opening no
+        # longer says "the series sat like this" beside "zero of them are like states"; it names the pick's seat
+        # in the compared pool (``pool_rank``) -- "the nearest past state ..." at seat one, "the second nearest
+        # ..." at seat two. The stanzas, their dates and both counts are unchanged.
         heads = [x for x in payload["block"].splitlines()
                  if x.startswith("LIKE STATE El Nino on CBOT soybeans:")
-                 and "the series sat like this" in x]
+                 and ("the series sat like this" in x or "nearest past state of this series is" in x)]
         assert len(heads) == len(dates), heads
         n_pool, n_head = int(rec["out"]["n_candidates"]), int(rec["out"]["n_candidates_head"])
         assert n_head < n_pool, (mode, n_head, n_pool)      # the defect's shape is live here
+        for hd in heads:
+            assert ("the series sat like this" in hd) == (n_head >= 1), (mode, n_head, hd[:140])
         for i, d in enumerate(dates):
             hd = heads[i]
             assert R.month_words(d) in hd, (d, hd)
@@ -2243,9 +2260,10 @@ def test_ANALOG_the_FORWARD_WINDOWS_COUNT_IS_THE_CORPUS_AND_THE_TIERS_CAP_IS_A_C
     cut = [x for x in block.splitlines()
            if x.startswith("BOARD ABSENCE") and "inside the window that followed" in x]
     # round-2 review MAJOR 1: the row withholds the WHOLE count (six) -- nothing renders the forward rows.
+    # 09-26 S2 RE-BANK (lane N, N-1): "not shown here", never "on this page"
     assert cut and cut[0].startswith("BOARD ABSENCE the six documents counted inside the "
-                                     "window that followed this like state are not shown on this "
-                                     "page (El Nino on CBOT soybeans)"), cut
+                                     "window that followed this like state are not shown here "
+                                     "(El Nino on CBOT soybeans)"), cut
     for d in docs:
         assert d["text"] not in "\n".join(cut), d
 

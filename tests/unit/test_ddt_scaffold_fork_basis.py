@@ -424,7 +424,9 @@ def test_the_synthesized_handle_is_written_to_all_three_places(monkeypatch):
     assert vf["resolved"][str(ref)]["source_key"] == "s3://gain"            # 3. verifier['resolved']
     assert vf["resolved"][str(ref)]["date"] == "2021-07-20"
     # and it RENDERS: _cited_sources_block reads sources x resolved, which is why all three are needed
-    assert f"[{ref}] " in an._cited_sources_block(st, vf, None)
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-6 / CONTRACT Y26 -- declared): the footer spells the
+    # handle the prose spells, so the synthesized row reads `[E<ref>] ...`; the claim kept: it RENDERS
+    assert f"[E{ref}] " in an._cited_sources_block(st, vf, None)
 
 
 def test_a_synthesized_ref_is_minted_above_the_positional_citation_namespace(monkeypatch):
@@ -1097,7 +1099,7 @@ def test_a_register_violating_receipt_cannot_orphan_the_synthesized_handle(monke
         assert str(ref) in vf["resolved"]                          # 3. verifier['resolved']
     # ...and every ref the ENGINE put in the reader's footer is a ref the prose actually carries
     assert st["sources"] and all(f"[E{s['ref']}]" in mech for s in st["sources"]), st["sources"]
-    assert f"[{st['sources'][0]['ref']}] " in an._cited_sources_block(st, vf, None)
+    assert f"[E{st['sources'][0]['ref']}] " in an._cited_sources_block(st, vf, None)   # PC-6 (declared)
 
 
 def test_a_register_violating_receipt_leaves_no_unterminated_quotation(monkeypatch):
@@ -1744,7 +1746,7 @@ def test_a_stripped_handle_never_duplicates_its_sources_row(monkeypatch):
     # ...while the ledger and the verifier still hold it machine-side: only the emission moved
     assert {s["ref"] for s in st["sources"]} == {1} and "1" in vf["resolved"]
     # ...and the SAME row is emitted the moment the prose cites it (the rule reads the page)
-    assert "[1] " in an._cited_sources_block(_structured(), _verifier(), None)
+    assert "[E1] " in an._cited_sources_block(_structured(), _verifier(), None)     # PC-6 (declared)
     # (b) the scaffold still mints, because reuse requires the E-form handle to be in the prose
     st, vf, trace = _scaffold(monkeypatch, structured=st, verifier=vf)
     assert trace["episodes_scaffolded"]["fired"] is True
@@ -1752,7 +1754,7 @@ def test_a_stripped_handle_never_duplicates_its_sources_row(monkeypatch):
     block = an._cited_sources_block(st, vf, None)
     rows = [ln for ln in block.split("\n") if ln.startswith("[")]
     # THE INVARIANT: the document once, under the ref the prose carries -- never under the stripped one
-    assert len(rows) == 1 and rows[0].startswith("[3] ") and "2021-07-20" in rows[0], rows
+    assert len(rows) == 1 and rows[0].startswith("[E3] ") and "2021-07-20" in rows[0], rows   # PC-6
     assert {s["ref"] for s in st["sources"]} == {1, 3}               # both refs stay in the ledger
     # ...and the one row names the real item's true metadata
     assert vf["resolved"]["3"]["source_key"] == vf["resolved"]["1"]["source_key"] == "s3://gain"

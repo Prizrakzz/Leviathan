@@ -329,7 +329,7 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                 record_through: str = "", n_start: int = 1, e_start: int = 1,
                 watch_nonobvious: bool = False, state_chain: bool = False,
                 evidence_ordinals: Optional[dict] = None, evidence_address=None, ask_rows=None,
-                extra_kd=None, page_markets=None) -> dict:
+                extra_kd=None, page_markets=None, recency_layers: Optional[dict] = None) -> dict:
     """Run STAGE 2, then the analogs, the watch rows and the RENDER. Returns the seam payload:
 
     ``{"block": str, "request": dict, "trace": dict, "counters": dict, "recency": dict}``
@@ -372,7 +372,16 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
     and the footer prints; ``ask_rows`` -- the numbers seat's calculator rows on the question's named
     markets, ``[(handle, call)]`` (K8), printed as the block's head; ``extra_kd`` -- the known dates of the
     number calls the turn SERVED (item 9, R-14), handed to the recency producer so "the oldest" is the
-    page's own oldest; ``page_markets`` -- the question's distance-0 contracts (K9 / K12)."""
+    page's own oldest; ``page_markets`` -- the question's distance-0 contracts (K9 / K12).
+
+    **09-26 FIX SITTING 2 (lane N): ONE MORE KEYWORD AND THREE TRACE KEYS, each absent on HEAD's call.**
+    ``recency_layers`` is ``answer._recency_layers``' ONE producer of the page-wide layers (CONTRACT Y11: the
+    menu's documents and every served call, each ``(oldest, newest, n)``), printed by the SB-L lines when
+    handed in (``None`` -> HEAD's recency call). The trace gains, INSIDE the ``state_board`` key and omitted when
+    empty: ``watch_rows`` (C-I4, one ``{handle, row_id}`` per rendered watch line, the watched reading's own
+    LEVEL handle), ``served_counts`` (C-I6, every count the block printed with its noun, off the block's own
+    registered count scalars) -- and the counters gain ``BoardSidesFor`` / ``BoardSidesAgainst`` /
+    ``BoardSidesUnsettled`` over the RENDERED readings (C-I3b)."""
     try:
         from leviathan.graphrag.state import analogs as A
         from leviathan.graphrag.state import narration as N
@@ -478,10 +487,11 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
             # numbers edge, so "the oldest" is the oldest figure the page carries and never an unprinted
             # board row's (corn/wheat printed "the oldest 25 August 2026" beside its own 2022 and 2023
             # rows). Passed only when the caller threads them -- HEAD's call is unchanged.
+            _lk = {"layers": dict(recency_layers)} if isinstance(recency_layers, dict) and recency_layers else {}
             rec = (N.recency_rows(bd, record_through=record_through, tape_edge=_tape_edge(bd),
-                                  extra_kd=tuple(extra_kd))
+                                  extra_kd=tuple(extra_kd), **_lk)
                    if extra_kd else
-                   N.recency_rows(bd, record_through=record_through, tape_edge=_tape_edge(bd)))
+                   N.recency_rows(bd, record_through=record_through, tape_edge=_tape_edge(bd), **_lk))
             # THE RENDER IS TIMED SEPARATELY because it is the POLE. MEASURED warm, zero network, on
             # the builder's own `fixture_state_fn`: 238-3,295 ms, i.e. 60-92% of the board's whole
             # wall. Sec 3.9 wants `ms_board` beside `timing_ms.fill / rest / numbers` "so the pole is
@@ -529,9 +539,12 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
             # THE TWO 09-23 PAYLOADS, taken off the block that RENDERED and nowhere else (C2 / C4).
             _extra = {"served_scalars": blk.served_scalars(),
                       "row_handles": {k: dict(v) for k, v in (blk.row_handles or {}).items()}}
+            # 09-26 SITTING 2 (C-I4 / C-I6): read off the block that RENDERED, by the render's own producers
+            _trace_extra = {"watch_rows": R.watch_rows_of(blk), "served_counts": R.served_counts(blk)}
         else:
             ana, wr, rec, text, calls = [], [], {}, "", []
             _extra = {}
+            _trace_extra = {}
             # THE ONE BLOCK A DECLINED BOARD MAY MINT (SUBJECT RESOLVER D5), and it exists because the
             # two halves of that decision landed on opposite sides of this gate. `_stamp_subject` takes
             # the `subject_ambiguous` decline ONLY on an anchorless board -- the restraint is right, a
@@ -579,6 +592,10 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
         # MEASURED rather than re-deriving it from a board it no longer holds. One producer for
         # the dashboard and the artifact is the whole of 'absent is never zero' being checkable.
         tr["counters"] = cnt
+        # 09-26 SITTING 2 (C-I4 / C-I6): inside the ONE registered key, each omitted when empty (B11 unchanged)
+        for _k, _v in (_trace_extra.items() if text else ()):
+            if _v:
+                tr[_k] = _v
         # THE `board=` PAYLOAD IS RETURNED ONLY BY A BOARD THAT FIRED, so "the kwarg is absent"
         # and "the board produced nothing" are ONE fact rather than two that could disagree. A
         # declined board's request would carry an empty order, empty windows and no calls -- every
@@ -683,6 +700,16 @@ def counters(bd, *, block: str = "", analogs=(), watch=(), render_ms: float = 0.
     out["BoardTruncated"] = sum(
         1 for r in bd.rows
         if r.state is not None and status_word(r.state.status) == "history_truncated")
+    # 09-26 FIX SITTING 2 (CONTRACT C-I3b): THE BOARD'S SETTLED SIDES, over the RENDERED readings -- the side each
+    # printed SB-1 row settles for its own market (``render.board_side``: ``walk._chain_direction`` on the row's
+    # own hop), read off the render's own manifest (``bd.rendered_rows``) and never re-derived here. PRESENT ONLY
+    # WHERE A RENDERED ROW CARRIES A SIDE -- absent is never zero (a board that rendered none measured none).
+    _sides = [str(m.get("side") or "") for m in (getattr(bd, "rendered_rows", None) or ())
+              if m.get("role") in ("state", "cited_state") and m.get("side")]
+    if _sides:
+        out["BoardSidesFor"] = _sides.count("for")
+        out["BoardSidesAgainst"] = _sides.count("against")
+        out["BoardSidesUnsettled"] = _sides.count("unsettled")
     ms = (bd.stage_ms.get(1) or 0.0) + (bd.stage_ms.get(2) or 0.0)
     if ms:
         out["MsBoard"] = int(ms)

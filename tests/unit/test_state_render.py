@@ -756,7 +756,9 @@ def test_scenario_1_carries_the_SB_T_row_with_four_same_contract_changes(scenari
     assert len(sb_t) == 1
     for w in ("one session", "five sessions", "twenty-one sessions", "sixty-three sessions"):
         assert w in sb_t[0]
-    assert "percentile of the window this read fetched" in sb_t[0]
+    # 09-26 S2 RE-BANK (verifier integration; H-3 / Y8 declared DM1): the percentile names the population it ranked
+    # over in the book's contract-life words -- the window this read fetched, by its own first session and count.
+    assert "percentile of this contract's own sessions since 16 June 2025 (320 sessions" in sb_t[0]
     assert "realised volatility are not served yet" in sb_t[0]
 
 
@@ -958,7 +960,10 @@ def test_a_convergence_row_names_ONLY_the_rows_that_CARRY_AN_N_z(scenarios):
     # the number the threshold comparison uses -- is stated: no count changed and no name was deleted.
     assert "one of the four conditions it names is showing here" in trade[0], "the READ count"
     # RE-ANCHORED (review round 3, NEW-2): the total is the COUNTED one, not "on this page".
-    assert "so four of the four are counted here" in trade[0], "the TOTAL still stands"
+    # 09-26 S2 RE-BANK (lane N, N-2 / CONTRACT Y17): the three unread conditions are NAMED in their own clause
+    # and NOT COUNTED -- HEAD's "four of the four are counted here" was one reading plus three read nowhere.
+    assert "it asks for two, and one is counted here" in trade[0], "the COUNTED total is the read one"
+    assert "four of the four" not in trade[0]
     # 09-24 RE-BANK (ITEM 2, CONTRACT K3 R half -- DM1): the pattern roster names each READ condition by the
     # series it serves plus "read here for <driver>", never by the driver's humanised id alone (the rice page
     # handed a writer "the India export ban" for an exports row). The READ row still alone carries a z.
@@ -968,7 +973,8 @@ def test_a_convergence_row_names_ONLY_the_rows_that_CARRY_AN_N_z(scenarios):
     # THE QUORUM ROW CARRIES NO FIRING CLAIM AND NO INTERNAL VOCABULARY (lane D, 2026-09-17).
     # `walk.CONVERGENCE_BANNED_WORDS` puts firing with `firing.fire_contract`, so the row states the
     # count and the number the pattern asks for and leaves the verdict to the reader.
-    assert "it asks for two, so the count here is at or past that number" in trade[0]
+    # 09-26 S2 RE-BANK (lane N, N-2): the two numbers, and no comparison the writer reads as the verdict
+    assert "short of that number" not in trade[0] and "at or past that number" not in trade[0]
     for banned in ("loudest rows", "declared drivers", "the pattern's own threshold",
                    " met", "fires", "regime is", "in force"):
         assert banned not in trade[0], banned
@@ -984,7 +990,10 @@ def test_scenario_3_renders_the_EVENT_the_upstream_levy_and_the_convergence_orde
     # RE-ANCHORED (review round 2, MAJOR 9): one of the two matched drivers carries no series read, so
     # the leading count is ONE and the total is stated beside it.
     assert any("one of the three conditions it names is showing here" in l for l in lines)
-    assert any("so two of the three are counted here" in l for l in lines)
+    # 09-26 S2 RE-BANK (lane N, N-2 / Y17): the unread matched driver is named and not counted -- HEAD's "two of
+    # the three are counted here" counted biodiesel mandate, which carries no series read here
+    assert any("it asks for two, and one is counted here" in l for l in lines)
+    assert not any("two of the three are counted here" in l for l in lines)
     amp = [l for l in lines if l.startswith("  amplifier") and "crude oil price, biodiesel mandate" in l]
     assert amp, "B16's own fixture: the (crude_oil_price, biodiesel_mandate) amplifier must render"
 
@@ -2160,7 +2169,10 @@ def test_S8R4_the_count_line_holds_its_RE_BASELINED_CEILING_and_keeps_both_denom
     # population now: the distinct chains, the ones carried above, the rest counted and not followed.
     assert R.words_for_int(77) in line and R.words_for_int(1848) not in line
     assert "ways in all" not in line and "past one link" not in line and "sequence" not in line
-    assert "chains of cause, three of them carried above" in line
+    # 09-26 S2 RE-BANK (lane N, N-4): the line prints at the HEAD of the chains and states the FURTHER count
+    # itself (F10's "beyond those" was the writer's arithmetic): the carried and the others, both counted
+    assert ("chains of cause; the three carried below are followed link by link, and the other seventy-four "
+            "are counted here, not followed link by link") in line
     assert R.classify(line) == ("SB-P",) and R.register_hits(line) == []
     bare = _GLUED_RX.sub("", _YEAR_RX.sub("", _ISO_RX.sub("", line)))
     assert not any(c.isdigit() for c in bare), line
@@ -2601,8 +2613,10 @@ def test_S8R3_the_SLOT_LABEL_renders_in_the_chain_rows_own_words_on_a_real_walk_
     assert "for a reason other than rank" not in R.sb_chain_count(counts, k=3, slots=("top", "top"))
     held = R.sb_chain_count(counts, k=3, anchor_label="CBOT soybeans",
                             slots=("sign", "top", "subject"))
-    # 09-25 (RT-8): the plain count says "three of them carried above, two here for a reason other than rank"
-    assert "three of them carried above, two here for a reason other than rank" in held
+    # 09-25 (RT-8): the plain count says which carried chains are held for a reason other than rank.
+    # 09-26 S2 RE-BANK (lane N, N-4): at the head of the chains, "carried below", with the further count stated
+    assert ("the three carried below are followed link by link, two of them here for a reason other than rank, "
+            "and the other seventy-four are counted here") in held
     assert R.classify(held) == ("SB-P",) and R.register_hits(held) == []
 
 
@@ -2715,7 +2729,8 @@ def test_S8R4_the_pages_chain_ORDINAL_is_the_RANKS_and_not_the_POOLS(chain_block
         assert got == want[: len(got)], (mode, got, want)
         # ...and the ordinal WORDS follow that same order, first to last.
         for i, x in enumerate(heads, start=1):
-            which = ("the one this page carries" if len(heads) == 1
+            # 09-26 S2 RE-BANK (lane N, N-1): the one-chain ordinal names the chain, read off the ONE constant
+            which = (R.CHAIN_ONE_WORDS if len(heads) == 1
                      else "%s of %s" % (R.ordinal_words(i), R.words_for_int(len(heads))))
             assert which in x, (mode, i, x[:90])
 
@@ -3210,8 +3225,9 @@ def test_ANALOG_what_FOLLOWED_is_the_WINDOWS_COUNT_and_the_TIERS_CAP_IS_A_CUT_RO
     assert len(cut) == 1, cut
     # ROUND-2 REVIEW MAJOR 1: nothing renders the forward rows, so the row withholds the WHOLE count
     # the header printed -- eleven, the same figure -- never "count minus rows the page never showed".
+    # 09-26 S2 RE-BANK (lane N, N-1): "not shown here", never "on this page"
     assert cut[0].startswith("BOARD ABSENCE the eleven documents counted inside the window that "
-                             "followed this like state are not shown on this page "
+                             "followed this like state are not shown here "
                              "(El Nino on CME palm oil)"), cut[0]
     assert "eight" not in cut[0] and "receipt cut" not in cut[0], cut[0]
     assert R.classify(cut[0]) == ("SB-X",) and R.register_hits(cut[0]) == [], cut[0]
@@ -3225,7 +3241,7 @@ def test_ANALOG_what_FOLLOWED_is_the_WINDOWS_COUNT_and_the_TIERS_CAP_IS_A_CUT_RO
     carried = _analog_row(n_receipts_after=3, receipts_after=({"t": 1}, {"t": 1}, {"t": 1}))
     _cl = [l for l in R.render_board(bd, analogs=[carried]).lines
            if "inside the window that followed this like state" in l]
-    assert any("the three documents counted inside the window" in l and "are not shown on this page" in l
+    assert any("the three documents counted inside the window" in l and "are not shown here" in l
                for l in _cl), _cl
     for row in (_analog_row(n_receipts_after=0, receipts_after=()), _analog_row()):
         assert not [l for l in R.render_board(bd, analogs=[row]).lines
@@ -3233,7 +3249,7 @@ def test_ANALOG_what_FOLLOWED_is_the_WINDOWS_COUNT_and_the_TIERS_CAP_IS_A_CUT_RO
     # AND THE SINGULAR IS ITS OWN SENTENCE.
     one = R.render_board(bd, analogs=[_analog_row(n_receipts_after=1,
                                                   receipts_after=({"t": 1},))]).lines
-    assert any("the one document counted inside the window" in l and "is not shown on this page" in l
+    assert any("the one document counted inside the window" in l and "is not shown here" in l
                for l in one), one
 
 
@@ -3273,13 +3289,15 @@ def test_ANALOG_near_asof_APPENDS_THE_MONTHS_AND_NEVER_REMOVES_THE_STANZA():
     True by the selection, both rendered, and the word appeared NOWHERE in this module."""
     near = _analog_row(date="2026-01-31", near_asof=True, months_to_asof=8)
     head = R.sb_analog_header(near)
-    assert "that date sits eight months before the as-of this page is read at" in head, head
+    # 09-26 S2 RE-BANK (lane N, N-1): the as-of is the READINGS', never "this page's"
+    assert "that date sits eight months before the as-of these readings are taken at" in head, head
     assert head.startswith("LIKE STATE El Nino on CBOT soybeans: the series sat like this in ")
     assert R.classify(head) == ("SB-A",) and R.register_hits(head) == []
     assert "sits one month before" in R.sb_analog_header(
         _analog_row(near_asof=True, months_to_asof=1))
     fallback = R.sb_analog_header(_analog_row(near_asof=True, months_to_asof=None))
-    assert "sits inside the separation window of the as-of this page is read at" in fallback
+    # 09-26 S2 RE-BANK (lane N, N-1): the as-of is the readings', never "this page's"
+    assert "sits inside the separation window of the as-of these readings are taken at" in fallback
     assert not _no_digits(R.analog_selection_clauses(
         _analog_row(near_asof=True, months_to_asof=None)))
     assert R.sb_analog_header(_analog_row(near_asof=False)) == R.sb_analog_header(_analog_row())
@@ -3364,7 +3382,7 @@ def test_ANALOG_a_row_the_SELECTION_DID_NOT_BUILD_composes_the_header_it_compose
     co = dict(legacy, co_loud=True, n_contracts=3, dims_seen=2, dims_declared=3, sign_agree=2,
               sign_seen=2, near_asof=True, months_to_asof=3)
     assert "dimensions compared with it" not in R.sb_analog_header(co)
-    assert "before the as-of this page is read at" not in R.sb_analog_header(co)
+    assert "before the as-of these readings are taken at" not in R.sb_analog_header(co)   # 09-26 S2 (N-1)
 
 
 #: THE MEASURED CEILING for the SB-A header, by the chain lane's own rule (measured max, +10%, rounded
@@ -3708,7 +3726,9 @@ def test_fix_0923_the_tape_settle_prints_its_TICK_and_its_unit_ONCE():
     (the precision producer alone prints "1328" at a thousand and over) -- and `shown_figure` carries the
     unit, so the line prints it exactly once (HEAD's shape: "<figure> <unit>")."""
     t = H.fixture_tape("soybeans_cbot", H.ASOF)
-    for level, want in ((1085.08, "1085.08"), (1328.25, "1328.25"), (1328.0, "1328")):
+    # 09-26 S2 RE-BANK (verifier integration; H-2 / Y23 declared DM1): the tick at the card's precision now carries
+    # the thousands separator (lane N's `_grouping_on` reads lane H's `rows.change_unit`); the unit still prints once.
+    for level, want in ((1085.08, "1,085.08"), (1328.25, "1,328.25"), (1328.0, "1,328")):
         t.level = level
         line, _calls = R.sb_tape(1, t, asof=H.ASOF)
         assert f"settle on 2026-09-04: {want} {t.unit};" in line, line[:140]

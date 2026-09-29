@@ -261,6 +261,7 @@ def test_a_pool_with_no_direction_facts_moves_nothing():
     r1 = V.verify_citations(st1, [], _calls(), served_scalars=[])
     assert st0["tldr"] == TLDR_F2 and st0["mechanism"] == FAN_F1 and st1 == st0
     assert not any(k.startswith("direction") or k == "fan_ambiguous" for k in r0)
+    assert not any(k.startswith("direction") or k == "fan_ambiguous" for k in r1)
     assert V._direction_pool(heads) == ({}, ())
 
 
@@ -325,7 +326,6 @@ def test_V2_a_phrase_that_names_the_address_is_not_counted_as_a_date_mismatch():
 
 
 def test_V2_HEAD_parity_a_plain_iso_declaration_decides_exactly_as_before():
-    menu = _menu()
     for decl in ({"source": "usda_gain_soybeans", "date": "2025-03-19"},
                  {"source": "USDA attache GAIN, soybeans", "date": "2025-03-19"},
                  {"source": "USDA attache GAIN, soybeans", "date": "2024-01-01"}):

@@ -161,8 +161,12 @@ def test_render_and_the_footer_take_HEADs_branch_with_the_kwarg_off():
     d = {"tldr": "Corn is thin [N1].", "mechanism": "## Mechanism\nBody [N2].\n\n## Cross-commodity\n"}
     assert an.render(dict(d), include_ledger=False) == \
         an.render(dict(d), include_ledger=False, seam_lints=False)
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-5 -- a DECLARED prod-path correction): a mechanism
+    # that OPENS with its own heading is its own section in BOTH cells, so the flag-off render no longer
+    # prints the literal "**Why.** ## Mechanism" (an ATX heading is a heading only at a line start). The claim
+    # this pin keeps is unchanged: the kwarg-off render is the kwarg-default render, byte for byte.
     assert an.render(dict(d), include_ledger=False).startswith("**TL;DR.** Corn is thin [N1].\n\n"
-                                                               "**Why.** ## Mechanism")
+                                                               "## Mechanism")
     v = {"enabled": True, "resolved": {"4": {"source": "USDA WASDE", "date": "2021-05-12",
                                              "snippet": "Lower supplies."}}}
     dd = {"tldr": "A [E4] and [N1].", "mechanism": "B.", "sources": [{"ref": 4}]}
@@ -170,7 +174,9 @@ def test_render_and_the_footer_take_HEADs_branch_with_the_kwarg_off():
                    "MY2026/27", 12, "$/bu", "2026-09-11")]
     assert an._cited_sources_block(dict(dd), v, calls) == \
         an._cited_sources_block(dict(dd), v, calls, seam_lints=False)
-    assert "[4] USDA WASDE (2021-05-12)" in an._cited_sources_block(dict(dd), v, calls)
+    # RE-BANKED 09-26 (PC-6, declared): the kwarg-off footer spells the handle the body spells -- [E4] here
+    assert "\n[E4] " in an._cited_sources_block(dict(dd), v, calls)
+    assert "[E4] USDA WASDE (2021-05-12)" in an._cited_sources_block(dict(dd), v, calls)
     assert "= 12 $/bu" in an._cited_sources_block(dict(dd), v, calls)
 
 
@@ -476,9 +482,14 @@ def test_the_bolded_lead_stops_colliding_with_the_H2():
     only a heading at the START of a line, so the section the whole response contract is built on was
     literal text to every markdown reader on the page."""
     d = {"tldr": "T.", "mechanism": "## Mechanism\nBody."}
-    assert an.render(dict(d), include_ledger=False) == "**TL;DR.** T.\n\n**Why.** ## Mechanism\nBody."
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-5 / CONTRACT Y18 -- declared): ONE RULE FOR BOTH
+    # CELLS. The heading starts its own line in both (the claim this pin keeps: no page ever prints the
+    # heading as literal text after a bolded lead), and the label is not printed above a mechanism that
+    # opens with its own heading -- the label had no body of its own (the floating "**Why.**" of 40/40
+    # treatment pages and the broken "**Why.** ## Mechanism" of 10/10 control pages are the same defect).
+    assert an.render(dict(d), include_ledger=False) == "**TL;DR.** T.\n\n## Mechanism\nBody."
     assert an.render(dict(d), include_ledger=False, seam_lints=True) == \
-        "**TL;DR.** T.\n\n**Why.**\n\n## Mechanism\nBody."
+        "**TL;DR.** T.\n\n## Mechanism\nBody."
     # a mechanism that does NOT open with a heading keeps the inline label, both ways
     d2 = {"tldr": "T.", "mechanism": "Plain prose."}
     assert an.render(dict(d2), include_ledger=False, seam_lints=True) == \
@@ -518,9 +529,11 @@ def test_one_row_per_distinct_document_carrying_every_handle_that_cites_it():
     assert head.count("USDA WASDE (2021-05-12)") == 1
     assert "[E4][E7][E8] USDA WASDE (2021-05-12)" in head
     assert "[E39] USDA FAS GAIN Report - Palm Oil (2026-04-17)" in head      # a DIFFERENT document
-    # the OFF branch is HEAD's three rows under the body's own foreign spelling
+    # the OFF branch is HEAD's three rows (no fold -- that stays behind `seam_lints`); RE-BANKED 09-26 (fix
+    # sitting 2, lane M by file, PC-6 / CONTRACT Y26 -- declared): each row now spells the handle the body spells
     off = an._cited_sources_block(dict(d), v, [])
-    assert off.count("USDA WASDE (2021-05-12)") == 3 and "[4] USDA WASDE" in off
+    assert off.count("USDA WASDE (2021-05-12)") == 3 and "[E4] USDA WASDE" in off
+    assert "\n[4] " not in off
     # a body that writes the BARE spelling keeps it: the footer answers the page, not a convention
     d2 = {"tldr": "A [4].", "mechanism": "", "sources": [{"ref": 4}]}
     assert "[4] USDA WASDE" in an._cited_sources_block(d2, v, [], seam_lints=True)
@@ -1100,9 +1113,11 @@ def test_DOCKET11_one_handle_grammar_in_the_BODY_and_the_FOOTER():
     for tok in ("[E23]", "[E18]", "[E28]", "[N18]"):
         assert tok in out, tok
     assert re.search(r"^\[18\]", out, re.M) is None            # the COLLIDING bare spelling is gone
-    # ...and HEAD's branch is untouched, collision and all
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-6 / CONTRACT Y26 -- declared): the flag-off footer spells
+    # the handle the body spells too, so the colliding bare `[18]` is gone from BOTH cells -- the collision this
+    # docket named was a false address on the control page, and PC-6 corrects it there
     off = an._cited_sources_block(dict(d), v, calls)
-    assert re.search(r"^\[18\] USDA WASDE", off, re.M) is not None
+    assert re.search(r"^\[18\]", off, re.M) is None and re.search(r"^\[E18\] USDA WASDE", off, re.M)
 
 
 def test_DOCKET8_the_recency_ledger_reads_the_rows_this_turn_SERVED_and_spells_them_ISO(monkeypatch):

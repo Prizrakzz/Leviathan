@@ -838,7 +838,7 @@ def needs_vectors(*, rerank: bool, mmr: float) -> bool:
 def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[str], fetch_k: int,
                      hybrid: bool = True, conn=None, with_vectors: bool = True,
                      candidates: Optional[list[dict]] = None,
-                     _force_exact: bool = False) -> list[dict]:
+                     _force_exact: bool = False, date_floor: Optional[str] = None) -> list[dict]:
     """ONE round-trip: dense CTE + (optionally) lexical CTE, RRF-fused in SQL (c=60, same as rankers.rrf_fuse).
     Rows come back with their vectors so rerank/MMR run in-process unchanged.
 
@@ -867,6 +867,12 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
     qv = _vec_lit(query_vec)
     where = "node = %(node)s" + (" AND date <= %(asof)s" if asof else "")
     params = {"node": node, "asof": asof, "qv": qv, "k": fetch_k, "tsq": _tsquery(query_text) if hybrid else ""}
+    if date_floor is not None:
+        # SEAM EDIT PG-1 (fix sitting 2, CONTRACT Y27): the window-bounded draw's LOWER bound on the dated axis,
+        # in SQL (a post-fetch filter over the ranked candidates never reaches a document that did not rank).
+        # The upper bound stays the PIT filter above; None -> HEAD's SQL and params byte for byte.
+        where += " AND date >= %(date_floor)s"
+        params["date_floor"] = date_floor
     # EC-2 TIEBREAK: every ORDER BY in this statement ends in the PRIMARY KEY. RRF ties are real, and a
     # tie under a partial order lets Postgres return either sequence -- which downstream (stable sorts all
     # the way to the prompt) is a different ANSWER, and which would make the batch/single parity pin a
@@ -927,7 +933,8 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
         print(f"[pg-ann] belt refetch node={node} got={len(rows)} k={fetch_k}", flush=True)
         return fetch_candidates(query_vec, query_text, node, asof=asof, fetch_k=fetch_k,
                                 hybrid=hybrid, conn=conn, with_vectors=with_vectors,
-                                _force_exact=True)
+                                _force_exact=True,
+                                **({"date_floor": date_floor} if date_floor is not None else {}))
     return [_project(r, with_vectors) for r in rows]
 
 
@@ -1005,7 +1012,7 @@ _BATCH_CHUNK = 20
 
 def fetch_candidates_batch(query_vec, query_text: str, nodes, *, asof: Optional[str], fetch_k: int,
                            hybrid: bool = True, with_vectors: bool = True, chunk: Optional[int] = None,
-                           conn=None) -> dict[str, list[dict]]:
+                           conn=None, date_floor: Optional[str] = None) -> dict[str, list[dict]]:
     """EC-2: the SAME per-node fetch, for MANY nodes, in ceil(len(nodes)/chunk) statements and ONE POOL
     BORROW EACH -- the structural fix for a walk that spends hundreds of borrows on one turn.
 
@@ -1065,7 +1072,8 @@ def fetch_candidates_batch(query_vec, query_text: str, nodes, *, asof: Optional[
         part = nodes[i:i + size]
         try:
             rows = _batch_rows(t, qv, tsq, part, asof=asof, fetch_k=fetch_k, hybrid=hybrid,
-                               with_vectors=with_vectors, conn=conn)
+                               with_vectors=with_vectors, conn=conn,
+                               **({"date_floor": date_floor} if date_floor is not None else {}))
         except Exception:  # noqa: BLE001 — the batch is an optimization; correctness falls back to today
             continue                                         # OMIT: the caller re-fetches these nodes at
             #                                                  ITS OWN concurrency (see DEGRADE above).
@@ -1080,7 +1088,7 @@ def fetch_candidates_batch(query_vec, query_text: str, nodes, *, asof: Optional[
 
 
 def _batch_rows(t: str, qv: str, tsq: str, part: list, *, asof, fetch_k: int, hybrid: bool,
-                with_vectors: bool, conn=None) -> list:
+                with_vectors: bool, conn=None, date_floor: Optional[str] = None) -> list:
     """ONE statement, ONE borrow: the LATERAL set-read for `part`'s nodes. Returns raw tuples whose first
     column is the node. Split out so `fetch_candidates_batch` can wrap exactly this in its per-chunk
     fallback -- and so the chunk that raises has NOT yet written anything into the result map."""
@@ -1090,6 +1098,9 @@ def _batch_rows(t: str, qv: str, tsq: str, part: list, *, asof, fetch_k: int, hy
         params[f"n{j}"] = n
         vals.append(f"(%(n{j})s::text)")
     where = "node = q.node" + (" AND date <= %(asof)s" if asof else "")
+    if date_floor is not None:                               # SEAM EDIT PG-1 (Y27): None -> HEAD byte for byte
+        where += " AND date >= %(date_floor)s"
+        params["date_floor"] = date_floor
     dense = (f"SELECT id, ROW_NUMBER() OVER (ORDER BY vector <=> %(qv)s::vector, id) AS rnk "
              f"FROM {t} WHERE {where} ORDER BY vector <=> %(qv)s::vector, id LIMIT %(k)s")
     payload = "p.vector::text" if with_vectors else "1 - (p.vector <=> %(qv)s::vector)"
@@ -1122,7 +1133,8 @@ def _batch_rows(t: str, qv: str, tsq: str, part: list, *, asof, fetch_k: int, hy
 def pg_retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near: str | None = None,
                 beta: float = 0.25, mode: str = "dense", rerank: bool = False, mmr: float = 0.0,
                 same_source: bool = True, fairness: float = 0.30, fetch_k: int = 60,
-                embed=None, conn=None, candidates: Optional[list[dict]] = None) -> list[dict]:
+                embed=None, conn=None, candidates: Optional[list[dict]] = None,
+                date_floor: Optional[str] = None) -> list[dict]:
     """The pg twin of evidence.retrieve(): same knobs, same output shape, same post-fetch pipeline.
     Candidates come from SQL; proximity/rerank/MMR are computed in-process exactly like the flat path.
 
@@ -1141,7 +1153,8 @@ def pg_retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, n
         # floor the turn. Dropping the mismatched prefetch costs one borrow and keeps the answer.
         candidates = None
     cand = fetch_candidates(qv, query, node, asof=asof, fetch_k=fetch_k, hybrid=(mode == "hybrid"), conn=conn,
-                            with_vectors=with_vec, candidates=candidates)
+                            with_vectors=with_vec, candidates=candidates,
+                            **({"date_floor": date_floor} if date_floor is not None else {}))
     if not cand:
         if rerank:                                 # this caller WAS counted in the walk's coalescer hint but
             rk.rerank_unexpect()                   # will never score — retract, or the leader waits it out

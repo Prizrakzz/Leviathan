@@ -20,8 +20,6 @@ import dataclasses
 import inspect
 import types
 
-import pytest
-
 from leviathan.graphrag import graph as G
 from leviathan.graphrag import register as REG
 from leviathan.graphrag import verify as VF

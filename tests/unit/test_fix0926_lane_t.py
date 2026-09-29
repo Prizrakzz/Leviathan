@@ -95,6 +95,14 @@ def _row(u: dict) -> dict:
     return {"model": SEAT, **u}
 
 
+def _rung(row: dict, max_tokens: int, stop: str, out: int) -> dict:
+    """FIX SITTING 2 (lane Q, leftover m9 R4) -- RE-BANKED, DECLARED: a pass the rung ladder touched carries its
+    rung on its own census row ({max_tokens, stop, out}, `agent._rung_on_row`), so the ladder reaches
+    `trace.numbers_usage` under the census gate. Every claim these pins made stands (one list, every round
+    priced, the sink == the return); the rows the ladder touched now also say which rung they ran at."""
+    return {**row, "rung": {"max_tokens": max_tokens, "stop": stop, "out": out}}
+
+
 def _usd(*rows) -> float:
     return sum(pv.serving_cost_usd(SEAT, r["in"], r["out"], r["cache_read"], r["cache_write"]) for r in rows)
 
@@ -149,7 +157,8 @@ def test_T1_ladder_on_the_truncated_round_reruns_ONCE_on_the_SAME_messages_at_th
                             {"max_tokens": 12000, "stop": "tool_use", "out": 7400}]
     assert bud["max_tokens"] == 12000 and bud["rounds_used"] == 2               # the re-run is not a new round
     # T2-b: ONE list across the ladder -- the truncated round is priced beside its re-run
-    assert out["numbers_usage"] == sink == [_row(TARIFF_T_R1), _row(fin), _row(
+    assert out["numbers_usage"] == sink == [_rung(_row(TARIFF_T_R1), 6000, "max_tokens", 6000),
+                                            _rung(_row(fin), 12000, "tool_use", 7400), _row(
         {"in": 2, "out": 900, "cache_read": 110000, "cache_write": 3000})]
     assert abs(_usd(TARIFF_T_R1) - 0.1212564) < 1e-12                           # the truncated round's own dollars
     assert "numbers_error" not in out
@@ -293,6 +302,9 @@ def test_T2_the_three_failed_arm_seats_are_PRICED_through_the_real_run_hybrid(se
     tr = out.get("trace") or {}
     laddered = board and _ladder_wired()
     spent = [_row(r) for r in rows] + ([_row(rerun)] if laddered else [])
+    if laddered:                                     # lane Q (m9 R4): the two passes the ladder ran carry their rung
+        spent[-2] = _rung(spent[-2], 6000, "max_tokens", rows[-1]["out"])
+        spent[-1] = _rung(spent[-1], 12000, "max_tokens", rerun["out"])
     assert tr["numbers_usage"] == spent
     assert tr["numbers_error"]["kind"] == "RuntimeError"
     assert tr["numbers_error"]["error"].startswith(HEAD_TRUNC_6000)            # numbers_error keeps the first
@@ -327,7 +339,8 @@ def test_T1_S1_the_ladder_reaches_ONLY_a_board_turn(board, armed):
                          query_fn=lambda sql: []).get("trace") or {}
     if board and _ladder_wired():
         assert "numbers_error" not in tr
-        assert tr["numbers_usage"] == [_row(TARIFF_T_R1), _row(fin)]
+        assert tr["numbers_usage"] == [_rung(_row(TARIFF_T_R1), 6000, "max_tokens", 6000),
+                                       _rung(_row(fin), 12000, "end_turn", 7400)]
     else:
         assert tr["numbers_error"]["error"] == HEAD_TRUNC_6000
         assert tr["numbers_usage"] == [_row(TARIFF_T_R1)]

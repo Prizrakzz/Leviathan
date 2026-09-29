@@ -507,7 +507,10 @@ def test_empty_tldr_header_is_dropped_rather_than_rendered_bare():
     shipped the literal line '**TL;DR.** ' with nothing under it."""
     md = an.render({"tldr": "   ", "mechanism": "## Mechanism\n\nThe key distinction is level vs z-score."})
     assert "TL;DR" not in md
-    assert md.startswith("**Why.**")
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-5 / CONTRACT Y18 -- declared): a mechanism that opens
+    # with its own heading IS its own section, so no "**Why.**" label is printed above it. The claim this pin
+    # keeps: the empty TL;DR header is dropped and the page opens with the mechanism.
+    assert md.startswith("## Mechanism")
     # ...and a TL;DR with content renders exactly as before
     md2 = an.render({"tldr": "Urea is not expensive.", "mechanism": "Body."})
     assert md2 == "**TL;DR.** Urea is not expensive.\n\n**Why.** Body."

@@ -355,8 +355,11 @@ def test_the_mandate_carries_the_SCORING_rule_and_it_is_SCOPED():
     it, which is a fence that deletes a backed figure and leaves the claim standing."""
     m = N.desk_register_mandate()
     assert "A PATTERN IS NAMED BY ITS CONDITIONS AND NEVER BY ITS SCORE" in m
-    assert "whether the pattern is in force" in m
-    assert "say which conditions this market is meeting" in m          # the fact SURVIVES, named
+    # RE-BANKED 09-26 SITTING 2 (lane N, N-2): the rule asks for the conditions SHOWING and the ones read on the
+    # other side or carrying no reading -- and never the verdict ("in force" / "met"), which the record does not
+    # decide (the board refuses it; 7 of 10 arm-A pages minted it off this very clause). The fact survives.
+    assert "never call the pattern in force or met" in m
+    assert "say which of its conditions this market is showing" in m   # the fact SURVIVES, named
     assert "do not print the number a pattern needs to fire" in m      # the THRESHOLD
     assert "do not print the size of the roster it draws from" in m    # the ROSTER SIZE
     # ...and the ban that reached the board mandate's own required prose is GONE, by name
@@ -520,8 +523,8 @@ def test_the_rules_OWN_WORKED_EXAMPLES_OBEY_THE_RULES():
     prints neither a threshold number nor a roster size; and no digit run anywhere in either half of
     the shipped mandate is an undelimited calendar date, so the only digits the writer meets in this
     literal are ones its own date rule permits."""
-    example = ("the crush margin is wide and the meal basis is firm, two of its conditions are met, "
-               "and it is not in force")
+    example = ("the crush margin is wide and the meal basis is firm, two of its conditions, while export pace "
+               "reads on the other side")                                # 09-26 s2 (N-2): re-banked, no verdict
     m = N.desk_register_mandate()
     assert example in m, "the worked example moved; re-cut this pin beside it"
     assert not _reaches_scoring(example), _SCORE_SPAN.search(example)
@@ -565,8 +568,10 @@ def test_the_recency_clause_names_the_replacement_for_the_blocks_own_words():
     where the writer is told what to write instead, and it rides the leg that supplies the facts."""
     board_half = N.desk_register_mandate(state_board=True)
     ban_half = N.desk_register_mandate()
-    assert "the newest number behind this page was known" in board_half
-    assert "the newest number behind this page was known" not in ban_half
+    # RE-BANKED 09-26 SITTING 2 (lane N, N-1): the layer by name, never the page ("The numbers behind this page
+    # were known ..." was copied off this clause on the max and palm/rape pages)
+    assert "the newest figure was known on its date" in board_half
+    assert "the newest figure was known on its date" not in ban_half
     assert "three dated facts" in board_half and "the board price tape" in board_half
 
 
@@ -769,22 +774,26 @@ def test_the_SB_L_numbers_line_is_A_SENTENCE_on_all_four_branches_and_invents_no
     def line(bd, **kw):
         return N.recency_rows(bd, tape_edge="2026-09-04", **kw)["numbers"]
 
+    # RE-BANKED 09-26 SITTING 2 (lane N, CONTRACT Y11 / N-1): the line NAMES the population its edges range over
+    # ("across the current readings") and an empty edge prints the layer's own words, never "on this page";
+    # every branch's claim is kept -- no fabricated equal edge, no non-sentence, a stated kd_min printed as given.
     a = line(_Board("2026-09-04", ["2026-09-04", "2025-12-31"], asof="2026-09-07"))
     assert a == ("read as of 2026-09-07; the newest number here is known 2026-09-04 "
-                 "and the oldest 2025-12-31"), a
+                 "and the oldest 2025-12-31, across the current readings"), a
     for degenerate in (_Board("2026-09-04", [], asof="2026-09-07"),
                        _Board("2026-09-04", ["", None], asof="2026-09-07")):
         b = line(degenerate)
-        assert b == "read as of 2026-09-07; the newest number here is known 2026-09-04", b
+        assert b == ("read as of 2026-09-07; the newest number here is known 2026-09-04, across the current "
+                     "readings"), b
         assert "the oldest" not in b, b
     d = line(_Board("", [], asof="2026-09-07"))
-    assert d == ("read as of 2026-09-07; the newest number here is not carried on this page"), d
+    assert d == ("read as of 2026-09-07; the newest number here is not carried by the current readings"), d
     assert "is known not carried" not in d, d                  # the round-2 non-sentence
     e = line(_Board("", ["2026-08-01"], asof="2026-09-07"))
-    assert e == "read as of 2026-09-07; the newest number here is known 2026-08-01", e
+    assert e == "read as of 2026-09-07; the newest number here is known 2026-08-01, across the current readings", e
     # ...and a kd_min the CALLER states is the caller's own fact, printed as given on every branch
     assert line(_Board("2026-09-04", [], asof="2026-09-07"),
-                kd_min="2025-01-02").endswith("and the oldest 2025-01-02")
+                kd_min="2025-01-02").endswith("and the oldest 2025-01-02, across the current readings")
     # EVERY BRANCH IS STILL A SCORABLE SB-L ROW: the layer word survives the fallback
     for text in (a, d, e):
         assert any(w in text for w in R._RECENCY_LAYER_WORDS["numbers"]), text
@@ -796,7 +805,7 @@ def test_the_ledger_sentence_fallback_is_A_SENTENCE_too():
     known not carried on this page". HEAD's predicate is restored; `number` is kept because
     `render._RECENCY_LAYER_WORDS` scores it. UNSHIPPED (WP-A9): no served byte moves either way."""
     s = N.recency_ledger(asof="2026-09-07")
-    assert "the newest number is not carried on this page" in s, s
+    assert "the newest number is not carried here" in s, s        # 09-26 s2 (N-1): re-banked, no page-talk
     assert "is known not carried" not in s, s
     assert reg.count_desk_register(N.RECENCY_LEDGER_SENTENCE) == 0
     assert "newest number" in N.RECENCY_LEDGER_SENTENCE           # the coverage scorer's own word

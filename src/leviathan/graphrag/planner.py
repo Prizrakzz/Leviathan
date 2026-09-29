@@ -1703,6 +1703,349 @@ def _ec2_prefetch(sg, query, asof, retrieve, fill_slice, bridged=frozenset()):
         return None
 
 
+# ── FIX SITTING 2 (09-26, lane M, M-1 / CONTRACT Y10): THE EVIDENCE MENU HAS A TIME AXIS ────────────────────
+# MEASURED (recon N-3): with the bridge query on, every non-seed node reads with its STATIC mechanism text and
+# no as-of, window or recency term, so the menu is frozen -- treatment `record_through` identical across the
+# 0923 / 0924 / 0925 / 0926 runs on 9 of 10 turns -- and its age is an accident of wording: older than the
+# same-day control on 5 of 10 turns (corn/wheat -17 months, soyoil/palm -24, tariff -11.5), and palm/rape
+# stops at 2023-03-13 in BOTH cells while the store holds the 2026-04-17 Malaysia oilseeds annual. W-1 built
+# the action ledger for REGIME nodes only. THE FIX, inside `ground(bridge_query=True)` only: a node whose
+# menu's newest dated item trails the as-of by more than ONE PRINT of the card serving it gets a SECOND draw
+# with the SAME query text, bounded to the node's OWN WINDOW (the as-of minus the node's declared lag band),
+# through the SAME retriever and reranker -- and what it returns is APPENDED to the menu. Nothing is removed,
+# reordered or re-addressed (retrieval adds, never subtracts). REJECTED: boosting date tokens in the query,
+# keyword lists ("annual", "outlook"), raising the quick menu cap alone.
+_WINDOW_MONTH_FLOOR = 1          # a band's far edge is floored at ONE month (walk.effect_window's own floor)
+
+
+def _node_band_months(node, graph) -> Optional[int]:
+    """The node's OWN lag band's far edge in MONTHS (floored at one month, `walk.effect_window`'s rule), or None.
+
+    * a DRIVER -- its own declared `lag` onto the contract's price (`GroundedNode.prior["lag"]`, the curated DAG);
+    * a hop CONTRACT -- the admitting inter-commodity edge's own `lag` (`via_edge["lag"]`);
+    * a SEED contract (or any contract admitted with no edge) -- the MEDIAN closed far edge among its own
+      drivers' declared bands (the lower median, so the width is a band the DAG actually declares): the seed's
+      slice is the market itself, and the typical lag of its own drivers is how long a document about that market
+      stays a reading of its present. NOT THE WIDEST, MEASURED: on the arm-A palm/rape walk the widest band of CME
+      palm's drivers is a 4-16 quarter structural driver, which made the seed's window FOUR YEARS -- a menu whose
+      newest document was 3.5 years old then read as current and nothing was drawn. An open-ended (`structural`)
+      band closes nowhere and is never a width; an unparsed band gives nothing (`lagbands.parse_lag`, fail-closed).
+    The band is READ, never summed along a path (doctrine M-4)."""
+    try:
+        from leviathan.graphrag.state import lagbands as _lb  # lazy: phase-2 only
+    except Exception:  # noqa: BLE001 -- no band table: no band
+        return None
+
+    def _far(raw) -> Optional[int]:
+        try:
+            _lo, hi = _lb.parse_lag(raw).months()
+        except Exception:  # noqa: BLE001
+            return None
+        if hi is None:
+            return None
+        return max(_WINDOW_MONTH_FLOOR, int(hi))
+
+    kind = getattr(node, "kind", "")
+    if kind == "driver":
+        prior = getattr(node, "prior", None) or {}
+        if "lag" in prior:
+            return _far(prior.get("lag"))
+        try:
+            return _far(graph.driver(node.contract, node.id).lag)
+        except Exception:  # noqa: BLE001
+            return None
+    if kind == "contract":
+        via = getattr(node, "via_edge", None)
+        if isinstance(via, dict) and via:
+            return _far(via.get("lag"))
+        try:
+            drivers = graph.contracts[node.contract].drivers
+        except Exception:  # noqa: BLE001
+            return None
+        widths = sorted(w for w in (_far(getattr(d, "lag", None)) for d in drivers) if w is not None)
+        return widths[(len(widths) - 1) // 2] if widths else None      # the lower median: a declared band
+    return None
+
+
+def _node_cadence_days(node, reg=None) -> Optional[float]:
+    """ONE PRINT of the card serving a DRIVER node, in days -- the registry card's declared `cadence`
+    (`feeders.series_key_for`, the board's ONE ref -> card resolver, at zero reads; `feeders.cadence_of` and
+    `CADENCE_DAYS`, the board's own cadence tables). None for a contract node, a driver whose ref resolves to no
+    card, or a cadence with no period length (`release`)."""
+    if getattr(node, "kind", "") != "driver":
+        return None
+    ref = str((getattr(node, "prior", None) or {}).get("silver_ref") or "")
+    if not ref:
+        return None
+    try:
+        from leviathan.graphrag.state import feeders as _fd  # lazy: phase-2 only
+        plan = _fd.series_key_for(ref, node)
+        ts, table = getattr(plan, "ts", None), str(getattr(plan, "table", "") or "")
+        if ts is None and table:
+            if reg is None:
+                from leviathan.graphrag.numbers.registry import load_registry
+                reg = load_registry()
+            ts = reg.get(table)
+        if ts is None or not table:
+            return None
+        days = _fd.CADENCE_DAYS.get(_fd.cadence_of(ts, table))
+        return float(days) if days else None
+    except Exception:  # noqa: BLE001 -- an unresolvable card has no cadence
+        return None
+
+
+def node_window(node, graph, *, asof: str, reg=None) -> dict:
+    """THE NODE'S OWN WINDOW ON THE DATED AXIS (CONTRACT Y10) -- ``{"opens", "closes", "floor_days", "basis",
+    "band_months"}`` or ``{}``.
+
+    * ``opens`` / ``closes`` -- the WINDOW a second draw is bounded to: the as-of minus the node's own lag band
+      (`_node_band_months`), closing at the as-of. A document older than the band's far edge describes a state
+      whose effect on this price has already passed through; one inside it is still acting.
+    * ``floor_days`` -- the RECENCY FLOOR: ONE PRINT of the card serving the node's driver (`_node_cadence_days`,
+      basis ``card_cadence``) -- a menu whose newest item trails the as-of by more than one print is behind the
+      series it is about -- else the window's own width (basis ``lag_band``: the menu holds nothing inside the
+      node's own window).
+    A node with no band gets its window from its card's cadence alone; a node with neither gets ``{}`` and is
+    counted ``floor_unknown`` by the caller -- never a typed constant (threat M1-e)."""
+    try:
+        import datetime as _dt
+        a = _dt.date.fromisoformat(str(asof or "")[:10])
+    except ValueError:
+        return {}
+    band = _node_band_months(node, graph)
+    cad = _node_cadence_days(node, reg)
+    if band is None and cad is None:
+        return {}
+    if band is not None:
+        try:
+            from leviathan.graphrag.state import walk as _wk  # lazy: the calendar
+            opens = _wk._add_months(a.isoformat(), -int(band))
+        except Exception:  # noqa: BLE001
+            opens = None
+        if not opens:
+            return {}
+        width = (a - _dt.date.fromisoformat(opens)).days
+    else:
+        width = int(math.ceil(float(cad)))
+        opens = (a - _dt.timedelta(days=width)).isoformat()
+    floor = int(math.ceil(float(cad))) if cad is not None else int(width)
+    out = {"opens": opens, "closes": a.isoformat(), "floor_days": max(1, floor),
+           "basis": "card_cadence" if cad is not None else "lag_band"}
+    if band is not None:
+        out["band_months"] = int(band)
+    return out
+
+
+def _newest_dated(items) -> Optional[str]:
+    """The newest usable ISO date on a node's menu (the 1970 sentinel is not a date), or None."""
+    ds = [str((h or {}).get("date") or "")[:10] for h in (items or []) if isinstance(h, dict)]
+    ds = [d for d in ds if len(d) == 10 and not d.startswith("1970-")]
+    return max(ds) if ds else None
+
+
+def _window_pit_ok(rec: dict, asof: str, opens: str) -> bool:
+    """An ADDED item is admitted only when its document date sits inside the window AT ITS OWN PRECISION (threat
+    M1-a): a month- or year-floored document (`date_kind`) is read as its whole period
+    (`walk.document_interval`, the action ledger's own reading) and must CLOSE on or before the as-of, and it
+    must not open before the window does. A date that cannot be placed is not admitted."""
+    d = str((rec or {}).get("date") or "")[:10]
+    if len(d) != 10 or d < str(opens or "")[:10]:
+        return False
+    try:
+        from leviathan.graphrag.state import walk as _wk  # lazy
+        iv = _wk.document_interval(rec)
+    except Exception:  # noqa: BLE001
+        iv = (d, d)
+    return len(iv) == 2 and bool(iv[1]) and str(iv[1])[:10] <= str(asof or "")[:10]
+
+
+def _takes_param(fn, name: str) -> bool:
+    """Does ``fn`` (or the function under a `functools.partial`) DECLARE ``name`` by name? A `**kwargs` catch-all
+    is not a declaration: a retriever that would silently ignore a floor must never be handed one."""
+    import inspect as _inspect
+    try:
+        return name in _inspect.signature(getattr(fn, "func", fn)).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def _window_fetcher(retrieve):
+    """HOW THE SECOND DRAW REACHES THE STORE, or ``(None, why)``:
+
+    * ``("retriever", None)`` -- the injected retriever DECLARES ``date_floor`` itself (a hermetic store, an offline
+      drive): ``retrieve(text, slice, k=, asof=, near=, date_floor=opens)`` per node;
+    * ``("pg_batch", _pg)`` -- the real ``ev.retrieve`` on the live pg backend AND the store's candidate fetch
+      declares ``date_floor`` (SEAM EDIT PG-1, `pgstore.fetch_candidates_batch`): ONE batched statement per
+      (query text, window) group, and each node's rows go through the SAME post-fetch pipeline (proximity,
+      rerank, MMR) by the existing ``candidates=`` seam;
+    * ``(None, "no_floor_seam")`` -- neither: the draw does not run and nothing is stamped (a retriever that
+      cannot bound the dated axis is never asked to, and a post-fetch filter over a menu ranked without the
+      window can never reach a document that did not rank -- S2-7)."""
+    if _takes_param(retrieve, "date_floor"):
+        return "retriever", None
+    if getattr(retrieve, "func", retrieve) is not ev.retrieve or os.environ.get("EVIDENCE_BACKEND") != "pg":
+        return None, "no_floor_seam"
+    try:
+        from leviathan.graphrag import pgstore as _pg
+    except Exception:  # noqa: BLE001
+        return None, "no_floor_seam"
+    if not _takes_param(_pg.fetch_candidates_batch, "date_floor"):
+        return None, "no_floor_seam"
+    return "pg_batch", _pg
+
+
+def _window_draw(sg, query: str, graph, *, retrieve, asof, near, k_by_depth, fill_slice, bridges: dict,
+                 reg=None) -> dict:
+    """THE SECOND, WINDOW-BOUNDED DRAW (M-1, CONTRACT Y10). Returns the ``window_draw`` stamp or ``{}``.
+
+    THE POPULATION is every retrieving node ON THE MENU after the cap (its kept evidence is non-empty) and every
+    SEED (threat M1-f: the palm/rape annual may sit on the seed's own slice) -- a node the cap zeroed is not on
+    the menu, and drawing for it would be raising the cap by another name. A node is STALE when its newest
+    dated item trails the as-of by more than its own ``floor_days`` (`node_window`), or it holds no dated item.
+
+    THE DRAW reads the SAME slice with the SAME query text the node's first draw used (the seed's question, the
+    bridge text elsewhere -- threat M1-c) through the SAME retriever, k = the node's own k, bounded to
+    ``[opens, as-of]`` (`_window_fetcher`). Every reranked item that passes the window's own date rule
+    (`_window_pit_ok`) and is not already on the menu (the cap's own signature: source_key, date, text[:80]) is
+    APPENDED to the node's evidence, in the retriever's order, after every item it already held (threat M1-b).
+    The merge runs on the caller's thread in node order, so the menu is deterministic whatever order the
+    concurrent reranks returned in.
+
+    THE STAMP (`bridge_query.window_draw`, omitted when no node was stale or the store cannot bound the axis):
+    ``{"nodes", "stale", "added", "statements", "ms", "floor_unknown", "per_node"}`` -- `per_node` names each
+    stale node with its window and the source_keys it gained, so a rerun is compared by MEMBERSHIP, never by
+    rank (threat M1-h)."""
+    import time as _time
+    _t0 = _time.perf_counter()
+    if not asof:
+        return {}
+    try:
+        import datetime as _dt
+        a = _dt.date.fromisoformat(str(asof)[:10])
+    except ValueError:
+        return {}
+    pop = [n for n in sg.nodes if fill_slice(n) is not None and (n.depth == 0 or n.evidence)]
+    stale: list = []
+    unknown = 0
+    for n in pop:
+        w = node_window(n, graph, asof=str(asof)[:10], reg=reg)
+        if not w:
+            unknown += 1
+            continue
+        newest = _newest_dated(n.evidence)
+        if newest is None or (a - _dt.date.fromisoformat(newest)).days > int(w["floor_days"]):
+            stale.append((n, w))
+    if not stale:
+        return {}
+    how, pg = _window_fetcher(retrieve)
+    if how is None:
+        return {}
+    texts = {n.key: (bridges.get(n.key) or query) for n, _w in stale}
+    results: dict = {}
+    statements = [0]
+    lock = threading.Lock()
+    groups: dict = {}
+    if how == "pg_batch":
+        kw = getattr(retrieve, "keywords", None) or {}
+        mode = kw.get("mode", "dense")
+        rerank = bool(kw.get("rerank", False))
+        mmr = float(kw.get("mmr", 0.0) or 0.0)
+        fetch_k = int(kw.get("fetch_k", ev._FETCH_K))
+        with_vectors = pg.needs_vectors(rerank=rerank, mmr=mmr)
+        for n, w in stale:
+            groups.setdefault((texts[n.key], w["opens"]), []).append(fill_slice(n))
+        g_rows: dict = {}
+        g_lock: dict = {g: threading.Lock() for g in groups}
+
+        def _rows_for(text, opens, sp):
+            g = (text, opens)
+            with g_lock[g]:
+                if g not in g_rows:
+                    try:
+                        qv = ev.embed([text])[0]
+                        g_rows[g] = pg.fetch_candidates_batch(
+                            qv, text, list(dict.fromkeys(groups[g])), asof=str(asof)[:10], fetch_k=fetch_k,
+                            hybrid=(mode == "hybrid"), with_vectors=with_vectors, chunk=len(groups[g]),
+                            date_floor=opens)
+                    except Exception:  # noqa: BLE001 -- a failed window read adds nothing
+                        g_rows[g] = {}
+                    with lock:
+                        statements[0] += 1
+                return g_rows[g].get(sp)
+
+    def _one(pair):
+        n, w = pair
+        sp = fill_slice(n)
+        k = k_by_depth[min(n.depth, len(k_by_depth) - 1)]
+        text = texts[n.key]
+        reached = False                                   # did this node reach the retriever (and its rerank)?
+        try:
+            if how == "retriever":
+                with lock:
+                    statements[0] += 1
+                reached = True
+                got = list(retrieve(text, sp, k=k, asof=asof, near=near, date_floor=w["opens"]))
+            else:
+                rows = _rows_for(text, w["opens"], sp)
+                if rows is None:
+                    got = []                              # the batch did not serve this slice: nothing added
+                else:
+                    reached = True
+                    got = list(retrieve(text, sp, k=k, asof=asof, near=near, candidates=rows))
+        except Exception:  # noqa: BLE001 -- the window draw may add nothing; it may never cost the walk
+            got = []
+            reached = False                               # a raise is a promise that may never arrive
+        if not reached and how == "pg_batch":
+            _retract_rerank_hint(retrieve)                # the coalescer's promised arrival, retracted
+        with lock:
+            results[n.key] = got
+
+    _parallel_fill(stale, _one, query, retrieve if how == "pg_batch" else _NoHint(),
+                   expected=len(stale), bridges=tuple(dict.fromkeys(texts.values())))
+    seen = {(h.get("source_key"), h.get("date"), (h.get("text") or "")[:80])
+            for m in sg.nodes for h in (m.evidence or [])}
+    added = 0
+    per_node: list = []
+    for n, w in stale:
+        keys: list = []
+        for h in results.get(n.key) or []:
+            if not isinstance(h, dict) or not _window_pit_ok(h, str(asof)[:10], w["opens"]):
+                continue
+            sig = (h.get("source_key"), h.get("date"), (h.get("text") or "")[:80])
+            if sig in seen:
+                continue
+            seen.add(sig)
+            n.evidence = list(n.evidence or []) + [h]
+            keys.append(h.get("source_key"))
+            added += 1
+        per_node.append({"node": ":".join(str(p) for p in n.key), "opens": w["opens"], "basis": w["basis"],
+                         "floor_days": w["floor_days"], "added": keys})
+    return {"nodes": len(pop), "stale": len(stale), "added": added, "statements": statements[0],
+            "ms": int((_time.perf_counter() - _t0) * 1000), "floor_unknown": unknown, "per_node": per_node}
+
+
+def _retract_rerank_hint(retrieve) -> None:
+    """Retract ONE promised rerank arrival (`rankers.rerank_unexpect`) for a window-draw node that will never
+    reach the reranker -- the `_parallel_fill` promise rule: a hint the caller cannot keep makes the coalescer's
+    leader wait out its whole window. Only where the promise was made (the real retriever, a coalescing backend)
+    and only where the retriever reranks at all (the `pg_retrieve` retract condition). Never raises."""
+    if getattr(retrieve, "func", retrieve) is not ev.retrieve:
+        return
+    if not bool((getattr(retrieve, "keywords", None) or {}).get("rerank", False)):
+        return
+    try:
+        from leviathan.graphrag import rankers as rk
+        if rk._rerank_backend() in ("bedrock", "cohere"):
+            rk.rerank_unexpect()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+class _NoHint:
+    """A stand-in retriever for `_parallel_fill`'s hint logic on the injected-retriever path: it is NOT
+    `ev.retrieve`, so no embed pre-warm and no coalescer promise is made for a fake store."""
+
+
 def _emit_stage(on_stage, stage: str, **info) -> None:
     """Local copy of answer._emit's contract (avoids an answer<->planner import knot): best-effort progress
     callback; None -> strict no-op; any callback error is swallowed."""
@@ -2086,6 +2429,18 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
         pass
     _dedup_and_cap(sg, evidence_cap, cap_policy=cap_policy,       # dedup cross-node restatement + cap total
                    k_by_depth=k_by_depth)
+    # FIX SITTING 2 (09-26, lane M, M-1 / CONTRACT Y10): THE MENU'S TIME AXIS -- a node on the menu (and every
+    # seed) whose newest dated item trails the as-of by more than one print of its own card gets a SECOND draw
+    # bounded to its own lag window, APPENDED after the cap (retrieval adds, never subtracts: no item the cap
+    # kept moves or goes). ON THE BRIDGE ARM ONLY -- with the flag off this line is never reached and the walk
+    # is the shipped walk byte for byte (B6). Stamped inside the EXISTING `bridge_query` key, omitted when no
+    # node was stale or the store cannot bound the dated axis. BEFORE the episodes and the firing leg, so the
+    # added rows are the menu's rows everywhere downstream.
+    if bridge_query:
+        _wd = _window_draw(sg, query, graph, retrieve=retrieve, asof=asof, near=near, k_by_depth=k_by_depth,
+                           fill_slice=_fill_slice, bridges=_bridges)
+        if _wd and isinstance(sg.trace.get("bridge_query"), dict):
+            sg.trace["bridge_query"]["window_draw"] = _wd
     # EPISODES ARE COMPUTED AGAINST POST-CAP EVIDENCE (D-DV-1b). They used to be stamped inside _fill, on
     # the PRE-cap list, and _dedup_and_cap then zeroed the very rows the episode line's receipts quote --
     # so a node whose evidence was capped away still rendered "the record holds N episodes" with receipts

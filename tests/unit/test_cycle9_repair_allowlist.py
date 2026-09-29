@@ -355,7 +355,9 @@ def test_fix3_an_empty_sources_block_with_live_markers_is_impossible():
     assert an._prune_orphan_evidence_handles(s, vreport) == 1
     block = an._cited_sources_block(s, vreport, [])
     prose_refs = set(re.findall(r"\[E(\d+)", s["tldr"] + s["mechanism"]))
-    block_refs = set(re.findall(r"^\[(\d+)\]", block, re.M))
+    # RE-BANKED 09-26 (fix sitting 2, lane M by file, PC-6 / CONTRACT Y26 -- declared): the footer row spells the
+    # handle the body spells (`[E1]` here); the join this pin keeps is unchanged
+    block_refs = set(re.findall(r"^\[E?(\d+)\]", block, re.M))
     assert prose_refs == {"1"} and prose_refs <= block_refs
 
 

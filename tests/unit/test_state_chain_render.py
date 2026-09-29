@@ -451,7 +451,11 @@ def test_the_count_line_COUNTS_and_never_NAMES_and_its_denominators_are_stated(c
     # (the chain read's N13); the line counts the distinct chains, those carried above and the rest, not
     # followed -- one population, stated once. The pool arithmetic rides the trace.
     assert "ways in all" not in line and "past one link" not in line
-    assert "chains of cause" in line and "the rest are counted here" in line
+    # 09-26 S2 RE-BANK (lane N, N-4 / Y19): "the rest" is now the FURTHER count, stated: the distinct chains less
+    # the distinct sequences carried below, so the writer copies a figure and never subtracts
+    _carried = len({(str(c_.contract), tuple(c_.hop_ids)) for c_ in bd.chains if c_.rendered})
+    assert "chains of cause" in line and ("the other %s are counted here"
+                                          % R.words_for_int(int(c["distinct_sequences"]) - _carried)) in line, line
     assert R.classify(line) == ("SB-P",)
     bare = _GLUED_RX.sub("", _YEAR_RX.sub("", _ISO_RX.sub("", line)))
     assert not any(ch.isdigit() for ch in bare), line
@@ -470,7 +474,7 @@ def test_the_sides_line_says_when_only_one_side_exists_and_names_the_hop_that_ru
     a = _chain([_hop(), _hop(driver_id="soybean_crush_margin")])
     a.side, a.against_hops = "for", ()
     assert "points higher for this market" in R.sb_chain_sides([a])
-    assert "no other chain on this page points the other way" in R.sb_chain_sides([a])
+    assert "no other chain here points the other way" in R.sb_chain_sides([a])    # 09-26 S2 RE-BANK (N-1)
     b = _chain([_hop(), _hop(driver_id="psd_ending_stock_su_ratio")])
     b.side, b.against_hops = "against", ("export_pace_lag",)
     both = R.sb_chain_sides([a, b])

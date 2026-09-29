@@ -649,6 +649,170 @@ def _card_address(call: dict, row: dict) -> tuple:
     return table, metric
 
 
+# == 09-26 SITTING 2, LANE H (CONTRACT Y24) -- THREE LABEL FACTS THE CALL ALREADY CARRIES ================
+#
+# PC-8 (a PROD-PATH correction, both cells): A SERIES WHOSE CARD DECLARES ``country_axis: global`` HAS NO
+# COMMODITY AND NO COUNTRY SCOPE. The cascade reads the ONI, the IOD, the ICCO world sheet and the World Bank
+# benchmarks with the ANCHOR's commodity and home country on the query (it asked them FOR that board), and the
+# label printed the anchor as the series' scope -- "NOAA ONI ONI anomaly CBOT soybeans United States",
+# "World Bank Pink Sheet brent crude price 5-year z-score CBOT rice" (4 of 10 control pages; persists on the
+# treatment's then/now rows). The card's own axis declaration decides it (tables.yaml: "a Pacific index: no
+# country is its scope", "World Bank WORLD benchmark prices"); a query commodity that is the estate's ONE
+# global token (``rows.SeriesKey.is_global``) is the series' own and keeps HEAD's words. REJECTED: a list of
+# global series by name; stripping any country after a known index name.
+#
+# PC-7 (a PROD-PATH correction, both cells): A DERIVED PACE ROW IS NAMED BY ITS DERIVATION, NEVER BY ITS SLUG
+# OR ITS FETCH WINDOW. ``cascade._pace_synth`` declares ``query["derived"] = {"kind", "of", "grain"}`` (OI-3 a)
+# beside the slug it builds; the label then names the card label of ``of``, the change against the prior
+# period of the declared grain and the row's OWN latest period -- never "weekly_exports_1000mt_pace_change
+# ... 2026-07-18..2026-09-26" (a week-over-week change printed under a ten-week window; 7 of 10 control
+# pages, 2 of 10 treatment). No ``derived`` key -> HEAD's label, byte for byte. REJECTED: parsing the
+# ``_pace_change`` / ``_pace_streak`` suffix off the metric (the lexical form, S2-14).
+# A FOLDED national row (lane Q's ``_fold`` marker, CONTRACT Y1) names the fold in the board's own words
+# (``rows.RowIdentity.scope_words`` for a destination axis summed) and its OWN week.
+#
+# Y9 (the P-4 known stamp, H's half; PC-9 PROPOSED, so GATED ON THE ANALYST STAMP until the orchestrator
+# confirms the flag-off move): a ``year_month`` card's row carries its data MONTH and no knowledge alias, and
+# HEAD printed the month as the stamp ("[known 2026-07]" on a July ONI value the board dates 2026-09-05). The
+# stamp is the ONE derivation the board prints (``feeders.derive_knowledge_date``: month-end plus the card's
+# declared ``ym_publication_lag_days``), read here for the card class that declares a lag, never by table name.
+#: The closed ``derived.kind`` vocabulary the pace producer declares (CONTRACT Y24). APPEND-NEVER-SORT.
+PACE_DERIVED_KINDS: tuple = ("pace_change", "pace_streak")
+
+
+def _global_card(table) -> bool:
+    """True where ``table``'s card DECLARES ``country_axis: global`` (``TableSpec.country_axis``) -- read off
+    the registry card, never off a table name. False for an unknown card (HEAD's words)."""
+    ts = _card_spec(table)
+    try:
+        return bool(ts is not None and str(getattr(ts, "country_axis", "") or "").strip() == "global")
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _global_token(commodity) -> bool:
+    """Is ``commodity`` the estate's ONE global-series token? Read through ``rows.SeriesKey.is_global`` (the
+    definition the board keys every global series by), never re-spelt here."""
+    try:
+        from leviathan.graphrag.state.rows import SeriesKey
+        return bool(SeriesKey(ref="", commodity=str(commodity or "")).is_global)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _global_series_named(call: dict) -> bool:
+    """Is this call a series of a ``country_axis: global`` card whose PRINTED NAME is a metric that card DECLARES --
+    the query's own metric, or a declared pace derivation's ``of`` (PC-7)? Then the metric alone names the series,
+    and a commodity / country on the query can only be the ANCHOR that asked for it. A call whose name is a metric
+    the card does NOT declare -- the cascade context cell's synthesized "monthly benchmark change", whose query
+    commodity ("world chicken") is the words that say WHICH benchmark -- is not one: its commodity slot names the
+    series, and HEAD's words stand. REFUTED ON THE DECK (`test_cascade_walk`'s context cell) before hand-off: the
+    first cut dropped every non-token commodity on a global card and deleted "world chicken"."""
+    q = (call or {}).get("query") or {}
+    table = str(q.get("table") or "")
+    ts = _card_spec(table)
+    if ts is None or not _global_card(table):
+        return False
+    pd = _pace_derived(call)
+    name = str((pd or {}).get("of") or q.get("metric") or "").strip()
+    try:
+        return bool(name) and name in (getattr(ts, "metrics", None) or {})
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _anchor_scope_on_global(call: dict, row: Optional[dict] = None) -> bool:
+    """PC-8: does this call's query carry an ANCHOR's scope on a series whose card declares none? True when the
+    call is a global card's series named by a metric the card declares (:func:`_global_series_named`) and the
+    query names a commodity that is not the global token, or any country."""
+    q = (call or {}).get("query") or {}
+    if not _global_series_named(call):
+        return False
+    com = q.get("commodity")
+    return bool((com and not _global_token(com)) or q.get("country"))
+
+
+def _pace_derived(call: dict) -> Optional[dict]:
+    """The pace producer's DECLARED derivation (``query["derived"]``, CONTRACT Y24 / OI-3 a) --
+    ``{"kind", "of", "grain"}`` when all three are declared and the kind is one of
+    :data:`PACE_DERIVED_KINDS`; ``None`` otherwise (HEAD's label)."""
+    d = ((call or {}).get("query") or {}).get("derived")
+    if not isinstance(d, dict):
+        return None
+    kind, of, grain = (str(d.get(k) or "").strip() for k in ("kind", "of", "grain"))
+    if kind not in PACE_DERIVED_KINDS or not of or not grain:
+        return None
+    return {"kind": kind, "of": of, "grain": grain}
+
+
+def _pace_words(call: dict, row: dict, derived: dict) -> str:
+    """The derivation in words, with the row's OWN latest period at the card's precision: "change from the
+    prior week[, <latest>]" for a change against the prior period of the declared grain; for a run, the
+    producer's own count unit (the row's ``unit``, which ``_pace_synth`` mints from the same grain) --
+    "consecutive weeks moving the same way[, <latest>]". The fetch window is never printed."""
+    tok, kind = _row_own_period(call, row)
+    latest = _period_words_for(kind, tok) if tok else ""
+    if derived["kind"] == "pace_change":
+        head = f"change from the prior {derived['grain']}"
+    else:
+        runs = str((row or {}).get("unit") or "").strip()
+        if not runs:
+            return ""
+        head = f"consecutive {runs} moving the same way"
+    return head + (f", {latest}" if latest else "")
+
+
+def _fold_scope_words(row: dict, table: str = "", metric: str = "") -> str:
+    """A FOLDED national row's fold in the BOARD'S OWN WORDS (lane Q's ``_fold`` marker, CONTRACT Y1:
+    ``{"axis", "rule", "n"}``): ``rows.RowIdentity.scope_words`` for that axis under that cell rule -- "summed
+    over every destination" -- the one producer the board's SB-1 head prints. ``""`` for a row with no marker."""
+    f = (row or {}).get("_fold")
+    if not isinstance(f, dict):
+        return ""
+    try:
+        from leviathan.graphrag.state.rows import RowIdentity
+        ident = RowIdentity(row_id="", contract="", driver_id="", series_key="", table=str(table or ""),
+                            metric=str(metric or ""), name="", axis=str(f.get("axis") or ""),
+                            cell_rule=str(f.get("rule") or ""))
+        return str(ident.scope_words() or "").strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _known_date_ym(call: dict, row: dict) -> Optional[str]:
+    """Y9: the derived knowledge date of a row served by a ``year_month`` card that carries its data month and
+    no knowledge alias -- ``feeders.derive_knowledge_date`` (month-end plus the DECLARED lag), the ONE derivation
+    the board prints. The lag is the one that governs the row's own METRIC (``registry.lag_days_for``: the
+    metric's override, else the card's default), so the metric must be one the card DECLARES -- the row's own
+    ``metric`` alias, else the declared pace derivation's ``of`` (PC-7), else the query's metric; a derived slug
+    no card declares ("drought_z_pace_change") would read the card DEFAULT lag and stamp the CHIRPS drought row
+    twenty days early, so it keeps HEAD's month instead. A lag the card does not declare is never read as zero
+    (the registry's own rule: "this card makes no promise" is not "prints on the month's last day").
+    ``None`` -- HEAD's stamp -- for a board call (its row carries the feeder's date already), a row that carries a
+    knowledge or data date, another card class, an undeclared metric or lag, or any failure."""
+    if (call or {}).get("_sb") or not row:
+        return None
+    if any((row or {}).get(k) not in (None, "") for k in ("knowledge_date", "data_date")):
+        return None
+    table, cmetric = _card_address(call, row)
+    ts = _card_spec(table)
+    if ts is None or str(getattr(ts, "knowledge_semantics", "") or "") != "year_month":
+        return None
+    _pd = _pace_derived(call)
+    metric = str((row or {}).get("metric") or (_pd or {}).get("of") or cmetric or "").strip()
+    try:
+        if metric not in (getattr(ts, "metrics", None) or {}):
+            return None
+        from leviathan.graphrag.numbers.registry import lag_days_for
+        if lag_days_for(ts, metric) is None:
+            return None
+        from leviathan.graphrag.state.feeders import derive_knowledge_date
+        d, _basis = derive_knowledge_date(ts, dict(row, metric=metric))
+    except Exception:  # noqa: BLE001
+        return None
+    return str(d) if d else None
+
+
 def _kind_of_source(source: str, ts, cf: dict, token=None) -> Optional[str]:
     """The PERIOD KIND of a token that came from ``source`` (``feeders.row_period``'s key family) on this
     card. ``None`` -> HEAD's prefix rule (nothing on the card resolves it).
@@ -1808,6 +1972,10 @@ def _known_date(call: dict, row: dict) -> Optional[str]:
     kd = _row_known_date(row)
     ts = _observation_card(call, row)
     if ts is None:
+        # 09-26 SITTING 2 (Y9 / PC-9 PROPOSED): a year_month card's month is not its stamp -- the derived date,
+        # under the analyst stamp until the orchestrator confirms the flag-off move (THREAT_MODEL S2-15)
+        if (call or {}).get("display") == "analyst":
+            return _known_date_ym(call, row) or kd
         return kd
     try:
         from leviathan.graphrag.state.feeders import derive_knowledge_date
@@ -2521,6 +2689,11 @@ def from_number(call: dict, i: int) -> Citation:
     # branch alone would have the same call's empty read and its zero-aggregate read naming the metric
     # differently in one footer -- the drift this file refuses everywhere else (`_period_label`'s "MYMY").
     mdisp = _metric_display_name(table, metric, rH)
+    # 09-26 SITTING 2 (PC-7): a DECLARED pace derivation is named by the card label of the series it was
+    # derived from (`derived.of`), never by the slug `_pace_synth` builds -- HEAD's name without the key
+    _pace = _pace_derived(call)
+    if _pace is not None:
+        mdisp = _metric_display_name(table, _pace["of"], rH)
     # 09-23 (C10 `basis_words`): THE BASIS THE CARD DECLARES RIDES THE METRIC NAME, on every branch and
     # every stat of the row alike (the head `_seam_row_index` pairs a row's level and percentile on must
     # stay ONE spelling, THREAT_MODEL C-6). The board call's own `basis` (C3) wins; otherwise the card's.
@@ -2654,6 +2827,10 @@ def from_number(call: dict, i: int) -> Citation:
     # exactly as today) -- a stat OF a stat, whose source is a computed figure and not a card.
     geo = q.get("country") or (None if _dest_coded(_src_table or table)
                                else (next(iter(_geos)) if len(_geos) == 1 else None))
+    # 09-26 SITTING 2 (PC-8): a global series' query country is the ANCHOR's home, never the series' scope
+    _anchor_on_glob = _anchor_scope_on_global(call, rH)
+    if _anchor_on_glob:
+        geo = None
     # K9-2 (block note above `from_number`): the query names no country and the rows carry more than one,
     # so `geo` is None on BOTH arms of the expression above -- destination-coded or free-axis -- and this
     # label is about to headline one arbitrary country's row under a name that scopes nothing. THE
@@ -2674,6 +2851,17 @@ def from_number(call: dict, i: int) -> Citation:
     if per is None and _row_per and not _scope_withheld:
         per = _row_per
         _per_tok = _row_per_tok
+    # 09-26 SITTING 2 (PC-7): a FOLDED national row names its own period (the week it is the national total
+    # of), and a declared pace row names its derivation and its own latest period -- never the fetch window
+    _fold = _fold_scope_words(rH, _ctable or table, _cmetric or metric)
+    if _fold and not _scope_withheld:
+        _ftok, _fkind = _row_own_period(call, rH)
+        _fper = _period_label(_ftok, _fkind) if _ftok else None
+        if _fper and _fper != per:
+            per = " ".join(x for x in (_fper, per) if x)      # its own week, then the query's own period
+    if _pace is not None:
+        _pw = _pace_words(call, rH, _pace)
+        per = _pw or None
     # `cmonth` wins when a row carries one: it is the row's OWN declared expiry, and a row carrying both a
     # contract_month and a leg pair would be a producer defect this label must not paper over. A row with
     # neither renders exactly as it did before T1-4 -- the anti-vacuity property the spread pin asserts.
@@ -2717,6 +2905,10 @@ def from_number(call: dict, i: int) -> Citation:
     _statw = _stat_words(rH, rH.get("value"))
     # K22: the commodity a row's SHEET belongs to names it (None -> the asked commodity, HEAD's word)
     _cdisp = _contract_display(q.get("commodity")) if _cwords is None else _cwords
+    if _anchor_on_glob and q.get("commodity") and not _global_token(q.get("commodity")):
+        _cdisp = ""                                       # 09-26 SITTING 2 (PC-8): the anchor is not its scope
+    if _fold:
+        geo = " ".join(x for x in (geo, _fold) if x)      # 09-26 SITTING 2 (PC-7): the fold, board words
     scope = " ".join(x for x in (_cdisp, geo, per, _role, _offset, _statw,
                                  _delivery, _zspan) if x)
     # K5: a CHANGE row's window replaces the period slot -- "change from <from> to <to>" -- so a change is
@@ -2781,6 +2973,8 @@ def from_number(call: dict, i: int) -> Citation:
                     # native or display unit, on ONE observation -- never a percentile, sigma, change,
                     # aggregate or computed statistic (`_basis_applies`)
                     _fpw, _fpk, _frole = _figure_period(call, rH)
+                    if _pace is not None:
+                        _fpw, _fpk = "", ""                  # 09-26 SITTING 2 (PC-7): the phrase dates it
                     # 09-25 CLOSE-OUT (lane CC, B-2): a cell's standing is an order statistic AT the headline's
                     # own period, so where the axis words carry the grain the figure names THAT period ("0.9 z,
                     # April 2011"), never the read's window -- the same `_row_own_period` the label prints
@@ -2843,7 +3037,11 @@ def from_number(call: dict, i: int) -> Citation:
         # the located date. Left unsuppressed the clause reads "(latest available 2022-04-19; as-of
         # 2026-09-02)" on a 2026 turn, which is FALSE about the tape and is exactly the fabrication
         # affordance this clause exists to prevent in the other direction.
-        _hd, _ad = _parse_date(kd), _parse_date(asof)
+        # 09-26 SITTING 2 (Y9): the clause reads HEAD's own stamp of the row -- the derived year_month stamp
+        # is a KNOWLEDGE date, and a historical window read deliberately (the then/now leg) must never newly
+        # read as "latest available" off it
+        _hd = _parse_date(kd if _observation_card(call, rH) is not None else _row_known_date(rH))
+        _ad = _parse_date(asof)
         # 09-23 (C3): a row read at a declared same-series OFFSET is old BY DESIGN, and "latest available"
         # would tell the reader its date is a publication delay -- the offset words above say what it is.
         if _hd and _ad and (_ad - _hd).days > 30 and not rH.get("located_extreme") and not _offset:
@@ -3755,6 +3953,172 @@ class EvidenceLedger:
                 "unaddressed": self._unaddressed}
 
 
+# ══ 09-26 SITTING 2, LANE H (CONTRACT Y22, H-1 / ROUND2_DOCKET #7) -- ONE [N] HANDLE PER SERVED ROW IDENTITY ═══
+#
+# THE MEASURED DEFECT (10 of 10 treatment pages, 5-38 groups per page; `writer_seam.served_row_duplicate_groups`):
+# the board mints one call per (row, magnitude) and a SERIES read for two drivers mints it twice -- the ONI
+# level / sigma / percentile under "El Nino" AND under "La Nina" (eight times on the cotton board), the IOD under
+# both poles, one PSD export row under three Indonesian policy drivers -- so the writer is handed the same served
+# figure under two handles, the footer prints it twice, and a quorum counted one reading as two legs (the 09-23
+# max turn's crush margin). MEASURED ON THE FIXTURE BOARDS (B5, 18 cells): 134 duplicate groups, every one of
+# them two calls that differ ONLY in the ROUTE (`_row_id`, the row's `routing` / `route_is_series`).
+#
+# THE FIX IS AN ISSUER, NOT A DEDUPE. The ledger is asked for a handle BEFORE a board call is minted
+# (`render.Block`, lane N; `cascade.quantify`'s append under OI-3 b): an identity it has already issued at the
+# SAME value takes that handle back (`reused`, no call is minted and the counter does not advance); a new
+# identity takes the next handle. THE IDENTITY IS THE WHOLE CALL MINUS ITS ROUTE AND ITS VALUE -- the card, the
+# commodity, the scope, the period, the metric, the statistic, the window, the fold, the knowledge date and the
+# unit lead the tuple, and every other declared key of the query and the rows follows it canonically -- so two
+# rows that differ in ANY fact a label or a verifier reads (a percentile over ten years vs over a contract's
+# life, a destination fold vs one buyer, two vintages, two offsets) are two identities by construction (H1-a).
+# THE VALUE FENCE: an equal identity at an UNEQUAL value (a row restated under an unchanged knowledge stamp --
+# the cocoa tmax / corn GDD / EU heat gold, H-4) is NEVER merged: it takes a new handle and is counted
+# `identity_value_conflict` (the data-layer restatement itself is docketed). A call with no value (an empty or
+# blank read) has no identity and always takes a new handle. PURE: no environment, no I/O, no clock.
+# REJECTED: a post-hoc dedupe of footer lines; renumbering after the writer (the handles the writer was given
+# ARE the page's addresses); a match on the label's text.
+#: The keys of a call record that name its ROUTE or its RENDERING, never the served row (`render.sb_call`'s own
+#: schema, CONTRACT C3 / K4): which board row minted it, the stamp it was rendered under, the board marker and
+#: the value pool. APPEND-NEVER-SORT.
+NUMBERS_LEDGER_ROUTE_CALL_KEYS: tuple = ("_row_id", "shown", "display", "_sb")
+#: The keys of a served ROW that name its route (`sb_call`: the driver words the block printed as "read here
+#: for <driver>", and whether that driver IS the series). The row's `value` is the value fence's, not the
+#: identity's. APPEND-NEVER-SORT.
+NUMBERS_LEDGER_ROUTE_ROW_KEYS: tuple = ("routing", "route_is_series")
+
+
+def _ledger_canon(x) -> str:
+    """One canonical spelling of a JSON-able fact (sorted keys; non-JSON objects by their str)."""
+    import json as _json
+    return _json.dumps(x, sort_keys=True, default=str, separators=(",", ":"))
+
+
+def _ledger_value(v):
+    """A served value as the fence compares it: the float where it is one (the seat serves "1.8", the board
+    1.8), else its text. ``None`` for a blank."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    try:
+        f = float(str(v).replace(",", ""))
+        return f if f == f else None
+    except (TypeError, ValueError):
+        return str(v)
+
+
+class NumbersLedger:
+    """THE ONE ISSUER OF [N] HANDLES FOR A BOARD TURN'S SERVED ROWS (CONTRACT Y22). See the block note above.
+
+    ``calls`` SEED it: the seat's served calls, which already hold their handles ``n_start, n_start + 1, ...``
+    in order -- each registers its identity (the first handle of an identity wins) and takes no new handle. The
+    next handle the ledger issues is ``n_start + len(calls)``, the board's own start. Built ONLY on a board turn
+    (the EvidenceLedger law: a flag-off turn builds none and keeps HEAD's numbering)."""
+
+    def __init__(self, calls=(), *, n_start: int = 1) -> None:
+        self.n_start: int = int(n_start)
+        self._next: int = int(n_start)
+        self._by_identity: dict = {}              # identity -> [(handle, value key), ...]
+        self._row_ids: dict = {}                  # handle -> [row id, ...] (every route printed under it)
+        self._issued = 0
+        self._reused = 0
+        self._conflict = 0
+        for c in calls or ():
+            h = self._take()
+            self._note_route(h, c)
+            ident, vk = self.identity(c), self._value_key(c)
+            if ident and vk is not None and ident not in self._by_identity:
+                self._by_identity[ident] = [(h, vk)]
+
+    def _take(self) -> int:
+        h = self._next
+        self._next += 1
+        return h
+
+    def _note_route(self, handle: int, call) -> None:
+        rid = str((call or {}).get("_row_id") or "") if isinstance(call, dict) else ""
+        bucket = self._row_ids.setdefault(int(handle), [])
+        if rid and rid not in bucket:
+            bucket.append(rid)
+
+    @staticmethod
+    def _value_key(call):
+        """The value fence's key: every served row's value, in order; ``None`` where no row carries a value."""
+        rows = (call.get("rows") or []) if isinstance(call, dict) else []
+        vals = tuple(_ledger_value((r or {}).get("value")) if isinstance(r, dict) else None for r in rows)
+        return vals if any(v is not None for v in vals) else None
+
+    def identity(self, call) -> tuple:
+        """``(card, commodity, scope, period, metric, statistic, window, fold, knowledge date, unit, rest)`` --
+        the served row's identity: the whole call minus its route (:data:`NUMBERS_LEDGER_ROUTE_CALL_KEYS`,
+        :data:`NUMBERS_LEDGER_ROUTE_ROW_KEYS`) and minus its values, the ten named facts first and every other
+        declared key canonically after them. A series of a ``country_axis: global`` card named by a metric that card
+        declares carries no commodity or country in its identity (PC-8's one card fact, :func:`_global_series_named`:
+        the anchor that asked for it is not its scope). ``()`` for a call with no rows."""
+        if not isinstance(call, dict):
+            return ()
+        rows = call.get("rows") or []
+        if not rows:
+            return ()
+        q = dict(call.get("query") or {})
+        rH, _curve = _headline(call)
+        ctable, cmetric = _card_address(call, rH)
+        if _global_series_named(call):
+            q["commodity"], q["country"] = None, None
+        clean_rows = []
+        for r in rows:
+            if not isinstance(r, dict):
+                clean_rows.append(r)
+                continue
+            clean_rows.append({k: v for k, v in r.items()
+                               if k != "value" and k not in NUMBERS_LEDGER_ROUTE_ROW_KEYS})
+        rest = {k: v for k, v in call.items()
+                if k not in ("query", "rows") and k not in NUMBERS_LEDGER_ROUTE_CALL_KEYS}
+        h = rH or {}
+        window = (h.get("window"), h.get("z_window"), h.get("z_series"), h.get("offset_months"),
+                  q.get("start"), q.get("end"))
+        return (str(ctable or q.get("table") or ""), q.get("commodity"), q.get("country") or h.get("axis_scope"),
+                q.get("period"), str(cmetric or q.get("metric") or ""), h.get("stat") or q.get("agg"),
+                _ledger_canon(window), _ledger_canon(h.get("_fold")), h.get("knowledge_date"), h.get("unit"),
+                _ledger_canon([q, clean_rows, rest]))
+
+    def address(self, call) -> tuple:
+        """``(handle, reused)`` for ONE call about to be minted. An equal identity at an equal value -> the
+        handle it already holds, ``reused`` True (mint no call); an equal identity at an UNEQUAL value -> a new
+        handle, counted ``identity_value_conflict`` (never merged); a new identity, or a call with no identity
+        or no value -> the next handle."""
+        ident, vk = self.identity(call), self._value_key(call)
+        if not ident or vk is None:
+            h = self._take()
+            self._issued += 1
+            self._note_route(h, call)
+            return h, False
+        held = self._by_identity.get(ident)
+        if held:
+            for h, v in held:
+                if v == vk:
+                    self._reused += 1
+                    self._note_route(h, call)
+                    return h, True
+            self._conflict += 1
+        h = self._take()
+        self._issued += 1
+        self._by_identity.setdefault(ident, []).append((h, vk))
+        self._note_route(h, call)
+        return h, False
+
+    def row_ids_for(self, handle: int) -> tuple:
+        """Every board row id (``_row_id``) printed under ``handle``, in the order they were addressed --
+        the first route first. ``()`` for a handle with none (a seat call, an unknown handle)."""
+        try:
+            return tuple(self._row_ids.get(int(handle)) or ())
+        except (TypeError, ValueError):
+            return ()
+
+    def stamp(self) -> dict:
+        """The ledger's own counts for ``state_board["numbers_ledger"]`` (the caller omits it when nothing was
+        reused): handles the ledger issued, handles it handed back, and identities held at two values."""
+        return {"issued": self._issued, "reused": self._reused, "identity_value_conflict": self._conflict}
+
+
 # ══ 09-24 FIX ROUND 2, LANE C (CONTRACT K4) -- THE ONE READER OF A CALL'S IDENTITY ══════════════════════
 #
 # Lane A's name-binding lint re-writes a noun the writer bound to a figure when it names the wrong thing
@@ -3864,6 +4228,9 @@ def call_identity(call: dict) -> dict:
         table, metric = str(q.get("table") or ""), str(q.get("metric") or "")
         ctable, cmetric = _card_address(call, rH)
         base = _metric_display_name(table, metric, rH)
+        _pd = _pace_derived(call)
+        if _pd is not None:
+            base = _metric_display_name(table, _pd["of"], rH)      # 09-26 SITTING 2 (PC-7): the label's name
         cf = _card_fields(ctable, cmetric)
         basis = str((rH or {}).get("basis") or cf.get("basis_words") or "").strip()
         name = f"{base} ({basis})" if (basis and basis not in base) else base
@@ -3889,6 +4256,11 @@ def call_identity(call: dict) -> dict:
         except Exception:  # noqa: BLE001
             dest = True
         geo = q.get("country") or (None if dest else (next(iter(geos)) if len(geos) == 1 else None))
+        # 09-26 SITTING 2 (PC-8): the identity names the scope the LABEL prints -- none of an anchor's
+        if _anchor_scope_on_global(call, rH):
+            geo = None
+            if q.get("commodity") and not _global_token(q.get("commodity")):
+                cwords = ""
         withheld = bool(_scope_withhold_on() and _unscoped_multi_geo(q, geos))
         # 09-25 CLOSE-OUT (lane CC, B-2): the SAME axis words the label prints for this call -- the cell grain
         # under the analyst stamp only (`_axis_scope`), HEAD's words otherwise
@@ -3906,6 +4278,12 @@ def call_identity(call: dict) -> dict:
             # period at the card's precision, the query's marketing year as its role -- never a kind read
             # off a printed prefix
             pw, kind, role = _figure_period(call, rH)
+            if _pd is not None:
+                # 09-26 SITTING 2 (PC-7): a declared pace row's period is its OWN latest observation, never the
+                # fetch window its query carries -- the period the label prints beside the derivation
+                _ptk, _pkd = _row_own_period(call, rH)
+                pw = _period_words_for(_pkd, _ptk) if _ptk else ""
+                kind, role = (str(_pkd or "") if pw else ""), ""
             if cell_grain:
                 # the grain's standing is at the headline's own period -- the period the label's token prints
                 _gtok, _gkind = _row_own_period(call, rH)

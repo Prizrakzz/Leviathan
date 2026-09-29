@@ -1431,6 +1431,10 @@ def stamp_period_behind(states, asof: str, *, extra_periods=()) -> int:
     n = 0
     for st, e in todo:
         pb = period_behind(e, pool, asof)
+        # P-1 (the 09-26 fix sitting 2, CONTRACT Y5): the MEASURED last-revised fact rides the SAME stamp, folded
+        # on every run of this pass (stage 1 AND the stage-2 seat restamp), so no restamp can clear it. A row
+        # nothing measured gets exactly K23's stamp.
+        pb = _fold_last_revised(st, pb, e[2])
         setattr(st, "period_behind", pb)
         n += 1 if pb else 0
     return n
@@ -1470,6 +1474,535 @@ def vintage_note(asof: str) -> str:
 #: The cards whose retention is ``latest-only`` and whose values are revised IN PLACE. The note above
 #: rides a row from one of these at a historical as-of.
 LATEST_ONLY_CARDS: frozenset[str] = frozenset({"silver_noaa_oni", "silver_noaa_iod"})
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE LAST-REVISION CLOCK (the 09-26 fix sitting 2, lane P; CONTRACT Y5 / Y6, P-1)
+# ---------------------------------------------------------------------------------------------------
+#: THE MEASURED DEFECT (recon N-2, fact 2 on EVERY historical as-of turn). ``silver_psd`` dates each row by the
+#: vendor's own (Calendar_Year, Month) -- the month the vendor LAST TOUCHED that marketing year -- so at a
+#: historical as-of every year revised after it is invisible to the store's as-known read: at 2024-03-01 the
+#: newest US soybean year held is MY2020 (known 2024-01-12), US corn MY2015, China corn MY2006, while the SAME
+#: page's WASDE sheet reads 2023/24 (known 2024-02-08). Measured on the store's own pull (09-22,
+#: ``silver_psd`` 251,475 rows): US soybeans MY2021 and MY2022 are held ONLY under the 2026-04-09 vintage, so
+#: nothing on or before 2024-03-01 carries them -- although both years had closed by then.
+#:
+#: THE FACT IS THE STORE'S, MEASURED PER SERIES, NEVER A TABLE NAME AND NEVER A YEARS-OLD CUTOFF. A served
+#: marketing-year level is HELD ONLY AS LAST REVISED where the store holds, for the SAME series (card, metric,
+#: commodity, scope), a NEWER marketing year that is strictly older than the as-of's current marketing year
+#: and that the store carries ONLY under vintages dated after the as-of. "Strictly older than the current
+#: year" is what makes the evidence a fact about REVISION rather than about first publication: every
+#: marketing year before the current one had been printed by the as-of (the current one had opened, and each
+#: year is first printed before its successor opens -- including the late printers the 09-23 ruling F1
+#: named, FCOJ's MY Y on 31 January of Y+1 and the coffee sheets' 31 December), so a store that holds such a
+#: year only under a later vintage LOST the as-known print. A row one year behind the current one is never
+#: stamped (the same one-period slack W-4 reads), and a row AT the current year is ``vintaged`` whatever its
+#: count (threat P1-a). ZERO READS unless the served level trails the current year by two or more.
+#:
+#: The rejected lexical forms (the recon's, restated): adding ``silver_psd`` to :data:`LATEST_ONLY_CARDS` by
+#: name, a "PSD rows older than N years" cutoff, hiding PSD on as-of turns, rewording "latest available".
+RETENTION_STATES: tuple = ("vintaged", "held_as_last_revised", "no_vintage")
+#: THE CLOSED WORDS A RETENTION READ THAT DID NOT HAPPEN (or could not decide) SAYS WHY. The first four are
+#: the zero-read gates and never reach a row (a row nothing measured keeps HEAD's shape); the rest ride it.
+RETENTION_WHY: tuple = ("not_vintage_card", "not_marketing_year", "no_current_my", "within_slack",
+                        "no_asof", "no_pool", "read_error", "truncated")
+#: The zero-read gates: a stamp carrying one of these is never written onto a row.
+RETENTION_UNMEASURED: tuple = RETENTION_WHY[:4]
+#: The recency key the retention stamp rides (``StateRow.recency``, where "when could anyone have known this"
+#: already lives; ``render`` reads NAMED recency keys only, so it is printed by no template).
+RETENTION_KEY: str = "retention"
+#: THE PROBE'S ROW BOUND. The probe returns one row per (marketing year, vintage) of ONE series between the
+#: served year and the current one -- PSD holds one to five vintages a year, so a few dozen rows -- and a
+#: probe that came back at this bound is TRUNCATED and decides nothing (``why: truncated``, no stamp).
+RETENTION_ROW_LIMIT: int = 500
+#: THE LAST-REVISED REPLAY LABEL (CONTRACT Y5; threat P1-f). K18's :data:`VINTAGE_NOTE` ("the value as known
+#: on {asof} is not recoverable") is FALSE for these rows -- the served MY2020 figure IS its as-known 2024-01-12
+#: value -- so they carry their own note, which says only what the store shows: the newest year it holds as
+#: known then, and that the newer years it holds were revised after that date. The as-of is the board's ONE
+#: day producer's words; no later date, no post-as-of year.
+VINTAGE_NOTE_LAST_REVISED = ("the newest marketing year this store shows as known on {asof} is {held}; newer "
+                             "years were revised after that date and are held only as last revised")
+
+
+def vintage_note_last_revised(asof: str, stamp: dict) -> str:
+    """The last-revised label for ONE held row (``stamp`` = its :func:`vintage_retention` answer), or ``""``
+    when the stamp names no served year."""
+    try:
+        held = _my_words(int(stamp.get("served")))
+    except (TypeError, ValueError):
+        return ""
+    s = str(asof or "")[:10]
+    return VINTAGE_NOTE_LAST_REVISED.format(asof=(day_words(s) or month_words(s) or s), held=held)
+
+
+def _declared_my_start(value: str):
+    """The marketing-year START MONTH the estate's ONE calendar (``cascade.MY_START_MONTH``) declares for a
+    commodity value -- by the calendar's OWN matching rule (an exact key, else the family key contained in the
+    value, ``cascade._my_start``'s loop) -- or ``None`` where no key matches. ``None`` is where ``_my_start``
+    would fall to its undeclared default (S2-9: the reader must decline there, never default)."""
+    casc = _casc()
+    v = str(value or "").lower()
+    if not v:
+        return None
+    table = getattr(casc, "MY_START_MONTH", None) or {}
+    if v in table:
+        return table[v]
+    for key, month in table.items():
+        if key in v:
+            return month
+    return None
+
+
+def _current_my(table: str, commodity: str, asof: str) -> Optional[int]:
+    """THE MARKETING YEAR THAT CONTAINS THE AS-OF for one card's commodity value (its START year), or ``None``.
+
+    Q's producer (CONTRACT Y3, ``query.current_marketing_year``) where it has landed -- read DEFENSIVELY,
+    ``None`` unless its basis is the calendar -- else the estate's ONE calendar directly
+    (``cascade._covering_my``) over the value's causal node (:func:`_commodity_node`) or the value itself,
+    and ONLY where that calendar DECLARES a start for it (:func:`_declared_my_start`). Never a default."""
+    try:
+        from leviathan.graphrag.numbers import query as Q
+        fn = getattr(Q, "current_marketing_year", None)
+    except Exception:                                   # noqa: BLE001
+        fn = None
+    if callable(fn):
+        try:
+            got = fn(table, commodity, asof)
+            my, basis = (got if isinstance(got, (tuple, list)) and len(got) == 2 else (None, ""))
+            return int(my) if (my is not None and str(basis) == "calendar") else None
+        except Exception:                               # noqa: BLE001 -- a producer that raised declines
+            return None
+    node = _commodity_node(commodity)
+    for v in (node, commodity):
+        if _declared_my_start(v) is not None:
+            try:
+                got = _casc()._covering_my(str(asof or "")[:10], str(v))
+            except Exception:                           # noqa: BLE001
+                return None
+            return int(got) if got is not None else None
+    return None
+
+
+def retention_sql(ts, table: str, *, metric: str, commodity, scope, asof: str, lo: int, hi: int,
+                  limit: int = RETENTION_ROW_LIMIT) -> str:
+    """THE PROBE'S ONE STATEMENT, compiled from the query layer's OWN pieces so its scope is the board read's
+    scope byte for byte: ``query._filters`` over the same ``NumberQuery`` identity the board read carries
+    (commodity, country, metric -- the partition, commodity and country predicates, and the metric column on a
+    tall card), plus the served-to-current marketing-year band on the card's period column (in the source's
+    own label space, ``period_offset`` applied) and the series' own value present. NO as-of guard, and that is
+    the point: the probe asks which vintages the store holds AFTER the as-of for the newer years -- a fact the
+    board then labels, never a figure it prints. DISTINCT (period, knowledge date), ordered, bounded."""
+    from leviathan.graphrag.numbers import query as Q
+    spec = Q.NumberQuery(table=table, metric=metric, asof=str(asof)[:10], commodity=commodity or None,
+                         country=(scope or None), agg="series", limit=int(limit))
+    where = list(Q._filters(spec, ts))
+    pcol = str(getattr(ts, "period_col", "") or "")
+    off = int(getattr(ts, "period_offset", 0) or 0)
+    if str(getattr(ts, "period_sql_type", "") or "") == "int":
+        where.append(f"{pcol} >= {int(lo) + off}")
+        where.append(f"{pcol} <= {int(hi) + off}")
+    where.append(f"{Q._value_expr(spec, ts)} IS NOT NULL")
+    kcol = Q._sel_date(ts, ts.knowledge_date_col)
+    table_phys = getattr(ts, "athena_table", None) or table
+    return (f"SELECT DISTINCT CAST({pcol} AS varchar) AS period, {kcol} AS knowledge_date "
+            f"FROM {Q.ATHENA_DB}.{table_phys} WHERE {' AND '.join(where)} ORDER BY 1, 2 LIMIT {int(limit)}")
+
+
+def _pg_retention_reader():
+    """The DEFAULT reader: the numbers mirror's own raise-on-failure primitive (``pgnumbers.pg_query``, the
+    board's executor underneath its decline wrapper, on the NUMBERS bulkhead -- never the evidence pool) where
+    the numbers lane's own predicate says a mirror is configured (``pgnumbers.enabled()``: the pg backend and
+    a DSN -- the SAME predicate the board's seam is gated by, ``answer._pgnumbers_live``, so a board that ran
+    its reads has it true), else ``None`` -- the offline harness, every deck and every $0 instrument read nothing and stamp
+    ``no_pool`` (the ``action_ledger`` idiom: an offline instrument stays byte-identical because nothing is
+    read)."""
+    try:
+        from leviathan.graphrag.numbers import pgnumbers as _pgn
+        return _pgn.pg_query if _pgn.enabled() else None
+    except Exception:                                   # noqa: BLE001 -- no mirror module, no read
+        return None
+
+
+def vintage_retention(ts, table: str, *, commodity, scope, served_period, asof: str, reader=None,
+                      metric: str = "", current: Optional[int] = None) -> dict:
+    """THE RETENTION PRODUCER (CONTRACT Y5) -- MEASURED from the silver table, one bounded statement per
+    served series, READ-ONLY, NEVER RAISES. Answers ``{"read", "state", "served", "current", "newer",
+    "first_after", "n_on_or_before", "ms", "why"}``:
+
+      * ``state`` -- ``held_as_last_revised`` where a newer marketing year of THIS series strictly older than
+        the current one is held ONLY under vintages after the as-of (the store lost its as-known print),
+        ``vintaged`` otherwise, ``no_vintage`` where the served year itself shows no vintage on or before
+        the as-of;
+      * ``served`` / ``current`` / ``newer`` -- marketing-year ordinals (the source's own label space);
+        ``newer`` lists the years that carry the evidence;
+      * ``first_after`` -- the earliest post-as-of vintage of those years (a TRACE fact, printed by no
+        template: the K18 ``revised_through`` precedent);
+      * ``n_on_or_before`` -- the served year's distinct vintages on or before the as-of.
+
+    The zero-read gates answer ``{"read": False, "why": <RETENTION_WHY word>}``: not a vintage card, a served
+    period that is not a marketing-year label, no declared calendar for the commodity (``no_current_my``), or
+    a served year within one of the current one (``within_slack``, ``state: vintaged``). ``reader`` is
+    ``reader(sql) -> rows`` (the board executor's shape); ``None`` -> :func:`_pg_retention_reader`, and no
+    configured mirror answers ``why: no_pool``. ``current`` overrides the calendar (a caller that already
+    holds it)."""
+    t0 = time.perf_counter()
+    out: dict = {"read": False, "why": ""}
+    if str(getattr(ts, "knowledge_semantics", "") or "") != "vintage":
+        out["why"] = "not_vintage_card"
+        return out
+    o = _my_ordinal(served_period)
+    if o is None or str(getattr(ts, "period_type", "") or "") != PERIOD_BEHIND_KIND:
+        out["why"] = "not_marketing_year"
+        return out
+    try:
+        cut = _dt.date.fromisoformat(str(asof or "")[:10])
+    except (TypeError, ValueError):
+        out["why"] = "no_asof"
+        return out
+    c = current if current is not None else _current_my(table, str(commodity or ""), str(asof)[:10])
+    if c is None:
+        out["why"] = "no_current_my"
+        return out
+    off = int(getattr(ts, "period_offset", 0) or 0)
+    c_src = int(c) + off
+    out.update({"served": int(o), "current": int(c_src)})
+    if o >= c_src - 1:
+        out.update({"state": "vintaged", "why": "within_slack"})
+        return out
+    rd = reader if reader is not None else _pg_retention_reader()
+    if rd is None:
+        out["why"] = "no_pool"
+        return out
+    try:
+        sql = retention_sql(ts, table, metric=metric, commodity=commodity, scope=scope, asof=str(asof)[:10],
+                            lo=int(o) - off, hi=int(c), limit=RETENTION_ROW_LIMIT)
+        rows = list(rd(sql) or [])
+    except Exception:                                   # noqa: BLE001 -- a probe never breaks a read
+        out.update({"why": "read_error", "ms": round((time.perf_counter() - t0) * 1000.0, 1)})
+        return out
+    out["read"] = True
+    out["ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
+    if len(rows) >= RETENTION_ROW_LIMIT:
+        out.update({"state": "vintaged", "why": "truncated"})
+        return out
+    by: dict = {}
+    for r in rows:
+        m = _my_ordinal((r or {}).get("period"))
+        if m is None:
+            continue
+        k = _knowledge_day((r or {}).get("knowledge_date"))
+        by.setdefault(m, [])
+        by[m].append(k)                                  # None kept: an undatable vintage proves nothing
+    n_on = len({k for k in by.get(int(o), ()) if k is not None and k <= cut})
+    newer = sorted(m for m, ks in by.items()
+                   if int(o) < m < c_src and ks and all(k is not None and k > cut for k in ks))
+    out["n_on_or_before"] = n_on
+    out["newer"] = newer
+    if newer:
+        out["first_after"] = min(k for m in newer for k in by[m]).isoformat()
+    out["state"] = ("no_vintage" if n_on == 0 else ("held_as_last_revised" if newer else "vintaged"))
+    return out
+
+
+def then_current_line(table: str, metric: str, *, commodity, scope, asof: str, reader=None) -> dict:
+    """P-1 (i): THE NEWEST MARKETING YEAR THE MAPPED WASDE LINE HOLDS AS KNOWN AT THE AS-OF (CONTRACT Y6).
+
+    Where ``registry.wasde_line_for`` maps this series onto a WASDE balance-sheet line, ONE read of that line
+    through the query layer's own compiler (``query.run``, ``agg='latest'`` -- the as-of guard and the vintage
+    dedup are the compiler's, so nothing published after the as-of can come back) and the newest marketing year
+    among its rows. Answers ``{"read", "table", "metric", "commodity", "country", "period", "ordinal", "value",
+    "unit", "knowledge_date", "role", "table_type", "newer", "newer_on"}`` -- the line's OWN row: its own card,
+    its own release, its own role word (``projection`` / ``estimate``). ``newer`` / ``newer_on`` are the
+    store-held facts the row's ``period_behind`` may carry ("USDA WASDE held 2023/24 by then": a period the
+    store held AS KNOWN at the as-of, which is the words' own contract). ``{}`` for an unmapped series;
+    ``{"read": False, "why": ...}`` for no mirror / a failed read; ``{"read": True, "why": "no_line"}`` where
+    WASDE held nothing for it; ``{"read": True, "why": "stale_line", "period", "ordinal"}`` where the line's own
+    newest year is itself outside the one-period slack of the current year (it names no newer year). NEVER
+    RAISES, NEVER SUBSTITUTES: the source row keeps its own figure (threat
+    P1-b); this line is a second row's facts, never the first row's value."""
+    try:
+        from leviathan.graphrag.numbers import registry as _R
+        line = _R.wasde_line_for(table, metric, str(scope or ""), commodity=str(commodity or ""))
+    except Exception:                                   # noqa: BLE001
+        line = None
+    if not line:
+        return {}
+    try:
+        cut = _dt.date.fromisoformat(str(asof or "")[:10])
+    except (TypeError, ValueError):
+        return {"read": False, "why": "no_asof"}
+    rd = reader if reader is not None else _pg_retention_reader()
+    if rd is None:
+        return {"read": False, "why": "no_pool"}
+    try:
+        from leviathan.graphrag.numbers import query as Q
+        spec = Q.NumberQuery(table=line["table"], metric=line["metric"], asof=str(asof)[:10],
+                             commodity=line["commodity"] or None, country=line["country"], agg="latest",
+                             limit=RETENTION_ROW_LIMIT)
+        rows = list(Q.run(spec, query_fn=rd) or [])
+    except Exception:                                   # noqa: BLE001 -- a read never breaks a board
+        return {"read": False, "why": "read_error"}
+    best = None
+    for r in rows:
+        m = _my_ordinal((r or {}).get("period"))
+        if m is None or not _parses((r or {}).get("value")):
+            continue
+        k = _knowledge_day((r or {}).get("knowledge_date"))
+        if k is None or k > cut:
+            continue                                     # the SQL guard is the authority; this is its belt
+        if best is None or m > best[0]:
+            best = (m, r)
+    if best is None:
+        return {"read": True, "why": "no_line"}
+    m, r = best
+    # A LINE THAT IS ITSELF STALE IS NOT THE THEN-CURRENT LINE, by the SAME one-period slack the retention rule
+    # reads. MEASURED on the store's WASDE pull: China's and Ukraine's corn lines stop at 2011/12 (the world
+    # tables stopped carrying those regions under that line), so at 2024-03-01 their newest held year says
+    # nothing about the year then current -- "USDA WASDE held 2011/12 by then" would be true and misleading.
+    # Such a line is reported (``why: stale_line``) and names no newer year.
+    cur = _current_my(table, str(commodity or ""), str(asof)[:10])
+    if cur is None or int(m) < int(cur) - 1:
+        return {"read": True, "why": "stale_line" if cur is not None else "no_current_my",
+                "period": str(r.get("period") or ""), "ordinal": int(m)}
+    from leviathan.graphrag import citations as _cit
+    return {"read": True, "table": line["table"], "metric": line["metric"], "commodity": line["commodity"],
+            "country": line["country"], "period": str(r.get("period") or ""), "ordinal": int(m),
+            "value": r.get("value"), "unit": r.get("unit"),
+            "knowledge_date": str(r.get("knowledge_date") or "")[:10], "role": r.get("revision_stamp"),
+            "table_type": r.get("table_type"), "newer": _my_words(m),
+            "newer_on": _cit._source_label(line["table"])}
+
+
+def retention_of(st) -> dict:
+    """ONE row's retention stamp (``recency[RETENTION_KEY]``), ``{}`` where nothing measured it."""
+    rec = getattr(st, "recency", None) or {}
+    v = rec.get(RETENTION_KEY) if isinstance(rec, dict) else None
+    return dict(v) if isinstance(v, dict) else {}
+
+
+def held_as_last_revised(state) -> bool:
+    """THE ONE PREDICATE (CONTRACT Y5, the OI-5 readers' name): is this served row's marketing year HELD ONLY
+    AS LAST REVISED -- a level that is no reading of the present? Read off the MEASURED stamp, never off the
+    card's name, so a row nothing measured (every live turn, every offline instrument) answers False."""
+    return retention_of(state).get("state") == "held_as_last_revised"
+
+
+def retention_census(states) -> dict:
+    """THE BOARD-LEVEL RETENTION STAMP (CONTRACT Y5: ``state_board["retention"] = {read, keys, stamped, ms,
+    why}``) summed over the rows' OWN stamps -- the producer half; writing it onto the board trace is the
+    walk's / board's one line (not this lane's file). ``read`` = at least one probe read the store; ``keys`` =
+    the series probed; ``stamped`` = rows held only as last revised; ``ms`` = the probes' summed wall time;
+    ``why`` = the closed words of the probes that did not read, with their counts. ``{}`` when no row was
+    measured (every live turn), so a caller that writes it only when non-empty keeps HEAD's trace."""
+    keys = stamped = 0
+    ms = 0.0
+    read = False
+    why: dict = {}
+    seen: set = set()
+    for st in states or ():
+        if st is None or id(st) in seen:
+            continue
+        seen.add(id(st))
+        rt = retention_of(st)
+        if not rt:
+            continue
+        keys += 1
+        read = read or bool(rt.get("read"))
+        stamped += 1 if rt.get("state") == "held_as_last_revised" else 0
+        try:
+            ms += float(rt.get("ms") or 0.0)
+        except (TypeError, ValueError):
+            pass
+        w = str(rt.get("why") or "")
+        if w:
+            why[w] = why.get(w, 0) + 1
+    if not keys:
+        return {}
+    return {"read": read, "keys": keys, "stamped": stamped, "ms": round(ms, 1), "why": dict(sorted(why.items()))}
+
+
+def _retention_glue(out, ts, table: str, metric: str, commodity, country, asof: str, reader=None) -> None:
+    """``series_state``'s ONE call site for P-1: measure the served series' retention (zero reads unless its
+    level trails the current year by two or more), bank the stamp on ``recency`` and, for a held row, the
+    WASDE line's then-current facts and the last-revised note. A row nothing measured keeps HEAD's shape
+    byte for byte (no key written). K18's note is never overwritten (the latest-only cards are disjoint)."""
+    if str(getattr(ts, "knowledge_semantics", "") or "") != "vintage":
+        return
+    served = newest_held_period(out)
+    if not served or _my_ordinal(served) is None:
+        return
+    rt = vintage_retention(ts, table, commodity=commodity, scope=country, served_period=served, asof=asof,
+                           reader=reader, metric=metric)
+    if not rt or str(rt.get("why") or "") in RETENTION_UNMEASURED:
+        return
+    if rt.get("state") == "held_as_last_revised":
+        tc = then_current_line(table, metric, commodity=commodity, scope=country, asof=asof, reader=reader)
+        if tc:
+            rt["then_current"] = tc
+        if not out.vintage_note:
+            out.vintage_note = vintage_note_last_revised(asof, rt) or None
+    out.recency[RETENTION_KEY] = rt
+
+
+def _fold_last_revised(st, pb: dict, held_ordinal: int) -> dict:
+    """The K23 stamp of ONE marketing-year row with the MEASURED last-revised fact folded in (CONTRACT Y5):
+    ``why: last_revised`` rides the stamp; where no other served card already names a newer year (K23), the
+    mapped WASDE line's newer year held AS KNOWN at the as-of does (a store fact -- the words' own contract);
+    otherwise the stamp names the held year alone and the row's note carries the rest. ``pb`` unchanged for a
+    row nothing measured, so K23 stays K23."""
+    rt = retention_of(st)
+    if rt.get("state") != "held_as_last_revised":
+        return pb
+    out = dict(pb or {})
+    out.setdefault("held", _my_words(int(held_ordinal)))
+    tc = rt.get("then_current") or {}
+    try:
+        tco = int(tc.get("ordinal")) if tc.get("ordinal") is not None else None
+    except (TypeError, ValueError):
+        tco = None
+    if not out.get("newer") and tco is not None and tco > int(held_ordinal) and tc.get("newer"):
+        out["newer_on"] = str(tc.get("newer_on") or "")
+        out["newer"] = str(tc.get("newer"))
+    out["why"] = "last_revised"
+    return out
+
+
+# ---------------------------------------------------------------------------------------------------
+# A DERIVED ROW'S KNOWLEDGE STAMP (the 09-26 fix sitting 2, lane P; CONTRACT Y7, P-2)
+# ---------------------------------------------------------------------------------------------------
+#: THE MEASURED DEFECT (recon 2b, *10/10 treatment traces, every tape; the tariff F9 class): the tape's settle
+#: [N89] is known 2026-09-25 (the session plus the card's publication lag, :func:`tape_known_date`) while its
+#: change [N93] and percentile [N94] rows are stamped 2026-09-24 -- a figure computed FROM the settle claimed
+#: known a day before the settle itself. THE RULE: a derived figure's knowledge stamp is the MAX of its inputs'
+#: stamps -- it cannot be known before the last number it was computed from -- derived by the SAME per-card
+#: derivation the level takes (:func:`derive_knowledge_date`), and stamped HERE, in the feeder that mints the
+#: derivation, as ``knowledge_date`` on the derived measure's own dict (a COPY: the stats result object is the
+#: derivation record's re-execution witness and is never mutated). An input with no stamp leaves the measure
+#: HEAD's (no key) and is counted ``derived_stamp_unread``. The rejected lexical forms: "+1 day on every
+#: change row", reading the level's stamp onto every derived row (the base row's, which is the defect).
+DERIVED_STAMP_KEY: str = "knowledge_date"
+DERIVED_UNREAD_KEY: str = "derived_stamp_unread"
+
+
+def derived_knowledge(inputs_known) -> Optional[str]:
+    """CONTRACT Y7: the MAX of the inputs' knowledge dates (ISO), or ``None`` when there are no inputs or any
+    input's stamp is missing or unplaceable (the caller then keeps HEAD's stamp and counts the miss). Never
+    after the as-of: every input was admitted by the as-of guard."""
+    best = None
+    seen = False
+    for k in inputs_known or ():
+        seen = True
+        d = _knowledge_day(k)
+        if d is None:
+            return None
+        best = d if (best is None or d > best) else best
+    return best.isoformat() if (seen and best is not None) else None
+
+
+def _known_by_period(ts, rows) -> dict:
+    """``{period label: knowledge date}`` over the served rows -- the label is :func:`row_period`'s, the SAME
+    key the period axis is built on, and the date is :func:`derive_knowledge_date`'s. A collapsed period (a
+    cross-section of several rows) takes the MAX of its rows; a period any of whose rows cannot be stamped is
+    ``None`` (unread, never guessed)."""
+    out: dict = {}
+    for r in rows or ():
+        lab = row_period(r)[0]
+        if lab is None:
+            continue
+        try:
+            kd = derive_knowledge_date(ts, r)[0]
+        except Exception:                               # noqa: BLE001 -- an unstampable row is unread
+            kd = None
+        if lab in out and out[lab] is None:
+            continue
+        if kd is None or _knowledge_day(kd) is None:
+            out[lab] = None
+            continue
+        out[lab] = kd if (lab not in out or str(kd)[:10] > str(out[lab])[:10]) else out[lab]
+    return out
+
+
+def _measured(m) -> bool:
+    return isinstance(m, dict) and not m.get("declined") and m.get("value") is not None
+
+
+def stamp_derived_known(obj, known_by: dict, dates: list, *, z_window: Optional[int] = None) -> int:
+    """Stamp every DERIVED measure of ONE row (``StateRow`` or ``TapeState``) with the max of its own inputs'
+    knowledge dates (CONTRACT Y7): the z over its trailing window, the percentile over the whole array it
+    ranked in, each window change over its two endpoints. ``dates`` is the axis the measures ran over (after
+    any declared offset), ``known_by`` :func:`_known_by_period`'s map. Returns the number of measured figures
+    left unstamped because an input carried no stamp. Moves no figure."""
+    unread = 0
+    if not dates:
+        return 0
+
+    def _k(labels):
+        return derived_knowledge([known_by.get(d) for d in labels])
+
+    z = getattr(obj, "z", None)
+    if _measured(z):
+        w = int(z.get("window") or z_window or len(dates))
+        k = _k(dates[-w:])
+        if k:
+            obj.z = {**z, DERIVED_STAMP_KEY: k}
+        else:
+            unread += 1
+    p = getattr(obj, "percentile", None)
+    if _measured(p):
+        n = int(p.get("n") or len(dates))
+        k = _k(dates[-n:])
+        if k:
+            obj.percentile = {**p, DERIVED_STAMP_KEY: k}
+        else:
+            unread += 1
+    for ch in getattr(obj, "changes", None) or ():
+        if not isinstance(ch, dict) or ch.get("declined"):
+            continue
+        w = int(ch.get("n_periods") or 0)
+        if w <= 0 or len(dates) <= w:
+            continue
+        k = _k([dates[-(w + 1)], dates[-1]])
+        if k:
+            ch[DERIVED_STAMP_KEY] = k
+        else:
+            unread += 1
+    return unread
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE POPULATION A RECORD WAS TAKEN OVER (the 09-26 fix sitting 2, lane P; CONTRACT Y8, P-3)
+# ---------------------------------------------------------------------------------------------------
+#: THE MEASURED DEFECT (recon 2b: ONI "93rd percentile of its own record" on 10/10 treatment pages over a
+#: TRAILING 131-month read; COT "of its own record" on a three-year read, 4/10): the percentile ranks the level
+#: inside the array THIS READ fetched, and the words named the series' whole record. THE RULE: the row carries
+#: the population the percentile was taken over -- its first and last period, the n the percentile itself
+#: used, and WHOLE only where the read reaches the series' first observation: a whole-history read (the
+#: cadence's span is unbounded) that came back untruncated, or a read whose first period is at or before the
+#: card's declared ``first_obs``. Anything shorter is a WINDOW with its start (an under-claim is the safe
+#: failure, threat P3-a). One producer for the bounds AND the n (threat P3-b); N's book prints the words.
+POPULATION_BASES: tuple = ("series", "window", "contract_life")
+
+
+def population_of(dates: list, *, n, span, truncated: bool, first_obs=None) -> dict:
+    """``{"first", "last", "n", "whole", "basis"}`` for a percentile ranked over ``dates`` (its own axis), or
+    ``{}`` when there is no dated array. ``span`` is the read's own ``read_span`` (``None`` = the whole
+    history), ``first_obs`` the card's declared first observation (a year, a month or a day)."""
+    ds = [d for d in (dates or []) if d]
+    if not ds:
+        return {}
+    first, last = str(ds[0]), str(ds[-1])
+    whole = False
+    if span is None and not truncated:
+        whole = True
+    elif first_obs:
+        fo = str(first_obs)
+        whole = bool(first[:len(fo)] <= fo)
+    try:
+        nn = int(n) if n is not None else len(ds)
+    except (TypeError, ValueError):
+        nn = len(ds)
+    return {"first": first, "last": last, "n": nn, "whole": bool(whole),
+            "basis": POPULATION_BASES[0] if whole else POPULATION_BASES[1]}
 
 
 class KeyPlan(NamedTuple):
@@ -1590,7 +2123,7 @@ def series_key_for(ref: str, node, *, turn_kind: str = "") -> KeyPlan:
 def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = None,
                  conventions: Optional[dict] = None, newest_first: Any = "all",
                  ym_lag: bool = True, silver_status: str = "none",
-                 today: Optional[str] = None, turn_kind: str = "") -> StateRow:
+                 today: Optional[str] = None, turn_kind: str = "", retention_reader=None) -> StateRow:
     """ONE series state for ONE ``(ref, resolved scope)`` at ONE as-of. THE HANDLER NEVER RAISES: every
     failure path returns a StateRow carrying a closed ``status`` word and the reads it actually spent
     (``cascade._run_one``'s own contract).
@@ -1602,6 +2135,12 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     ``turn_kind`` is the WALK's knowledge, not the read's: ``'outlook'`` declines positioning's series
     half at zero reads by name (``outlook_lane``, sec 1.3 / D18). Empty -- the default -- declines
     nothing, so a caller that does not know the turn kind cannot silently assert a lane.
+
+    ``retention_reader`` (the 09-26 fix sitting 2, P-1; APPENDED at the tail) is the last-revision probe's
+    ``reader(sql) -> rows``. ``None`` -- every caller today -- is :func:`_pg_retention_reader`: the numbers
+    mirror where one is configured, and no read at all offline (``why: no_pool``). The probe runs only for a
+    vintage marketing-year row whose level trails the as-of's current year by two or more
+    (:func:`vintage_retention`), so every other row is byte-identical to HEAD.
     """
     # THE ZERO-READ PROLOGUE IS :func:`series_key_for` (sec 3.3 step 1). It was lifted out of this body
     # at S2 rather than copied into the walk, because the pricer and the reader must resolve one ref to
@@ -1732,6 +2271,9 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     # test the collapse uses is what makes the two axes parallel by construction rather than by luck.
     dated_rows = [r for r in rows if _parses(r.get("value"))]
     dates = _period_dates(dated_rows, ts, values, collapse)
+    # P-2 (CONTRACT Y7): EVERY PERIOD'S OWN KNOWLEDGE DATE, keyed by the SAME label the axis is built on, so a
+    # derived measure is stamped with the max of its OWN inputs' dates below. Zero reads; moves nothing.
+    _known = _known_by_period(ts, dated_rows)
     # THE NULL BOUNDARY, ONCE, WHERE THE ARRAY IS BUILT (``transforms.clean_pairs``). ``_pace_series``
     # already drops a row whose value does not parse (cascade.py:2408), so on the served path this drops
     # NOTHING and ``n_null_cells`` is zero; what it does close is the DATE axis, which carries a null
@@ -1925,6 +2467,18 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     if conv:
         out.convention = _convention_label(conv, out, bundle, bkey, derivs)
 
+    # P-2 (CONTRACT Y7): each derived measure's knowledge stamp is the MAX of its own inputs' stamps -- never
+    # the base row's. Copies, never the stats result objects (those are the re-execution witnesses).
+    _unread = stamp_derived_known(out, _known, dates, z_window=win)
+    # P-3 (CONTRACT Y8): the population the percentile was taken over -- the read's own bounds and the n the
+    # percentile itself used, WHOLE only where the read reaches the series' first observation. Set only where
+    # a percentile was measured; the field is lane H's (``StateRow.population``), written defensively.
+    if _measured(out.percentile):
+        _pop = population_of(dates, n=out.percentile.get("n"), span=read_span(cadence, read_win),
+                             truncated=truncated, first_obs=getattr(ts, "first_obs", None))
+        if _pop:
+            setattr(out, "population", _pop)
+
     _revised_through = None
     if (table in LATEST_ONLY_CARDS or str(getattr(ts, "vintage_retention", "")) == "latest-only"):
         td = today or _today()
@@ -1944,6 +2498,11 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     if _prov.get("withheld"):
         # THE COUNT, never the stamp: the token itself is not kept anywhere a render could reach it.
         out.recency[PIT_STAMP_WITHHELD] = 1
+    if _unread:
+        out.recency[DERIVED_UNREAD_KEY] = int(_unread)          # P-2: omitted when every input was stamped
+    # P-1 (CONTRACT Y5): THE LAST-REVISION CLOCK, measured for this series where its level trails the as-of's
+    # current marketing year by two or more (zero reads otherwise); a row nothing measured keeps HEAD's shape.
+    _retention_glue(out, ts, table, metric, commodity, country, asof, reader=retention_reader)
     out.derivation = derivs
     out.inputs = bundle
     n_obs = len(values)
@@ -2504,6 +3063,20 @@ def tape_state(slug: str, asof: str, *, qfn, newest_first: Any = "all",
         out.status = f"percentile_thin:{len(values)}"
     if all(c["declined"] for c in out.changes):
         out.status = f"changes_thin:{len(values)}"
+    # P-2 (the 09-26 fix sitting 2, CONTRACT Y7): THE TAPE'S DERIVED FIGURES ARE KNOWN WHEN THEIR LAST INPUT IS.
+    # Each session's knowledge date is the ONE derivation the settle takes (:func:`derive_knowledge_date` on
+    # this card: the session plus the card's publication lag -- what :func:`tape_known_date` prints for the
+    # settle), and each change / the percentile is stamped with the max over its OWN sessions. MEASURED on arm
+    # A: the settle known 2026-09-25 beside its change and percentile stamped 2026-09-24 on every tape.
+    _tk = {}
+    for d in dates:
+        try:
+            _tk[d] = derive_knowledge_date(ts, {"knowledge_date": d})[0]
+        except Exception:                               # noqa: BLE001 -- an unstampable session is unread
+            _tk[d] = None
+    _tu = stamp_derived_known(out, _tk, dates)
+    if _tu:
+        out.coverage[DERIVED_UNREAD_KEY] = int(_tu)
     out.derivation, out.inputs = derivs, bundle
     return out
 
@@ -2743,7 +3316,11 @@ ACTION_LEDGER_LIMIT: int = 12
 #: costs a turn this and never the pool's 300-second default.
 ACTION_LEDGER_TIMEOUT_MS: int = 8000
 #: THE CLOSED WORDS A LEDGER READ THAT DID NOT HAPPEN SAYS WHY (the stamp's ``why``; ``""`` when it read).
-ACTION_LEDGER_WHY: tuple = ("no_nodes", "no_asof", "no_pool", "read_error")
+ACTION_LEDGER_WHY: tuple = ("no_nodes", "no_asof", "no_pool", "read_error",
+                             # the 09-26 fix sitting 2 (leftover m7): APPENDED -- regime nodes WERE handed in and
+                             # every one of them was left out by the actor anchors, so nothing was read; the
+                             # stamp's ``nodes`` count already carries them, and ``no_nodes`` beside it was false.
+                             "unanchored")
 #: THE ROUTING READ'S CHUNK (proposition ids per statement). Each id is ONE primary-key probe; the second read
 #: (a refusal candidate's id on every commodity node, ``evidence.all_nodes()`` -- 52 today) is the large one.
 ROUTED_READ_CHUNK: int = 20000
@@ -2888,7 +3465,11 @@ def action_ledger(nodes, *, asof: str, reader=None, limit: int = ACTION_LEDGER_L
     cc = {k: (None if anchors is None else str(anchors.get(k) or "")) for k in nodes}
     pairs = tuple(dict.fromkeys((s, cslice[k], cc[k]) for k, v in nodes.items() for s in v if s and cslice[k]))
     if not pairs:
-        stamp["why"] = "no_nodes"
+        # m7 (the 09-26 fix sitting 2): the stamp's closed word says WHY no pair was read -- every regime node
+        # handed in was left out by the actor anchors (``unanchored``), or there was none (``no_nodes``). The
+        # ``nodes`` count above is unchanged; only the word stops contradicting it.
+        stamp["why"] = ("unanchored" if (anchors is not None and stamp["nodes"] and not nodes)
+                        else "no_nodes")
         return {}, stamp
     if not str(asof or "")[:10]:
         stamp["why"] = "no_asof"

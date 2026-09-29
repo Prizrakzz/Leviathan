@@ -360,11 +360,29 @@ _NO_ROWS_NOTE = (
     "NO ROWS RETURNED ({why}): this lookup produced no value at all. State plainly that the record "
     "carries no figure for this scope and do NOT assert any number for it -- not a level, not a change, "
     "and NOT zero. An empty read is an absence of data, never a measured value of 0.")
+# FIX SITTING 2 (09-26), LANE Q, CONTRACT Y4 -- THE EMPTY READ SAYS WHY, MEASURED, NEVER A TIMING STORY (PC-4).
+# `_exec` assigned `not_known` to EVERY empty vintage read and this map told the model it meant "not yet
+# published at this as-of" -- false for the ESR weeks published in 2024 and held only under a 2026 write-date
+# vintage (the 2024 turns), and for every scope miss on a vintage card (PSD 'World', a WASDE spelling) on the
+# fifty. The map is now keyed by the MEASURED reason (`empty_read_reason`, ABSENCE_REASONS); the status words
+# keep their HEAD entries for every other reader, and `not_known`'s words no longer claim a timing nobody
+# measured. "not yet published" is said ONLY where the asked period's first release provably lies after the
+# as-of (`not_yet_published`) or the window itself opens after it (cascade's `future_unpublished`).
+ABSENCE_REASONS: tuple = ("no_card", "no_series", "no_rows", "declined", "store_gap", "not_yet_published", "error")
 _NO_ROWS_WHY = {"no_rows": "scope/coverage gap, not a timing claim",
                 "record_silent": "scope/coverage gap, not a timing claim",
-                "not_known": "not yet published at this as-of",
+                "not_known": "no value at this as-of; when the figure was published was not measured, so this "
+                             "is not a timing claim",
                 "future_unpublished": "not yet published at this as-of",
-                "error": "the lookup failed"}
+                "error": "the lookup failed",
+                "no_card": "no card serves this table, so nothing was read",
+                "no_series": "this store carries no series for the commodity asked, so nothing was read",
+                "declined": "the read was declined before any value was served, for the reason given with it",
+                "store_gap": "this card dates its rows by the store's own write or revision dates, not by "
+                             "publication, so an empty read at this as-of says nothing about when the figure "
+                             "was published -- a store/coverage gap, not a timing claim",
+                "not_yet_published": "not yet published at this as-of: the asked period's first release falls "
+                                     "after it"}
 _ESR_ZERO_AGG_NOTE = (
     "The export-sales aggregate above summed to EXACTLY 0 over the requested window. On this table a zero "
     "sum is produced equally by weeks that reported zero and by a window that carries no reported weeks at "
@@ -374,7 +392,69 @@ _ESR_ZERO_AGG_NOTE = (
 
 
 def _no_rows_note(status: str) -> str:
+    """The NO ROWS marker, its `why` read off `_NO_ROWS_WHY` by the MEASURED reason word (`_exec` passes
+    `empty_read_reason`'s answer; a status word still resolves to its own entry)."""
     return _NO_ROWS_NOTE.format(why=_NO_ROWS_WHY.get(str(status or ""), "no value was returned"))
+
+
+def _current_my_keys(spec, reg) -> dict:
+    """CONTRACT Y3 payload keys for a marketing-year card: {"current_marketing_year": <start year>,
+    "current_marketing_year_label": "<YYYY/YY>"}, or {} -- a card that is not a marketing-year card, a
+    commodity the estate calendar declares no start for (never the default), or any failure."""
+    try:
+        cur, _basis = Q.current_marketing_year(str(getattr(spec, "table", "") or ""),
+                                               getattr(spec, "commodity", None),
+                                               str(getattr(spec, "asof", "") or ""), reg=reg)
+    except Exception:  # noqa: BLE001 -- a calendar hiccup never fails a lookup
+        return {}
+    if cur is None:
+        return {}
+    return {"current_marketing_year": int(cur), "current_marketing_year_label": Q.marketing_year_label(cur)}
+
+
+def empty_read_reason(spec, status: str, *, reg: NumbersRegistry, asof: str) -> str:
+    """ONE word of ABSENCE_REASONS for a lookup that returned no usable value -- MEASURED from the spec, the
+    card and the status, at ZERO extra reads (CONTRACT Y4, Q4-b: the card field is read first):
+      error / declined     the status's own word (a failed or declined read);
+      no_card              the table is not a registry card;
+      no_series            no declared commodity value resolves to the asked commodity's causal node and
+                           the card's own token read names no candidate (`_no_series_for`);
+      not_yet_published    the asked window opens after the as-of, or the card's vintage dates ARE
+                           publication dates and the asked period's first-release floor
+                           (`query.first_release_floor`, the compiler's own partition bound) lies after it;
+      store_gap            a vintage card whose vintage dates are NOT publication dates (`vintage_dates_real`
+                           false): its dates are the store's write/revision dates, so emptiness at the as-of
+                           is a store fact, never a publication fact;
+      no_rows              everything else -- a scope/coverage gap.
+    Never raises (an instrument never fails a lookup)."""
+    st = str(status or "")
+    if st in ("error", "declined"):
+        return st
+    try:
+        ts = reg.get(str(getattr(spec, "table", "") or ""))
+    except Exception:  # noqa: BLE001 -- no card
+        return "no_card"
+    try:
+        cid = str(getattr(spec, "commodity", "") or "").strip()
+        allowed = list(getattr(ts, "commodity_values", None) or [])
+        if cid and allowed and cid not in allowed and _no_series_for(cid, allowed):
+            return "no_series"
+        a = str(asof or getattr(spec, "asof", "") or "")[:10]
+        ps = str(getattr(spec, "period_start", "") or "")[:10]
+        if a and ps and ps > a:
+            return "not_yet_published"
+        try:
+            floor = Q.first_release_floor(ts, getattr(spec, "period", None))
+        except (TypeError, ValueError):
+            floor = None
+        if a and floor and a < floor:
+            return "not_yet_published"
+        if (str(getattr(ts, "knowledge_semantics", "") or "") == "vintage"
+                and not getattr(ts, "vintage_dates_real", False)):
+            return "store_gap"
+    except Exception:  # noqa: BLE001 -- an unreadable card field: the weakest honest word
+        return "no_rows"
+    return "no_rows"
 
 
 # ── THE EMPTY COUNTRY READ SAYS WHICH AXIS TO CHECK (round 2, review F-1 / docket #5) ────────────────
@@ -479,13 +559,19 @@ _ESR_UNSIGNED_METRICS = ("weekly_exports_1000mt", "outstanding_sales_1000mt", "g
 
 
 def _is_zero_esr_aggregate(payload: dict) -> bool:
-    """A silver_esr UNSIGNED-metric SUM that came back as a single row valued exactly 0 (hazard (2))."""
+    """A silver_esr UNSIGNED-metric SUM that came back as a single row valued exactly 0 (hazard (2)).
+
+    FIX SITTING 2 (Q1-g): the no-destination `latest` read is now the query layer's FOLD over buyers
+    (`query._fold_sql`), so its one row is a SUM exactly as `agg="sum"`'s is -- read off the row's own fold
+    marker (`_fold["rule"]`), never off the agg alone -- and the zero caveat rides it the same way."""
     q = (payload or {}).get("query") or {}
-    if q.get("table") != "silver_esr" or str(q.get("agg") or "") != "sum":
+    rows = (payload or {}).get("rows") or []
+    folded = (len(rows) == 1 and isinstance(rows[0], dict)
+              and str(((rows[0] or {}).get(Q.FOLD_MARKER) or {}).get("rule") or "") == "sum")
+    if q.get("table") != "silver_esr" or (str(q.get("agg") or "") != "sum" and not folded):
         return False
     if str(q.get("metric") or "") not in _ESR_UNSIGNED_METRICS:
         return False
-    rows = (payload or {}).get("rows") or []
     if len(rows) != 1:
         return False
     try:
@@ -650,6 +736,88 @@ def esr_closed_year_legs(calls: Optional[list], asof: str, query_fn, *,
     record = {}
     if stamped or declined:
         record = {"stamped": stamped, "companions": len(legs), "declined": declined}
+    return legs, record
+
+
+def _retoken_period(token, asked: int, cur: int) -> Optional[str]:
+    """The seat's own period token re-spelled for another marketing year, in the SAME spelling the card
+    accepted: the start year ('2025' -> '2026') or the split label ('2025/26' -> '2026/27'), matched by
+    EQUALITY against the token's own start year; None for any other spelling (the companion is then named,
+    never guessed)."""
+    t = str(token or "").strip()
+    if t == str(asked):
+        return str(cur)
+    if t == Q.marketing_year_label(asked):
+        return Q.marketing_year_label(cur)
+    return None
+
+
+def current_year_companion_legs(calls: Optional[list], asof: str, query_fn, *,
+                                reg: Optional[NumbersRegistry] = None,
+                                futures_newest_first: bool | str = False) -> tuple[list, dict]:
+    """FIX SITTING 2, CONTRACT Y3 (Q-2 b): for every marketing-year read the seat made whose asked year is
+    BEFORE the turn's current marketing year (`query.current_marketing_year`, the one producer) and whose
+    (card, metric, commodity, country, agg) the seat never read AT the current year, ONE companion read of
+    that same series at the current year -- a real `Q.run` read, dropped and NAMED when it fails or returns
+    nothing (the `esr_closed_year_legs` idiom). The seat's stale year stays served beside it. A commodity the
+    calendar declares no start for is named (`no_declared_start`), never defaulted. Returns (legs, record);
+    ([], {}) when nothing qualifies. Rides the existing `closed_year` board kwarg only (board turns)."""
+    reg = reg or load_registry()
+    legs: list = []
+    served: list = []
+    declined: list = []
+    have: dict = {}
+    todo: list = []
+    for c in list(calls or []):
+        if not isinstance(c, dict) or c.get("closed_year_of") or c.get("esr_pace_span") or c.get("current_year_of"):
+            continue
+        q = c.get("query") or {}
+        tid = str(q.get("table") or "")
+        per = q.get("period")
+        if not tid or per in (None, "") or str(c.get("status") or "") not in ("ok", "not_known", "no_rows"):
+            continue
+        try:
+            ts = reg.get(tid)
+            asked = int(str(per)[:4])
+        except Exception:  # noqa: BLE001 -- no card / no parseable year: not a marketing-year read
+            continue
+        if str(getattr(ts, "period_type", "") or "") != "marketing_year":
+            continue
+        key = (tid, str(q.get("metric") or ""), q.get("commodity"), q.get("country"), str(q.get("agg") or "latest"))
+        have.setdefault(key, set()).add(asked)
+        todo.append((c, key, asked, per))
+    done: set = set()
+    for c, key, asked, per in todo:
+        if key in done:
+            continue
+        cur, basis = Q.current_marketing_year(key[0], key[2], asof, reg=reg)
+        if cur is None:
+            done.add(key)
+            declined.append({"handle": c.get("handle"), "table": key[0], "metric": key[1], "reason": basis})
+            continue
+        if cur in have[key] or asked >= cur:
+            continue                                 # the current year is read, or this read is not stale
+        done.add(key)
+        token = _retoken_period(per, asked, cur)
+        rec = {"handle": c.get("handle"), "table": key[0], "metric": key[1],
+               "year": Q.marketing_year_label(cur)}
+        if token is None:
+            declined.append({**rec, "reason": "period_spelling"})
+            continue
+        try:
+            spec = _forced_spec(asof, {**(c.get("query") or {}), "period": token})
+            rows = [r for r in Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first)
+                    if _cell_float(r) is not None]
+        except Exception:  # noqa: BLE001 -- a failed companion is dropped and named
+            declined.append({**rec, "reason": "companion_read_error"})
+            continue
+        if not rows:
+            declined.append({**rec, "reason": "companion_no_rows"})
+            continue
+        legs.append({"query": spec.model_dump(exclude_none=True), "rows": rows, "status": "ok",
+                     "current_year_of": c.get("handle")})
+        served.append(rec)
+    record = {"served": served, "declined": declined} if (served or declined) else {}
     return legs, record
 
 
@@ -2379,6 +2547,18 @@ def _next_rung(ceiling: int) -> Optional[int]:
     return min(above) if above else None
 
 
+def _rung_on_row(urow: Optional[dict], rung: dict) -> None:
+    """LEFTOVER m9 R4 (FIX SITTING 2, lane Q): the rung ladder's record reached the trace only through
+    `numbers_budget`, which the orchestrator copies under GRAPHRAG_NUMBERS_BUDGET_NOTE alone -- so on an arm
+    turn a SERVED ladder was visible only as a second first-round usage row. The rung now rides the census
+    row of the very pass it describes (`rung` = {max_tokens, stop, out}), under the SAME gate the usage rows
+    ride (`_cost_census_on()`; `urow` is None whenever the census did not run) and on the SAME list the
+    caller's sink holds -- so a ladder that fired reaches `trace.numbers_usage` on a served AND on a failed
+    seat. A pass the ladder never touched carries no key (every turn with `rung_ladder` off: byte-identical)."""
+    if isinstance(urow, dict):
+        urow["rung"] = dict(rung)
+
+
 def _numbers_max_tokens(max_tokens: int, *, thinking: bool, budget_line: str) -> int:
     """LANE S: the ONE producer of this lane's output ceiling, so the two floors cannot be applied
     in two places and disagree. Returns `max_tokens` UNCHANGED whenever neither floor applies, and
@@ -3720,6 +3900,99 @@ class CommodityOffCard(ValueError):
     """A lookup naming a commodity the card does not serve (D-PQ CLASS-1). Its message is the remedy."""
 
 
+class CommodityNoSeries(CommodityOffCard):
+    """FIX SITTING 2 (Q-3, CONTRACT Y4, PC-3): the asked commodity is a KNOWN commodity (the declared contract
+    hierarchy resolves it to a causal node) and the card's declared universe carries NO member of that node --
+    and the card's own token read names no candidate either. That is a SCOPE FACT about the store ("the
+    export-sales store carries no cotton series"), never a malformed call and never a failed lookup: `_exec`
+    returns it as status `declined`, absence_reason `no_series`. A subclass of CommodityOffCard so every
+    existing `except CommodityOffCard` keeps its behaviour."""
+
+    def __init__(self, msg: str, *, table: str, commodity: str):
+        super().__init__(msg)
+        self.table = str(table)
+        self.commodity = str(commodity)
+
+
+@functools.lru_cache(maxsize=1)
+def _vocab_alias_index() -> dict:
+    """{spelling -> the canonical concepts the estate's entity vocabulary files it under}, off the vocabulary's
+    OWN `aliases` map (canonical -> its terms; 'corn' <- 'maize', 'wheat' <- 'all wheat'), each term keyed in
+    the card-slug spelling (`_slug_tokens` joined by '_'). {} when the vocabulary cannot be read."""
+    try:
+        from leviathan.graphrag import extract as _ex
+        v = _ex._vocab()
+    except Exception:  # noqa: BLE001 -- no vocabulary: no synonym is known, so none is claimed
+        return {}
+    out: dict = {}
+    for canon, terms in ((v or {}).get("aliases") or {}).items():
+        for t in [canon, *list(terms or [])]:
+            k = "_".join(_slug_tokens(str(t)))
+            if k:
+                out.setdefault(k, set()).add(str(canon))
+    return {k: frozenset(x) for k, x in out.items()}
+
+
+@functools.lru_cache(maxsize=1024)
+def _concept_nodes(name: str) -> frozenset:
+    """The causal nodes the estate's DECLARED resolvers file ``name`` under: the contract hierarchy
+    (contract -> its node; node -> itself; complex / group -> its members) and the entity vocabulary's aliases
+    ('maize' -> corn, 'all_wheat' -> wheat), each canonical id expanded through the hierarchy again. Empty for a
+    name neither knows. Any failure is empty (fail closed: an unresolvable name never becomes a `no_series`
+    claim, and an unresolvable declared value never proves one)."""
+    try:
+        from leviathan.graphrag import hierarchy as _H
+        out = set(_H.expand_concept(str(name)).nodes)
+        for canon in _vocab_alias_index().get("_".join(_slug_tokens(str(name))), ()):
+            out.add(str(canon))
+            out.update(_H.expand_concept(str(canon)).nodes)
+        return frozenset(out)
+    except Exception:  # noqa: BLE001
+        return frozenset()
+
+
+def _token_contained(small: str, big: str) -> bool:
+    """Are ``small``'s slug tokens a CONTIGUOUS run inside ``big``'s -- the `_alias_candidates` test, read in
+    either direction by the caller ('maize' inside 'south_african_white_maize_jse')."""
+    a, b = _slug_tokens(small), _slug_tokens(big)
+    return bool(a) and any(b[i:i + len(a)] == a for i in range(len(b) - len(a) + 1))
+
+
+def _no_series_for(cid: str, allowed) -> bool:
+    """True ONLY when the store's declared universe PROVABLY carries nothing of the asked commodity:
+      (a) the estate's resolvers know the asked commodity's node(s) (an unknown name keeps HEAD's refusal);
+      (b) no declared value resolves to any of them, through the hierarchy OR the vocabulary's aliases -- so a
+          spelling miss ('soybeans' vs 'soybeans_cbot') and a synonym ('corn_cbot' vs a card's 'maize') keep
+          HEAD's refusal;
+      (c) no declared value shares a contiguous token run with the ask in EITHER direction (the card's own
+          token read: 'sorghum' -> grain_sorghum; 'south_african_white_maize_jse' -> 'maize').
+    The universe is the card's `commodity_values` read at call time (generated from the transform), so when
+    the pipeline lands a series the decline stops by itself -- never a typed commodity, never a table name."""
+    asked = _concept_nodes(str(cid))
+    if not asked:
+        return False
+    vals = [str(v) for v in (allowed or ())]
+    if any(asked & _concept_nodes(v) for v in vals):
+        return False
+    return not any(_token_contained(str(cid), v) or _token_contained(v, str(cid)) for v in vals)
+
+
+def no_series_note(table: str, commodity: str) -> str:
+    """The decline's LEAD words, ONE producer: the card's reader name (display_names.yaml via
+    `display.table_label`) and the commodity's display name (`_reader_words`), never a typed store or commodity
+    name. `_check_commodity_class` puts HEAD's own refusal text (the closed set -- the remedy) right behind it,
+    so the decline names the scope fact AND still teaches what the card serves."""
+    try:
+        from leviathan.graphrag import display as _dp
+        store = str(_dp.table_label(str(table)) or table)
+    except Exception:  # noqa: BLE001
+        store = str(table)
+    words = _reader_words(str(commodity))
+    return (f"NO SERIES, NOT A FAILED LOOKUP -- the {store} store carries no {words} series: {commodity!r} "
+            f"resolves to none of the commodities this card serves, so there is nothing to read and nothing "
+            f"failed. Say that the {store} store carries no {words} series.")
+
+
 # ── LANE C (2026-09-17): THE ALIAS RESOLUTION AT THE REFUSAL SITE ────────────────────────────────────
 #
 # THE MEASURED DEFECT (in-VPC pre-arm smoke 2026-09-16, 5 turns): ELEVEN lookups came back
@@ -3976,7 +4249,7 @@ def _check_commodity_class(spec, reg: NumbersRegistry) -> Optional[str]:
     if resolved:
         return resolved
     cands = _alias_candidates(cid, allowed)
-    raise CommodityOffCard(
+    msg = (
         f"lookup REFUSED -- {tid} does not serve commodity {cid!r}. This card serves exactly these and "
         f"nothing else: {', '.join(allowed)}. It is a CLOSED set, not a default: there is no row for "
         f"{cid!r} here and no neighbouring commodity on this card stands in for it. Either re-issue the "
@@ -3986,6 +4259,12 @@ def _check_commodity_class(spec, reg: NumbersRegistry) -> Optional[str]:
         + (f" AMBIGUOUS, NOT ABSENT: {cid!r} could mean {' | '.join(cands)} on this card, and this seam "
            f"will not choose for you. Re-issue naming ONE of them and say which one you picked."
            if len(cands) > 1 else ""))
+    if not cands and _no_series_for(cid, allowed):
+        # FIX SITTING 2 (Q-3): a KNOWN commodity this store's declared universe does not carry at all -- a scope
+        # fact, declined BY NAME (never a malformed-call error a page reads as "no rows"), with HEAD's refusal
+        # text -- the card's closed set, the remedy -- kept whole behind the lead sentence.
+        raise CommodityNoSeries(no_series_note(tid, cid) + " " + msg, table=tid, commodity=cid)
+    raise CommodityOffCard(msg)
 
 
 class PeriodRequiredOffCard(ValueError):
@@ -4269,6 +4548,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
         # the next rung. Every pass is priced and printed; the loop leaves by `break` or by the sentinel.
         while True:
             resp = pv.with_retry(_one) if pv else _one()
+            _urow_ref = None                            # m9 R4: this pass's census row, when the census ran
             if _cost_census_on():
                 # LANE C / COST_LATENCY STEP 1: one row per AGENT ROUND, read off the response this loop
                 # already holds. Inside a try because this file's standing law is that an instrument never
@@ -4289,6 +4569,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     usage_rounds.append(_urow)
                     if usage_sink is not None:
                         usage_sink.append(_urow)
+                    _urow_ref = _urow
                 except Exception:  # noqa: BLE001 -- a census can never fail a lookup round
                     pass
             if _thinking is not None:
@@ -4314,6 +4595,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     # T-1: THIS pass is the ladder's one re-run -- its rung joins the record whatever it did.
                     _rungs.append({"max_tokens": int(max_tokens), "stop": getattr(resp, "stop_reason", None),
                                    "out": getattr(_u, "output_tokens", None)})
+                    _rung_on_row(_urow_ref, _rungs[-1])
                 if getattr(resp, "stop_reason", None) == "max_tokens":
                     _trunc = ("numbers-thinking turn TRUNCATED at max_tokens=%d -- refusing to serve a "
                               "partial selection as final (extract.py:557's doctrine)" % max_tokens)
@@ -4329,6 +4611,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                         raise RuntimeError(_trunc)      # ladder off, or no rung above: HEAD's raise, byte for byte
                     _rungs.append({"max_tokens": int(max_tokens), "stop": "max_tokens",
                                    "out": getattr(_u, "output_tokens", None)})
+                    _rung_on_row(_urow_ref, _rungs[-1])
                     _first_trunc = _trunc
                     max_tokens = _up                    # the climbed ceiling holds for the rest of the turn
                     continue
@@ -4522,6 +4805,20 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     _cyrows = leg.get("rows") or []
                     handles[h] = {"series": _series_from_rows(_cyrows), "kd": _handle_kd(_cyrows),
                                   "unit": (_cyrows[0].get("unit") if _cyrows else None)}
+                # FIX SITTING 2 (Q-2 b): the same family serves the CURRENT marketing year beside a stale one,
+                # under the same kwarg; its record rides the family's record key (numbers-lane-local).
+                cur_legs, cur_record = current_year_companion_legs(calls, asof, query_fn, reg=reg,
+                                                                   futures_newest_first=futures_newest_first)
+                for leg in cur_legs:
+                    calls.append(leg)
+                    hseq += 1
+                    h = f"L{hseq}"
+                    leg["handle"] = h
+                    _curows = leg.get("rows") or []
+                    handles[h] = {"series": _series_from_rows(_curows), "kd": _handle_kd(_curows),
+                                  "unit": (_curows[0].get("unit") if _curows else None)}
+                if cur_record:
+                    cy_record = {**(cy_record or {}), "current_year": cur_record}
                 if cy_record:
                     result[ESR_CLOSED_YEAR_KEY] = cy_record
             if shape:
@@ -4621,8 +4918,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     # fix it and re-issue" (nothing was queried, the loop still has budget), while the outer
                     # one means "the lookup ran and the data access failed". NOT truncated to 200 like the
                     # outer path -- the whole point is that the remedy reaches the model intact.
+                    if isinstance(ve, CommodityNoSeries):
+                        # FIX SITTING 2 (Q-3, Y4, PC-3): not a malformed call and not a failure -- the store
+                        # carries no series for this commodity. DECLINED BY NAME, stamped for the trace.
+                        return {"query": spec.model_dump(exclude_none=True), "rows": [], "status": "declined",
+                                "scope_note": str(ve), "absence_reason": "no_series",
+                                "numbers_decline": {"reason": "no_series", "table": ve.table,
+                                                    "commodity": ve.commodity}}
                     return {"query": dict(b.input), "error": _spec_error(dict(b.input), ve, reg),
-                            "rows": [], "status": "error"}
+                            "rows": [], "status": "error", "absence_reason": "error"}
                 # W3.2 COVERAGE ROUTING (silver_futures_eod only; ('serve', None) for every other table,
                 # so this is byte-identical elsewhere). A straddling window or an uncovered contract is
                 # DECLINED here -- before any SQL is compiled -- with the verbatim template stamped on the
@@ -4636,7 +4940,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 if _route in FUTURES_EOD_COVERAGE_CLASSES:
                     return {"query": spec.model_dump(exclude_none=True), "rows": [], "status": "declined",
                             "scope_note": futures_eod_coverage_note(_route, _floor),
-                            "coverage_route": _route, "coverage_floor": _floor}
+                            "coverage_route": _route, "coverage_floor": _floor, "absence_reason": "declined"}
                 if _route == "legacy":
                     # the SAME window the verdict was taken on (era-narrowed when the question named an
                     # era the model never expressed) -- so the legacy level lands in the era ASKED
@@ -4649,8 +4953,24 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     return {"query": legacy.model_dump(exclude_none=True), "rows": _lrows,
                             "status": "ok" if _lrows else "no_rows",
                             "scope_note": futures_eod_coverage_note(_route, _floor),
-                            "coverage_route": _route, "coverage_floor": _floor}
-                rows = Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first)
+                            "coverage_route": _route, "coverage_floor": _floor,
+                            **({} if _lrows else {"absence_reason": "no_rows"})}
+                # FIX SITTING 2, CONTRACT Y3 (Q-2 a, PC-2): the turn's CURRENT marketing year, from the ONE
+                # producer (`query.current_marketing_year` over the estate calendar), on every result of a
+                # marketing-year card -- placed right after `query` so the 6,000-char tool_result cut never
+                # reaches it. The system prompt carries the RULE and no year (B9: one sha across as-ofs).
+                _myk = _current_my_keys(spec, reg)
+                try:
+                    rows = Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first)
+                except (Q.NationalFoldDeclined, Q.BalanceSumRefused) as _fd:
+                    # FIX SITTING 2 (Y1 / Y2, PC-1): the national read the card cannot fold honestly, or a
+                    # balance summed across its observations -- DECLINED BY NAME, never one buyer's row and
+                    # never a sum of balances. The message names the read that would serve.
+                    return {"query": spec.model_dump(exclude_none=True), **_myk, "rows": [],
+                            "status": "declined", "scope_note": str(_fd), "absence_reason": "declined",
+                            "numbers_decline": {"reason": str(getattr(_fd, "reason", "") or "declined"),
+                                                "table": str(spec.table),
+                                                "commodity": str(getattr(spec, "commodity", "") or "")}}
                 # D-OJ-8 -- THE ENGINE-SIDE TRUNCATION SENTINEL, taken at the row count THE QUERY
                 # RETURNED. The render-side `series_truncated` can only count the rows that survive the
                 # null drop below, so a read that came back AT the cap and contained nulls arrives under
@@ -4678,14 +4998,19 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     except KeyError:
                         ksem = ""
                     status = "not_known" if ksem == "vintage" else "no_rows"
-                payload = {"query": spec.model_dump(exclude_none=True), "rows": vals, "status": status,
+                payload = {"query": spec.model_dump(exclude_none=True), **_myk, "rows": vals, "status": status,
                            "truncated": _trunc}
                 # D-PQ EMPTY-1, hazards (1) and (2). Stamped HERE, on the payload the model reads while it
                 # still has call budget, and APPENDED so the ESR/period notes `_stamp_scope` adds next can
                 # never overwrite them. The two are mutually exclusive by construction (one needs zero
                 # rows, the other needs exactly one valued row).
                 if not vals:
-                    payload["scope_note"] = _no_rows_note(status)
+                    # FIX SITTING 2 (Q-4, Y4, PC-4): the marker's `why` is the MEASURED reason, carried on the
+                    # payload for the absence seam (M-3) and the trace -- never HEAD's blanket "not yet
+                    # published" for every empty vintage read.
+                    _why = empty_read_reason(spec, status, reg=reg, asof=asof)
+                    payload["absence_reason"] = _why
+                    payload["scope_note"] = _no_rows_note(_why)
                     # ROUND 2 (review F-1, docket #5): APPENDED behind the marker, on the same D-PQ
                     # EMPTY-1 discipline the front-expiry note below uses. The marker says there is no
                     # number here; this says which axis to rule out before calling that an absence.
@@ -4719,7 +5044,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                         payload["scope_note"] = f"{_prior} {_cyc}" if _prior else _cyc
                 return payload
             except Exception as e:  # noqa: BLE001 — a bad lookup must not kill the loop
-                return {"query": dict(b.input), "error": str(e)[:200], "rows": [], "status": "error"}
+                return {"query": dict(b.input), "error": str(e)[:200], "rows": [], "status": "error",
+                        "absence_reason": "error"}
 
         def _stamp_scope(payload: dict) -> dict:
             """Destination-scoped ask hitting the destination-blind export-sales table: tell the MODEL the

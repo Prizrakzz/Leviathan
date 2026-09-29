@@ -15,7 +15,6 @@ import textwrap
 import types
 
 import pytest
-
 from leviathan.graphrag import answer as an
 from leviathan.graphrag.state import narration as N
 from leviathan.graphrag.state import render as R
@@ -348,7 +347,11 @@ def test_A4_the_clause_ships_only_with_the_blocks_handles_and_only_on_a_board_tu
         base + " " + N.positioning_asymmetry_mandate(h)
     assert an._system(positioning_asymmetry=h) == an._system()                    # board-less: invisible
     assert an._system(state_board=True, positioning_asymmetry=()) == base         # no line printed: nothing
-    assert list(inspect.signature(an._system).parameters)[-1] == "positioning_asymmetry"
+    # RE-BANKED 09-26 (fix sitting 2, lane M, CONTRACT Y13 / M-4 -- declared): `positioning_asymmetry` is
+    # followed at the tail by exactly the sitting-2 appends `ask_sides` / `ask_sides_balanced`, both inert at
+    # their defaults. The claim kept: this clause's kwarg is a TAIL append whose default renders HEAD's bytes.
+    _p = list(inspect.signature(an._system).parameters)
+    assert _p[_p.index("positioning_asymmetry") + 1:] == ["ask_sides", "ask_sides_balanced"]
 
 
 def test_A4_the_gate_reads_the_lead_R_prints_and_nothing_else(monkeypatch):
@@ -381,7 +384,9 @@ _ORDER = "Make a market or a reading the subject of every sentence here"
 def test_A5_the_chain_movement_names_its_subject_once_and_the_flag_off_mandate_is_heads():
     for kw in ({"chain": True}, {"chain": True, "nonobvious": True}, {"chain": True, "desk": True}):
         assert N.state_board_mandate(**kw).count(_ORDER) == 1, kw
-    assert "never this page itself" in N.state_board_mandate(chain=True, desk=True)
+    # 09-26 S2 RE-BANK (lane N, N-1): the desk cell's name for the block is the reader's object, read off the
+    # ONE constant answer.py also imports -- "never this page itself" taught "this page" (B39)
+    assert "never %s itself" % N.MANDATE_BLOCK_READER_NAME in N.state_board_mandate(chain=True, desk=True)
     for kw in ({}, {"nonobvious": True}, {"desk": True}):
         assert _ORDER not in N.state_board_mandate(**kw), kw
     assert N.state_board_mandate() is N.SYSTEM_STATE_BOARD_MANDATE

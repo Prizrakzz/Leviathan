@@ -994,7 +994,18 @@ def test_the_flag_cannot_reach_the_walk_or_the_state_block_because_it_is_a_groun
     does not import and does not edit -- `planner` has no import of `leviathan.graphrag.state` anywhere."""
     assert "bridge_query" not in inspect.signature(pl.grounded_subgraph).parameters
     src = inspect.getsource(pl)
-    assert "graphrag.state" not in src and "graphrag import state" not in src
+    # RE-BANKED 09-26 (fix sitting 2, lane M, M-1 / CONTRACT Y10 -- declared): the bridge arm's WINDOW DRAW reads
+    # three READ-ONLY producers of the state package, lazily and only inside `node_window` / `_window_draw`:
+    # `lagbands` (the node's own declared band), `feeders` (the zero-read ref -> card resolver and the cadence
+    # tables) and `walk` (the calendar and the floored-document interval). None of them builds, reads or
+    # renders the BOARD, which is still built in `answer.py` BEFORE `pl.ground` is called -- the claim this pin
+    # keeps. So: no module-level state import, no import of the board's builders or renderers, ever.
+    imported = set(re.findall(r"from leviathan\.graphrag\.state import (\w+)", src))
+    assert imported <= {"lagbands", "feeders", "walk"}, imported
+    assert "graphrag import state" not in src
+    assert not re.search(r"graphrag\.state\.(?:seam|board|render|narration|watch|analogs)\b", src)
+    assert not [ln for ln in src.splitlines() if ln.startswith(("from leviathan.graphrag.state", "import "))
+                and "graphrag.state" in ln]
 
 
 def test_the_credit_metering_stamp_is_present_and_identical_on_both_arms():

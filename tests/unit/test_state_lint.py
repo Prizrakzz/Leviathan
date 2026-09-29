@@ -1269,7 +1269,8 @@ def test_CLAUSE16_reads_the_flag_WHERE_THE_SHIPPED_RENDER_READS_IT():
     assert _NEAR in src
     body = src.split('"""')[2]
     assert "continue" not in body and "del " not in body
-    assert "before the as-of this page is read at" in body, "it APPENDS the distance"
+    # 09-26 S2 RE-BANK (lane N, N-1): the as-of is the readings', never "this page's"
+    assert "before the as-of these readings are taken at" in body, "it APPENDS the distance"
     assert "months_to_asof" in body, "and the distance is the SELECTION's, not a second calendar"
     assert "analog_selection_clauses(a)" in inspect.getsource(R.sb_analog_header)
     # AND THE SELECTION STILL STAMPS IT AS A FLAG, never as a filter -- the other half of the contract.
