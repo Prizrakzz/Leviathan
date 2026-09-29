@@ -18678,8 +18678,21 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
         _think = None   # THE SEAT GATE (arm-d null-arm RCA 2026-08-27): _call_opus is NOT writer-only --
         #                 route_llm borrows it with model=HAIKU (:1951), and an ungated armed seam 400s
         #                 the router on a pre-4.6 seat, killing the answer before the writer runs.
+    if _think is not None and temperature is not None:
+        _think = None   # THE PINNED-TEMPERATURE GATE (2026-09-29, measured on the research probe): the API rejects
+        #                 thinking beside a pinned temperature, and the dispatch planner borrows this call at
+        #                 temperature 0 on a 4.6+ seat. Armed, its call was refused on 6 of 6 turns, the planner
+        #                 fell back to no plan (`plan_usage` null, suppressed_reason no_plan) and THE NUMBERS SEAT
+        #                 NEVER RAN -- a thinking writer was being measured on a page with no numbers lookups.
     if _think is not None:
         kw["thinking"] = _think                        # both serving lanes accept it
+        # THE ARMED CALL'S READ TIMEOUT (2026-09-29): claude-opus-5-5 at effort high sent no byte for longer than
+        # the serving read timeout (GRAPHRAG_LLM_READ_TIMEOUT, 300 s) on every attempt of two turns; the retry
+        # ladder ran 28 minutes and the page was served by the DEGRADED seat (claude-haiku-4-5: 20 struck claims,
+        # judge grounding 2). A model that is thinking is not a stalled stream.
+        _opt = getattr(client, "with_options", None)
+        if callable(_opt):
+            client = _opt(timeout=pv.thinking_timeout())
         # 09-29 THE THINKING CEILING (owner word: "expand the ceiling ... stop shooting ourselves in the
         # foot"). `max_tokens` covers the model's THINKING plus the page, and thinking is billed as output.
         # MEASURED on the research probe of 2026-09-29: four of four armed writer turns (claude-opus-5 and

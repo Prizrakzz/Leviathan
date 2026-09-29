@@ -82,6 +82,13 @@ def _client_timeout():
     return anthropic.Timeout(connect=15.0, read=read, write=60.0, pool=15.0)
 
 
+def thinking_timeout():
+    """The client timeout of a call whose model THINKS (the armed writer). Same shape as `_client_timeout`; only the
+    READ bound moves: GRAPHRAG_LLM_THINKING_READ_TIMEOUT, default 1200 s. See answer._call_opus."""
+    read = float(os.environ.get("GRAPHRAG_LLM_THINKING_READ_TIMEOUT", "1200") or 1200)
+    return anthropic.Timeout(connect=15.0, read=read, write=60.0, pool=15.0)
+
+
 # The adaptive-capable seat set (2026-08-27, the arm-d null-arm RCA): adaptive thinking is a
 # 4.6+ feature, and BOTH thinking seams must gate on the model actually receiving the call --
 # the writer seam's "writer call site only" scoping was FALSE in exactly one place, measured on

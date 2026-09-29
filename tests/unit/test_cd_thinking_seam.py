@@ -277,3 +277,41 @@ def test_the_5_5_seats_carry_a_price_row():
     assert pv.SERVING_PRICES["claude-opus-5-5"] == (4.0, 20.0)
     assert pv.SERVING_PRICES["claude-sonnet-5-5"] == (2.0, 10.0)
     assert pv.serving_cost_usd("claude-opus-5-5", 1_000_000, 1_000_000) == 24.0
+
+
+# ── 09-29 (second fix): the armed seam starved the numbers seat and timed the 5.5 writer out ──
+def test_a_pinned_temperature_never_thinks_even_on_a_capable_seat(monkeypatch):
+    # The dispatch planner borrows `_call_opus` at temperature 0 on claude-sonnet-4-6. Armed, the API refused the
+    # pair, the planner fell back to no plan, and the numbers seat never ran (6 of 6 armed probe turns).
+    from leviathan.graphrag import answer as an
+    monkeypatch.setenv("GRAPHRAG_SYNTH_THINKING", "adaptive")
+    monkeypatch.setenv("GRAPHRAG_PROVIDER", "anthropic")
+    seen = _writer_lanes(monkeypatch)
+    an._call_opus("s", "u", model="claude-sonnet-4-6", tool={"name": "plan"}, temperature=0)
+    assert seen["streamed"] == []
+    kw = seen["buffered"][-1]
+    assert "thinking" not in kw and kw["temperature"] == 0 and kw["max_tokens"] == 12000
+
+
+def test_the_armed_writer_reads_under_the_thinking_timeout(monkeypatch):
+    from leviathan.graphrag import answer as an
+    from leviathan.graphrag import providers as pv
+    monkeypatch.setenv("GRAPHRAG_SYNTH_THINKING", "adaptive")
+    monkeypatch.setenv("GRAPHRAG_PROVIDER", "anthropic")
+    monkeypatch.delenv("GRAPHRAG_LLM_THINKING_READ_TIMEOUT", raising=False)
+    seen = _writer_lanes(monkeypatch)
+    opts = []
+
+    class _Client:
+        def with_options(self, **kw):
+            opts.append(kw)
+            return self
+
+    monkeypatch.setattr(pv, "make_client", lambda: _Client())
+    an._call_opus("s", "u", model="claude-opus-5-5", tool={"name": "emit"})
+    assert opts and opts[-1]["timeout"].read == 1200.0
+    assert seen["streamed"][-1]["thinking"] == {"type": "adaptive"}
+    opts.clear()
+    monkeypatch.delenv("GRAPHRAG_SYNTH_THINKING", raising=False)
+    an._call_opus("s", "u", model="claude-opus-5", tool={"name": "emit"})
+    assert opts == []                                   # the thought-free call keeps the serving timeout
