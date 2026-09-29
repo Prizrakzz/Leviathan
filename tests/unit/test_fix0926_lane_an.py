@@ -23,7 +23,6 @@ import inspect
 import types
 
 import pytest
-
 from leviathan.graphrag.state import analogs as A
 from leviathan.graphrag.state import board as B
 from leviathan.graphrag.state import render as R

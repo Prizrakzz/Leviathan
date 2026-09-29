@@ -495,6 +495,7 @@ _SYSTEM_CASCADE_XCCY = (
 # "board" or "the block" is read from `register.desk_phrase` (the table's own replacement column) or from
 # `narration.MANDATE_BLOCK_READER_NAME` (the name the board's own rows give the record) at import; no
 # replacement phrase is typed here a second time, and a phrase the table changes changes every variant.
+from leviathan.graphrag.state import narration as _snm  # noqa: E402  (U-12's declared clauses)
 from leviathan.graphrag.state.narration import MANDATE_BLOCK_READER_NAME as _PAGE_NAME  # noqa: E402
 
 _EPISODES = reg.desk_phrase("firing", 1)          # "past episodes like this"
@@ -504,8 +505,8 @@ _MARKET = reg.desk_phrase("board", 0)             # "the market"
 
 _SYSTEM_CASCADE_WALK_DESK = (
     f"\nIf {_PAGE_NAME} carries lines beginning 'CONSEQUENCE HOP', a declared cross-market relation has "
-    f"been MEASURED for you over the dated window of one of the {_EPISODES}: transcribe {_READING} "
-    f"of each [N] handle of each {_LINK} verbatim with its handle, and take the direction read ONLY "
+    f"been MEASURED for you over the dated window of one of the {_EPISODES}: state {_READING} "
+    f"of each [N] handle of each {_LINK} with its handle and its figure, and take the direction read ONLY "
     f"from that {_LINK}'s CONSEQUENCE READ line, in its own words, with its in-sample clause -- an 'at odds' "
     "read is a finding to state plainly, never to explain away. NEVER derive any figure from two of them "
     "(no ratio, no spread, no gap, no per-unit arithmetic), never attribute either move to the other as "
@@ -517,28 +518,28 @@ _SYSTEM_CASCADE_WALK_MANDATE_DESK = (
     f"\n{_PAGE_NAME.upper()} CARRIES CONSEQUENCE HOP LINES, AND RENDERING THEM IS MANDATORY: under '## The "
     f"record', for EVERY CONSEQUENCE HOP line on {_PAGE_NAME}, write the settle change of each of the two "
     "markets it names with "
-    "its [N] handle and its figure copied as DIGITS exactly as printed -- each figure is a move inside "
+    "its [N] handle and its figure in DIGITS as printed -- each figure is a move inside "
     f"the currency {_READING} names; write each on its own handle as a fact about {_MARKET} it "
     f"names -- name the dated window of that one of the {_EPISODES} "
-    f"in words exactly as the {_LINK} names it, and state that {_LINK}'s CONSEQUENCE READ in its own terms "
+    f"in words, and state that {_LINK}'s CONSEQUENCE READ "
     f"('held' / 'sat at odds' / 'declines to read a direction'). Never drop a {_LINK} for being "
-    "inconvenient to the thesis -- an 'at odds' read is the finding. State the read in "
-    f"{_PAGE_NAME}'s own words and add NO mechanism story of your own to it (no 'because', no 'rather "
+    "inconvenient to the thesis -- an 'at odds' read is the finding. Add NO mechanism story of your own "
+    "to the read (no 'because', no 'rather "
     "than', no substitution or pass-through gloss -- the K8 panel convicted exactly that clause). A "
     "CONSEQUENCE ABSENCE line is repeated as a stated limit. "
-    f"Name the declared relation in that {_LINK}'s own words, copied from its CONSEQUENCE HOP line "
-    "exactly as that line spells it -- the line's own phrase is the relation's whole name on "
-    f"{_PAGE_NAME}. When the scope of {_READING} carries a window-age clause saying its window ended a "
+    "Name the declared relation, with the direction declared for it where the line states one, and the read "
+    "in your own words. "
+    f"When the scope of {_READING} carries a window-age clause saying its window ended a "
     f"stated span before this as-of, {_READING} is dated history: write its sentence in the past tense, "
-    "anchored on the window's own end date exactly as it prints it, and keep the as-of as the date the "
+    "anchored on the window's own end date, and keep the as-of as the date the "
     "record was read. "
     "This section is not optional on this "
     "turn. ")
 _SYSTEM_CASCADE_CONTEXT_DESK = (
     f"\n{_PAGE_NAME.upper()} CARRIES LINES MARKED CONTEXT (a [N] handle followed by the word CONTEXT, "
     "with a CONSEQUENCE CONTEXT line under each): under '## The record', in a sub-bullet headed Context, "
-    f"transcribe {_READING} of each such line once with its own handle and its figure copied as DIGITS "
-    "exactly as printed, as a standalone observation about the series it names over the months and the "
+    f"state {_READING} of each such line once with its own handle and its figure in DIGITS "
+    "as printed, as a standalone observation about the series it names over the months and the "
     "dated window it states, per the World Bank release it names. Each is a monthly cash average for its "
     "market, and each such line stands on its own: this engine holds no measurement joining it to any "
     f"other line, so each is narrated as a dated fact on its own handle, and each {_LINK}'s read stays "
@@ -553,7 +554,7 @@ _SYSTEM_CASCADE_DEEP_DESK = (
 _SYSTEM_CASCADE_XCCY_DESK = (
     f"\n{_PAGE_NAME.upper()} CARRIES A {_LINK.upper()} WHOSE TWO MARKETS SETTLE IN DIFFERENT CURRENCIES: "
     f"the {_LINK}'s own sentence names both currencies -- name them the same way in your own line, and "
-    "write each market's figure as a move inside that market's own currency, copied as DIGITS exactly as "
+    "write each market's figure as a move inside that market's own currency, in DIGITS as "
     f"printed. Take the direction from that {_LINK}'s CONSEQUENCE READ line together with its currency "
     f"clause, in {_PAGE_NAME}'s own words. Where a line marked EXCHANGE RATE is present, transcribe it "
     "once with its own handle as a dated fact about the rate itself. Every figure on "
@@ -3827,39 +3828,14 @@ def _numbers_budget_note_on(volatile_prompt: str | None) -> bool:
 # as `state/lint.check_literals` grades the board's -- ASCII, `register.register_leaks == []`,
 # `count_flow_words == 0`, `count_valuation_words == 0`, no `_LANE_B_ADJ`, and the banned recency
 # phrase absent -- so a register trip on the mandate is a BUILD failure and never a stripped answer.
-_SYSTEM_WRITER_SEAM = (
-    "\n\nTHE ANSWER'S OWN CONTRACT (the readings above are live this turn, so these five bind):\n"
-    "(1) LENGTH. Write at most {ceiling} words of prose across the TL;DR and every heading together. "
-    "That is a HARD BOUND for this tier and not a target. Keep it by selection: narrate the few "
-    "movements that carry the call -- the readings ranked first above -- and count the rest in one "
-    "sentence rather than walking through each. Spend it on readings, mechanisms and falsifiers; take it "
-    "back from restatement, from a fact given twice under two names, and from history that reaches no "
-    "conclusion. Never drop a figure, a named disagreement or a falsifier to fit it. Nothing you write "
-    "is cut after you, so the bound is yours to keep.\n"
-    "(2) THE TL;DR IS THE ONLY LINE THAT TRAVELS, so it may not say anything its own cited readings "
-    "deny. "
-    "A superlative must be the word its own cited reading carries: if the reading sits at the 91st "
-    "percentile, write 'the 91st percentile of its own record' and not 'record' or 'record high'. Name "
-    "the class the reading names -- soft red winter wheat is not spring wheat, white maize is not "
-    "yellow. "
-    "If the body reads two-sided, the TL;DR says so and names BOTH legs; a summary that carries only "
-    "the legs you favour is the one failure here that cannot be repaired downstream.\n"
-    "(3) EVERY WATCH ITEM CARRIES FOUR THINGS: the figure in its own unit, the date it was read, the "
-    "window it acts in, and the one print that would show it wrong. An item missing any of the four is "
-    "not a watch item -- drop it and take the next candidate offered instead. Do not exceed the number of "
-    "items this turn's selection clause names, and do not add an item that was not offered to you.\n"
-    "(4) A CROSS-MARKET PARAGRAPH STATES ITS HYPOTHESIS BEFORE ITS VERDICT, per pair: the declared "
-    "relation in words, the co-movement that relation predicts, the moves actually observed, then the "
-    "verdict -- 'substitutes should move in opposite directions; both rose; the relation did not hold "
-    "on this window'. Never a verdict with no hypothesis in front of it, and never a relation asserted "
-    "in one direction here and the other direction three lines down. Print no percentage to more than "
-    "two decimals. An episode window more than five years old earns ONE sentence that says what it "
-    "settles, or it is left out.\n"
-    "(5) A DECLINE IS ABOUT OUR RECORD, NEVER ABOUT THE WORLD. When a figure is missing because our "
-    "series does not reach the window asked for, say 'our price history for that market does not reach "
-    "that window' -- never that the market had no price then, which is a claim about the world this "
-    "answer cannot make. Say what we hold and from when, not what existed."
-)
+# 09-27 FIX SITTING 3 (lane A, U-12 (a); CONTRACT Z1): THE CONTRACT IS COMPOSED FROM THE DECLARED CLAUSES
+# (`state/narration.WRITER_SEAM_TEMPLATE`, built from `MANDATE_FACTS` / `MANDATE_RULES`), so the census counts
+# it with every other board-turn mandate and no clause of it is typed twice. The five orders are HEAD's; the two
+# quoted TEMPLATES it handed the writer to copy -- the cross-market paragraph's worked sentence and the decline's
+# "say 'our price history for that market does not reach that window'" -- are now the FACTS those sentences owe
+# (the relation with its sign, the predicted co-move, the observed moves, the verdict; what we hold and from
+# when), and the superlative's worked example is the fact it carried. Board-gated as before (B1 flag-off 0).
+_SYSTEM_WRITER_SEAM = _snm.WRITER_SEAM_TEMPLATE
 
 
 #: FIX SITTING 2 (09-26, lane M by file, N-5 / CONTRACT Y20) -- OWNER DECISION O-S2-1. The writer seam's
@@ -3870,10 +3846,8 @@ _SYSTEM_WRITER_SEAM = (
 #: that could disagree is the S2-12 defect this sitting found.
 CEILING_CUT_APPLIES: bool = False
 #: The ONE sentence that changes with it (needle-substituted inside `_system_writer_seam_mandate`).
-_WRITER_SEAM_NO_CUT = "Nothing you write is cut after you, so the bound is yours to keep."
-_WRITER_SEAM_CUT = ("A draft over the bound loses its lowest-ranked whole movement paragraphs after you -- never "
-                    "the TL;DR, the chain, the disagreement, the watch list, a falsifier or the only citation of a "
-                    "reading the TL;DR names -- so keep the movements that carry the call.")
+_WRITER_SEAM_NO_CUT = _snm.WRITER_SEAM_NO_CUT          # the declared clauses (U-12), HEAD's words
+_WRITER_SEAM_CUT = _snm.WRITER_SEAM_CUT
 
 
 def _system_writer_seam_mandate(prose_mode: str | None = None) -> str:
@@ -3885,6 +3859,75 @@ def _system_writer_seam_mandate(prose_mode: str | None = None) -> str:
     default: a caller with no tier is not a caller whose answer should be squeezed."""
     m = _SYSTEM_WRITER_SEAM.format(ceiling=_rc.prose_ceiling(prose_mode))
     return m.replace(_WRITER_SEAM_NO_CUT, _WRITER_SEAM_CUT) if CEILING_CUT_APPLIES else m
+
+
+def _mandate_parts(*, state_board: bool = False, prose_mode: str | None = None, watch_selection: bool = False,
+                   state_chain: bool = False, desk_register: bool = False, ask_head: tuple = (),
+                   horizon_row: bool = False, positioning_asymmetry: tuple = (), ask_sides: tuple = (),
+                   ask_sides_balanced: bool = True, ask_netting: tuple = ()) -> list:
+    """THE BOARD-TURN MANDATE LEGS, ``[(name, text), ...]`` in the order `_system` appends them, each text carrying
+    its own leading separator (so ``"".join`` is HEAD's concatenation byte for byte). 09-27 FIX SITTING 3 (lane A,
+    U-12; CONTRACT Z1): ONE producer for the prompt `_system` assembles and the census the answer seam stamps.
+
+    THE LEGS, EACH ON HEAD's GATE:
+      * ``panel`` -- the book's one sentence that the block is the PANEL the writer reads, not the text it prints
+        (U-12 (b); `narration.panel_mandate`, lane R's `panel_words.mandate`, CONTRACT Z9); inside ``state_board``,
+        BEFORE the board's own mandate; absent while the book declares none;
+      * ``state_board_mandate`` -- STATE ENGINE 6.4's mandate (`narration.state_board_mandate`, the literal lives
+        there and `state/lint.py` grades it at build): movement (4) restated for the NON-OBVIOUS watch draw under
+        ``watch_selection`` (WP-A2), the fifth movement under ``state_chain`` (S8), the record's reader-facing
+        name under ``desk_register`` (K19). It DEMANDS a narration order and narrows no number rule, so it sits
+        above `_SYSTEM_HANDLES`;
+      * ``writer_seam`` -- lane E's contract for this tier (`_system_writer_seam_mandate`), immediately after the
+        board's own (the desk and selection legs are pinned as pure appends after both);
+      * ``ask_head`` / ``horizon`` / ``positioning`` / ``ask_call`` -- the TL;DR clauses, each ONLY over the block
+        lines that print its rows (K8 / K21 / P9 / Y13 -- the `_cascade_walk_block_on` marker idiom); the call
+        clause carries the netting facts the same line printed (U-7, ``ask_netting``; `()` -> HEAD's clause);
+      * ``watch_selection`` -- S7b lane W's selection licence (`state.watch.WATCH_SELECTION_CLAUSE`, lane AN's
+        constant, appended as one), on the SAME gate the board's mandate is (the flag AND the block's marker);
+      * ``desk_register`` -- S7b R2's register mandate, its own flag-scoped leg (the vocabulary it fences is the
+        ANSWER's: "the graph" leaks on a walk turn with no board), its RECENCY half riding ``state_board``
+        (review MAJOR 4). With every flag off nothing is emitted and `_system` is HEAD's bytes."""
+    out: list = []
+    if state_board:
+        _panel = _snm.panel_mandate()
+        if _panel:
+            out.append(("panel", _panel + " "))
+        out.append(("state_board_mandate",
+                    _snm.state_board_mandate(nonobvious=bool(watch_selection), chain=bool(state_chain),
+                                             desk=True) if desk_register else
+                    _snm.state_board_mandate(nonobvious=bool(watch_selection), chain=bool(state_chain))))
+        out.append(("writer_seam", _system_writer_seam_mandate(prose_mode)))
+        if ask_head:
+            out.append(("ask_head", " " + _snm.ask_head_mandate(ask_head)))
+        if horizon_row:
+            out.append(("horizon", " " + _snm.MANDATE_HORIZON_ROW))
+        if positioning_asymmetry:
+            out.append(("positioning", " " + _snm.positioning_asymmetry_mandate(positioning_asymmetry)))
+        if ask_sides:
+            _acm = getattr(_snm, "ask_call_mandate", None)
+            if callable(_acm):
+                # the netting facts ride the call clause's own TAIL kwarg; HEAD's call when there are none
+                out.append(("ask_call", " " + (_acm(tuple(ask_sides), balanced=bool(ask_sides_balanced),
+                                                    netting=ask_netting)
+                                               if ask_netting else
+                                               _acm(tuple(ask_sides), balanced=bool(ask_sides_balanced)))))
+    if watch_selection:
+        out.append(("watch_selection", _snm.watch_selection_mandate()))
+    if desk_register:
+        out.append(("desk_register", _snm.desk_register_mandate(state_board=bool(state_board))))
+    return out
+
+
+def _mandate_census(legs) -> dict | None:
+    """`narration.mandate_census` over the legs `_mandate_parts` emitted (CONTRACT Z1), or None when nothing was
+    emitted or the census cannot be read -- an instrument never breaks the answer it measures."""
+    if not legs:
+        return None
+    try:
+        return _snm.mandate_census({name: text for name, text in legs})
+    except Exception:  # noqa: BLE001 -- no census, no key
+        return None
 
 
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
@@ -3925,7 +3968,12 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             # the handles of the block lines that print lane N's ASK-SIDES lead (the board's settled side
             # counts beside the front price); empty -> no clause, HEAD's bytes (B1). `ask_sides_balanced`
             # is the board's own count read (`_ask_sides_balanced`): level -> "name both legs", never a lean.
-            ask_sides: tuple = (), ask_sides_balanced: bool = True) -> str:
+            ask_sides: tuple = (), ask_sides_balanced: bool = True,
+            # 09-27 FIX SITTING 3 (lane A, U-7; CONTRACT Z4): THE CALL'S NETTING FACTS, appended at the TAIL after
+            # `ask_sides_balanced` for the same pinned reason -- `{part: (handle, ...)}` (or a tuple of such pairs)
+            # of the netting facts the ASKED SIDES line PRINTED (`_ask_netting_printed`); empty -> HEAD's clause
+            # byte for byte (B1). Read only inside the `ask_sides` clause, so it can never ship on its own.
+            ask_netting: tuple = ()) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -4101,90 +4149,19 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         #                                                              any number rule, so the order
         #                                                              between them carries no meaning
         #                                                              beyond that.
-    if state_board:                                                # STATE ENGINE 6.4: the board's MANDATE,
-        #                                                          #   seam-gated on BOTH legs by
-        #                                                          #   `_state_board_block_on(vp)` -- the
-        #                                                          #   flag AND the block's own marker in
-        #                                                          #   the assembled volatile prompt.
-        # THE LITERAL LIVES IN `state/narration.py`, not here, and that is the register fence rather
-        # than tidiness: `state/lint.py` grades it at BUILD against `pace_register_ok`,
-        # `register.count_flow_words`, `count_valuation_words` and `register_leaks`, so a serve-time
-        # register trip on the mandate is a build failure and not a stripped answer. It is appended
-        # BELOW `numbers_budget` and ABOVE `_SYSTEM_HANDLES` for the reason `handles` keeps the last
-        # word: this mandate DEMANDS a narration order, it does not narrow a number rule, so it must
-        # not sit under the leg that supersedes four number spans.
-        # COHERENCE AUDIT 2026-09-16 (WP-A2): the mandate's movement (4) tells the writer to "close
-        # with the WATCH rows -- the next scheduled print, the level a convention names, the date a
-        # declared lag window opens". Under GRAPHRAG_WATCH_NONOBVIOUS the release-calendar kind is
-        # BANNED AT NOMINATION (watch.py:475-479) and the scheduled prints ride ONE dated footnote
-        # OUTSIDE the ceiling, so the mandate was asking for the one class the producer now refuses --
-        # and "close with THE WATCH ROWS" tells the writer to reproduce rows the SELECTION CLAUSE, on
-        # the same turn, opens by denying ("CANDIDATES nominated for you, not a list to reproduce").
-        # The variant rides `watch_selection`, which is already the flag AND the block's own marker, so
-        # a board turn with the watch flag off keeps HEAD's mandate byte for byte.
-        # S8 (2026-09-17): THE FIFTH MOVEMENT, "THE CHAIN", rides `state_chain` -- the chain flag AND
-        # the board's own marker AND a chain row actually in the prompt (`_state_chain_block_on`). It
-        # is a SECOND kwarg on the SAME producer rather than a second leg appended beside it, because
-        # the movement lands BETWEEN (2) EVIDENCE and (3) SPILLOVERS and renumbers the two below it:
-        # an appended paragraph could not do that, and two paragraphs numbering the same movements
-        # differently is the coherence defect the 09-16 audit spent a lane closing. DEFAULT FALSE on
-        # BOTH kwargs == HEAD's bytes, which lane N proved cell by cell.
-        from leviathan.graphrag.state import narration as _sn  # lazy: phase-2 only, gate-guarded
-        # 09-24 K19: `desk` is THIS function's own `desk_register` bool (the flag, read once by the
-        # caller), so the mandate stops teaching "the block" exactly on the turns the register is lit;
-        # False -> `state_board_mandate` returns HEAD's text (the SAME object on the default cell, B3).
-        base = base + (_sn.state_board_mandate(nonobvious=bool(watch_selection),
-                                               chain=bool(state_chain), desk=True)
-                       if desk_register else
-                       _sn.state_board_mandate(nonobvious=bool(watch_selection),
-                                               chain=bool(state_chain)))
-        # LANE E (2026-09-17): THE WRITER SEAM MANDATE, appended IMMEDIATELY AFTER the board's own and
-        # INSIDE the same branch. The position is not cosmetic and it is pinned in three decks: the
-        # desk-register leg asserts `_system(state_board=True, desk_register=True) == _system(
-        # state_board=True) + desk_register_mandate(...)` and lane W's asserts the same shape for the
-        # selection clause, so a leg appended AFTER either of them would red both with no defect. It
-        # sits ABOVE `_SYSTEM_HANDLES` for the reason that leg keeps the last word: this mandate asks
-        # for a LENGTH, a hypothesis order and a decline's wording; it narrows no number rule.
-        base = base + _system_writer_seam_mandate(prose_mode)
-        # 09-24 FIX ROUND 2 (lane A, CONTRACT K8 / K21): THE ASK AND THE HORIZON reach the TL;DR. Each is
-        # appended ONLY when the block carries its rows (`ask_head` = the handles the head printed;
-        # `horizon_row` = the horizon-answering chain's outcome is on the block) -- the marker idiom of
-        # `_cascade_walk_block_on`, resolved by the caller off the block it shipped. Both default off
-        # -> HEAD's bytes on every existing cell (B1).
-        if ask_head:
-            base = base + " " + _sn.ask_head_mandate(ask_head)
-        if horizon_row:
-            base = base + " " + _sn.MANDATE_HORIZON_ROW
-        # 09-26 (A-4, CONTRACT P9): the positioning card's own asymmetry words, beside the position -- ONLY when
-        # the block printed them (`positioning_asymmetry` = the handles of the lines carrying R's lead)
-        if positioning_asymmetry:
-            base = base + " " + _sn.positioning_asymmetry_mandate(positioning_asymmetry)
-        # FIX SITTING 2 (09-26, lane M, CONTRACT Y13 / M-4): the ask head's side counts and the front price
-        # reach the TL;DR -- ONLY when the block printed the line (`ask_sides` = its handles) and lane N's
-        # clause producer exists (read defensively: absent -> no clause). The clause names the LINE, never a
-        # number, and on a level board it asks for both legs (threat M4-a / M4-b).
-        if ask_sides:
-            _acm = getattr(_sn, "ask_call_mandate", None)
-            if callable(_acm):
-                base = base + " " + _acm(tuple(ask_sides), balanced=bool(ask_sides_balanced))
-    if watch_selection:                                            # S7b LANE W: the fifth movement's
-        # SELECTION LICENCE, landed by the sec 6.1 seam protocol and appended as ONE constant lane W
-        # owns (`state.watch.WATCH_SELECTION_CLAUSE`). It rides the SAME gate the board's mandate
-        # does, so a writer is never told to select from candidates the board did not nominate --
-        # which is the `_cascade_walk_block_on` failure the estate already measured, one lane over.
-        from leviathan.graphrag.state import narration as _sn3  # lazy: flag-guarded
-        base = base + _sn3.watch_selection_mandate()
-    if desk_register:                                              # S7b R2: the DESK REGISTER, its own
-        # flag-scoped literal appended BESIDE the board mandate and never an edit to it -- the
-        # `_SYSTEM_CASCADE_WALK_MANDATE` idiom. It ships on its own leg rather than inside the
-        # `state_board` branch because the vocabulary it fences is the ANSWER's, not the block's: "the
-        # graph" leaks on a cascade-walk turn that carries no board at all. With the flag off this
-        # branch is never taken and the assembled prompt is HEAD's byte for byte.
-        # REVIEW MAJOR 4: the BAN half is turn-wide, the RECENCY half rides `state_board` -- the same
-        # bool the board's own mandate is gated on, so the writer is never told to state three dated
-        # facts off a block this turn does not carry.
-        from leviathan.graphrag.state import narration as _sn2  # lazy: flag-guarded
-        base = base + _sn2.desk_register_mandate(state_board=bool(state_board))
+    # 09-27 FIX SITTING 3 (lane A, U-12; CONTRACT Z1): THE BOARD-TURN MANDATE LEGS HAVE ONE PRODUCER NOW,
+    # `_mandate_parts`, which returns them IN THE ORDER AND WITH THE SEPARATORS this function always appended
+    # them -- the board's own mandate and its TL;DR clauses (inside `state_board`), the selection clause (the
+    # flag AND the block's marker), the desk register (its own flag-scoped leg) -- so the census the answer
+    # seam stamps (`writer_seam.mandate_census`) reads exactly the text the writer was handed, and a leg can
+    # never ship here without being counted there. Every gate, order and separator is HEAD's; the leg-by-leg
+    # doctrine lives in `_mandate_parts`' own notes. Nothing emitted -> `base` is untouched (the `is` pins).
+    _legs = _mandate_parts(state_board=state_board, prose_mode=prose_mode, watch_selection=watch_selection,
+                           state_chain=state_chain, desk_register=desk_register, ask_head=ask_head,
+                           horizon_row=horizon_row, positioning_asymmetry=positioning_asymmetry,
+                           ask_sides=ask_sides, ask_sides_balanced=ask_sides_balanced, ask_netting=ask_netting)
+    if _legs:
+        base = base + "".join(text for _name, text in _legs)
     if handles:                                                    # D-HP-7/8: LAST of the legs, because it
         base = base + _SYSTEM_HANDLES                              #   NARROWS every number rule above it
     # COHERENCE AUDIT 2026-09-16 (WP-A3 / WP-A7): the directive is appended LAST of every leg -- after
@@ -5071,12 +5048,20 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # `()` / True on every board-off turn (no clause)
     _sides_printed: tuple = ()
     _sides_balanced: bool = True
+    # 09-27 SITTING 3 (U-7, CONTRACT Z4): the netting facts the ASKED SIDES line printed, `{part: (handles)}`;
+    # `{}` on every board-off turn and on every block that printed none (HEAD's call clause, byte for byte)
+    _net_printed: dict = {}
     # FIX SITTING 2 (N-5, Y20): the board's own movement ranks for the ceiling cut; None on every board-off turn
     _mv_ranks = None
     if _board is not None:
         _board_n_start = len(extra_number_calls or []) + 1
         _ledger = _evidence_ledger(_uniq, menu_printed=_menu_on)   # 09-25 AT-3: the decision the menu rendered from
-        _s2_kw = _stage2_kwargs(_sbs, ledger=_ledger, uniq=_uniq,
+        # 09-27 SITTING 3 (S2 M-3, CONTRACT Z16 / Y22): THE ONE ISSUER OF [N] FOR THE BOARD'S ROWS, seeded by the
+        # seat's served calls at their own handles (the EvidenceLedger law: built on a board turn only, never
+        # flag-off) and handed to a seam that DECLARES the kwarg -- the block asks it before minting a handle, so
+        # one served row identity at one value is ONE [N] on the page (sitting 2's measured duplicates).
+        _nledger = _numbers_ledger(extra_number_calls, _board_n_start)
+        _s2_kw = _stage2_kwargs(_sbs, ledger=_ledger, uniq=_uniq, numbers_ledger=_nledger,
                                 ask_rows=_ask_rows(extra_number_calls, _named_q),
                                 extra_kd=list(extra_number_calls or []),
                                 page_markets=_page_markets,
@@ -5114,10 +5099,19 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 pass
         _ask_printed = _ask_head_printed(_s2_kw.get("ask_rows"), _sb.get("block"))
         _pos_printed = _positioning_asymmetry_printed(_sb.get("block"))
-        _sides_bal = _ask_sides_balanced(_sb.get("trace"))
+        # 09-27 SITTING 3 (S2 V-4): the balanced / lean choice reads the ASKED SIDES line's OWN printed counts
+        # (its registered count scalars) -- the line the clause names -- and falls back to HEAD's board-wide
+        # C-I3b counters only where the line's own counts cannot be read.
+        _sides_bal = _ask_sides_line_balanced(_sb.get("block"), _sb.get("served_scalars"))
+        if _sides_bal is None:
+            _sides_bal = _ask_sides_balanced(_sb.get("trace"))
         # an unread count carries no clause at all (the balanced clause asserts a level count)
         _sides_printed = _ask_sides_printed(_sb.get("block")) if _sides_bal is not None else ()
         _sides_balanced = bool(_sides_bal) if _sides_bal is not None else True
+        # 09-27 SITTING 3 (U-7, Z4): the netting parts the SAME line printed, each by its own handle
+        _net_printed = (_ask_netting_printed(_sb.get("block"), served_scalars=_sb.get("served_scalars"),
+                                             netting_trace=(_sb.get("trace") or {}).get("ask_netting"))
+                        if _sides_printed else {})
         _mv_ranks = _movement_ranks(_board, _sb.get("block"))
         if _sb.get("block") and _quant_on:
             volatile_blocks = volatile_blocks + [_sb["block"]]
@@ -5616,6 +5610,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # structured field ONLY when the board block reached it -- the marker the board mandate itself is gated
     # on. OMIT-WHEN-OFF: a board-less turn calls `_answer_tool(handles=...)` exactly as HEAD did.
     _dd_tool_kw = {"declare_direction": True} if _state_board_block_on(vp) else {}
+    # 09-27 SITTING 3 (U-12, CONTRACT Z1): the netting facts ride the call clause (U-7, Z4) -- only when the block
+    # the writer is handed carries the board's marker, like every other TL;DR clause.
+    _net_kw = {"ask_netting": _net_printed} if (_net_printed and _state_board_block_on(vp)) else {}
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               cascade_walk=_cascade_walk_block_on(vp),
                               cascade_context=_cascade_context_block_on(vp),
@@ -5662,11 +5659,22 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                               #                                     board-less turn is byte-identical
                               census=_census,                     # D-CC-1: None on every dark turn
                               provenance=_provenance,             # D-MW-30: False on every non-esc_r turn
-                              handles=_handles),                  # D-HP-7/8: False on every non-_hp turn
+                              handles=_handles,                   # D-HP-7/8: False on every non-_hp turn
+                              **_net_kw),                         # U-7: omitted when no part was printed
                       _pack(sp, vp, use_blocks), model=model,
                       tool=(_answer_tool(handles=_handles) if not _dd_tool_kw     # D-HP-7/9: `plan` in,
                             else _answer_tool(handles=_handles, **_dd_tool_kw)),   # `sources` out; C-I3a on
                       **call_kw)                                                   # a board turn only
+    # 09-27 SITTING 3 (U-12, CONTRACT Z1): THE MANDATE CENSUS over the legs `_system` just appended, read through
+    # the SAME producer (`_mandate_parts`) with the SAME resolved arguments -- stamped below on `writer_seam`.
+    # None on every board-less turn (no board leg is emitted there).
+    _mcensus = (_mandate_census(_mandate_parts(
+        state_board=True, prose_mode=mode_name, desk_register=_desk_register_on(),
+        watch_selection=(_watch_nonobvious_on() and _state_board_block_on(vp)), state_chain=_state_chain,
+        ask_head=_ask_printed, horizon_row=bool(_horizon_row_on(_board, (_sb or {}).get("block")
+                                                                if _board is not None else "")),
+        positioning_asymmetry=_pos_printed, ask_sides=_sides_printed, ask_sides_balanced=_sides_balanced,
+        ask_netting=_net_printed)) if _state_board_block_on(vp) else None)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
@@ -5938,7 +5946,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                             # 09-24 K9: the turn's own routed contracts, distance 0
                                             page_markets=_page_markets).items():
                 if _bv:
-                    _clints[_bk] = int(_bv)
+                    # 09-27 SITTING 3 (U-12 (c), Z2): ADDED, never overwritten -- the backstop's told-withhold and
+                    # L1's share the one `append_withheld_told` count (every other key is the backstop's own)
+                    _clints[_bk] = int(_clints.get(_bk) or 0) + int(_bv)
             # STAMPED IFF SOMETHING WAS READ OR DONE, the `bar_adjectives` rule: `outcome` alone is not
             # a finding, and a key stamped on every chain turn would move an eval column for no
             # measured reason. A turn whose block carried chains the writer never narrated is a real
@@ -5985,6 +5995,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 **({"ranks": _mv_ranks} if _mv_ranks else {}))
             if isinstance(_nbl, dict) and isinstance(sg.trace.get("writer_seam"), dict):
                 sg.trace["writer_seam"]["name_binding"] = _nbl
+            # 09-27 SITTING 3 (U-12, CONTRACT Z1): the census of the mandates this turn handed the writer --
+            # words, sentences, asks, facts required, rules, "exactly as", undeclared words -- on the
+            # already-registered `writer_seam` key (TRACE_RECORD_KEYS unchanged); absent off a board turn.
+            if isinstance(_mcensus, dict) and isinstance(sg.trace.get("writer_seam"), dict):
+                sg.trace["writer_seam"]["mandate_census"] = _mcensus
         sg.trace["number_handles"] = _resolve_number_handles(structured, extra_number_calls,
                                                              handle_prose=_handles)
         # H1 FIX Z1/Z6: the three D-HP-native render classes join the ONE strip ledger, so the class scan,
@@ -6403,7 +6418,7 @@ def _callable_params(fn) -> frozenset:
 
 
 def _stage2_kwargs(sbs, *, ledger, uniq: list, ask_rows=None, extra_kd=None, page_markets=None,
-                   recency_layers=None) -> dict:
+                   recency_layers=None, numbers_ledger=None) -> dict:
     """The ADDRESS kwargs `fill_stage2` receives this turn. With the ledger AND a seam that declares
     `evidence_address`: ``{"evidence_address": ledger.address}`` -- K1 REPLACES `e_start` and
     `evidence_ordinals`. Otherwise HEAD's two kwargs, byte for byte. `ask_rows` / `extra_kd` (K8, item 9)
@@ -6425,7 +6440,29 @@ def _stage2_kwargs(sbs, *, ledger, uniq: list, ask_rows=None, extra_kd=None, pag
     # to a seam that declares the kwarg (lane N's reader), omitted when empty
     if recency_layers and "recency_layers" in params:
         out["recency_layers"] = dict(recency_layers)
+    # 09-27 SITTING 3 (S2 M-3, CONTRACT Z16): the board turn's numbers ledger, to a seam that declares the kwarg
+    # (lane R's `fill_stage2(..., numbers_ledger=)`); never passed to one that does not, never None
+    if numbers_ledger is not None and "numbers_ledger" in params:
+        out["numbers_ledger"] = numbers_ledger
     return out
+
+
+def _numbers_ledger(calls, board_n_start):
+    """CONTRACT Z16 / Y22's call site: ``citations.NumbersLedger`` seeded with the seat's served ``calls`` at their
+    own handles (``1 .. len(calls)``), so the next handle it issues is the board's own start -- asserted, never
+    assumed: a ledger whose next handle is not ``board_n_start`` is not passed (None, HEAD's numbering). None when
+    the producer is absent or raises (the EvidenceLedger law: an unbuildable ledger is HEAD's counter)."""
+    cls = getattr(cit, "NumbersLedger", None)
+    if cls is None:
+        return None
+    try:
+        calls = list(calls or [])
+        led = cls(calls, n_start=1)
+        if int(getattr(led, "n_start", 1)) + len(calls) != int(board_n_start):
+            return None
+        return led
+    except Exception:  # noqa: BLE001 -- a ledger that cannot be built is HEAD's numbering, never a raise
+        return None
 
 
 def _evidence_chunks_kw(vf, ledger) -> dict:
@@ -6650,6 +6687,121 @@ def _ask_sides_printed(block) -> tuple:
                 if tok not in out:
                     out.append(tok)
     return tuple(out)
+
+
+def _ask_sides_lines(block) -> list:
+    """The block lines that carry lane N's ASK-SIDES lead (`render.ASK_SIDES_LEAD`, the ONE spelling), in block
+    order; ``[]`` when the constant is absent or empty, or no line carries it."""
+    try:
+        from leviathan.graphrag.state import render as _sr  # lazy: phase-2 only
+        lead = str(getattr(_sr, "ASK_SIDES_LEAD", "") or "")
+    except Exception:  # noqa: BLE001 -- no producer, no line
+        return []
+    if not lead.strip() or not block:
+        return []
+    return [ln for ln in str(block).splitlines() if lead in ln]
+
+
+def _ask_netting_printed(block, served_scalars=None, netting_trace=None) -> dict:
+    """09-27 FIX SITTING 3 (lane A, U-7; CONTRACT Z4): ``{part: (handle, ...)}`` -- the netting facts the ASKED SIDES
+    line PRINTED, each part (``opposing`` / ``event`` / ``tape``, `narration.NETTING_PARTS`) with the handles lane
+    R's clause cites for it. The PART is read off the facts the render registered with each figure (the served
+    scalars of kind ``netting``, tail key ``part``, and the event's ``e_handle``) and off the seam's own record of
+    the parts that clause printed (``state_board["ask_netting"]``: ``opposing`` / ``event`` / ``event_e`` /
+    ``tape``); a handle counts ONLY where it is written on a line carrying ``render.ASK_SIDES_LEAD`` -- a part the
+    block did not print is never named (threat A7-a / R7-e). ``{}`` when nothing qualifies, so the call clause
+    stays HEAD's byte for byte."""
+    lines = _ask_sides_lines(block)
+    if not lines:
+        return {}
+    printed = set()
+    for ln in lines:
+        for m in _N_HANDLE_RX.finditer(ln):
+            printed.update("[N%d]" % i for i in _n_handle_members(m.group(0)))
+        for m in _E_HANDLE_RX.finditer(ln):
+            printed.update("[E%d]" % int(i) for i in _e_handle_members(m.group(0)))
+    found: dict = {}
+
+    def _add(part: str, tok: str) -> None:
+        if part and tok in printed and tok not in found.setdefault(part, []):
+            found[part].append(tok)
+
+    for sc in (served_scalars or ()) if isinstance(served_scalars, (list, tuple)) else ():
+        if not isinstance(sc, dict) or str(sc.get("kind") or "") != "netting":
+            continue
+        part = str(sc.get("part") or "")
+        try:
+            if sc.get("handle"):
+                _add(part, "[N%d]" % int(sc["handle"]))
+            if part == "event" and sc.get("e_handle"):
+                _add(part, "[E%d]" % int(sc["e_handle"]))
+        except (TypeError, ValueError):
+            continue
+    nt = netting_trace if isinstance(netting_trace, dict) else {}
+    try:
+        for h in (nt.get("opposing") or ()):
+            _add("opposing", "[N%d]" % int(h))
+        if nt.get("event"):
+            _add("event", "[N%d]" % int(nt["event"]))
+        if nt.get("event_e"):
+            _add("event", "[E%d]" % int(nt["event_e"]))
+        if nt.get("tape"):
+            _add("tape", "[N%d]" % int(nt["tape"]))
+    except (TypeError, ValueError):
+        pass
+    order = tuple(getattr(_snm, "NETTING_PARTS", ("opposing", "event", "tape")))
+    return {k: tuple(found[k]) for k in order if found.get(k)}
+
+
+def _ask_sides_line_counts(block, served_scalars) -> list | None:
+    """09-27 FIX SITTING 3 (lane A, S2 V-4): ``[(for, against), ...]`` -- each printed ASKED SIDES line's OWN
+    settled-side counts, one pair per line in block order, read off the figures the render REGISTERED for that
+    clause (`render.sb_ask_sides`: three count scalars of noun ``readings`` -- for, against, unsettled, in that
+    order -- committed with the line's own row class, the class `render.classify` gives the line). Each pair is
+    checked against the line itself: the scalar's own printed words followed by the book's word for its side
+    (``ask_sides_words``, the declared vocabulary the clause is printed in) must stand on THAT line. ``None`` when
+    the line's counts cannot be read that way (no line, no pool, a count missing or misaligned): the caller then
+    reads HEAD's board-wide counters, never a guess."""
+    lines = _ask_sides_lines(block)
+    if not lines or not isinstance(served_scalars, (list, tuple)):
+        return None
+    try:
+        from leviathan.graphrag.state import render as _sr  # lazy: phase-2 only
+        classes = set()
+        for ln in lines:
+            classes.update(_sr.classify(ln.strip()) or ())
+        words = {k: str(_sr.book_words("ask_sides_words", k) or "") for k in ("for", "against", "unsettled")}
+    except Exception:  # noqa: BLE001 -- no classifier or no book: the line's counts are unread
+        return None
+    if not classes or not all(words.values()):
+        return None
+    cnt = [sc for sc in served_scalars if isinstance(sc, dict) and str(sc.get("kind") or "") == "count"
+           and str(sc.get("unit") or "") == "readings" and str(sc.get("cls") or "") in classes]
+    if len(cnt) != 3 * len(lines):
+        return None
+    out: list = []
+    for i, ln in enumerate(lines):
+        trip = cnt[3 * i:3 * i + 3]
+        low = ln.lower()
+        for sc, side in zip(trip, ("for", "against", "unsettled")):
+            if ("%s %s" % (str(sc.get("text") or ""), words[side])).lower() not in low:
+                return None
+        try:
+            out.append((int(float(trip[0]["value"])), int(float(trip[1]["value"]))))
+        except (TypeError, ValueError, KeyError):
+            return None
+    return out
+
+
+def _ask_sides_line_balanced(block, served_scalars) -> bool | None:
+    """V-4: is every printed ASKED SIDES line's OWN count LEVEL? ``True`` when each line settles as many readings
+    one way as the other (zero on both included -- the balanced clause's own claim, "counts as many readings on
+    this market settling one side as the other", is then true of every line it names); ``False`` when any line
+    leans; ``None`` when the lines' own counts cannot be read (the caller falls back to HEAD's counters)."""
+    pairs = _ask_sides_line_counts(block, served_scalars)
+    if not pairs:
+        return None
+    return all(f == a for f, a in pairs)
 
 
 #: C-I3b's three settled-side counters (lane N mints them on the board's `counters`), read by name.
@@ -11614,7 +11766,12 @@ _CHAIN_SKIP_CLOSE = " between these two"
 #: against is the head's own ordinal and the below-print-line class ("the chains below this page's own
 #: selection line are counted here; the reading behind each of them is still on the page"). Both say
 #: CARRIES or COUNTS and neither says RANKED, which is the whole of the ruling.
-_CHAIN_UNRANKED_CLAUSE = " -- this chain is not one this page carries"
+#: 09-27 FIX SITTING 3 (lane A, U-12 / OI-2): THE RECORD BY ITS READER-FACING NAME, NEVER "this page". Lane R's
+#: OI-2 put "this page" on the desk-register token table (the recon measured the writer copying it), and this
+#: clause -- the one L3 stamp this pass writes INTO the writer's own sentence -- was the last producer of it on a
+#: board page. It now names the record the way the mandate does (`narration.MANDATE_BLOCK_READER_NAME`, K19 /
+#: N-1): the verb and the claim are HEAD's ("carries"), only the record's name moved. Chain-flag only (DM2).
+_CHAIN_UNRANKED_CLAUSE = " -- this chain is not one %s carries" % _PAGE_NAME
 _CHAIN_TERMINATORS = ".!?;"
 #: The cite a rendered hop line carries for its OWN reading -- always the LAST token of the line's head
 #: (`render.sb_chain_hop` writes `prefix + humanise(driver_id) + cite + ":"`), never the terminal's.
@@ -12211,6 +12368,60 @@ def _chain_pool_carry(board) -> dict:
     return out
 
 
+def _fact_told(prose: str, *, handles=(), names=()) -> bool:
+    """09-27 FIX SITTING 3 (lane A, U-12 (c); CONTRACT Z2): IS THIS FACT ALREADY ON THE PAGE? True where ``prose``
+    carries one of the fact's LEDGER ADDRESSES (``handles``: an ``[N]`` / ``[E]`` address -- given as ``12``,
+    ``"N12"``, ``"[N12]"`` or ``"[E3]"`` -- read through the estate's handle parsers, grouped tokens included) or
+    one of its WHOLE NAMES (``names``: each tested by the render's own word-bounded matcher,
+    ``render._token_hit`` -- the name's own words joined hyphen- and case-insensitively, sitting 2 N-L1 -- never
+    a single word lifted out of it). The CALLER passes the fact's whole names (a reading's own printed figure,
+    for instance); a name is never split here.
+
+    THE APPEND SEAMS READ IT (the L1 chain lint, the absence append; the chain backstop reads the same two kinds of
+    evidence at the LINK level through lane R's own producers, `render.chain_referenced_in` /
+    `chain_referenced_adjacent_in`): an append the page already carries by address or whole name is furniture,
+    so it is withheld and COUNTED (``append_withheld_told``), never silent. REJECTED: a stop list, a word floor,
+    a single-word route (sitting 1 M1's rejected forms)."""
+    text = str(prose or "")
+    if not text:
+        return False
+    want_n, want_e = set(), set()
+    for h in handles or ():
+        if h is None or h is False:
+            continue
+        if isinstance(h, int):
+            if h > 0:
+                want_n.add(int(h))
+            continue
+        s = str(h).strip().strip("[]").strip()
+        m = re.fullmatch(r"([NnEe]?)\s*(\d+)[a-z]?", s)
+        if not m or int(m.group(2)) <= 0:
+            continue
+        (want_e if m.group(1).upper() == "E" else want_n).add(int(m.group(2)))
+    if want_n and want_n & set(_seam_cited(text)):
+        return True
+    if want_e:
+        for m in _E_HANDLE_RX.finditer(text):
+            if want_e & {int(i) for i in _e_handle_members(m.group(0))}:
+                return True
+    nm = [str(n).strip() for n in (names or ()) if str(n or "").strip()]
+    if nm:
+        try:
+            from leviathan.graphrag.state.render import _token_hit  # lazy: phase-2 only
+        except Exception:  # noqa: BLE001 -- no matcher, no name evidence (the address evidence stands)
+            return False
+        low = text.lower()
+        return any(_token_hit(n, low) for n in nm)
+    return False
+
+
+def _page_prose(structured: dict | None) -> str:
+    """The page's prose as the append seams see it: the TL;DR and the body, one text."""
+    if not isinstance(structured, dict):
+        return ""
+    return "%s\n%s" % (structured.get("tldr") or "", structured.get("mechanism") or "")
+
+
 def _chain_backstop_insert_at(text: str) -> int:
     """Where the backstop sentence goes: the END of the chain movement's own section -- the one headed
     by `narration.MANDATE_CHAIN_ROW`'s heading -- before the whitespace that separates it from the next
@@ -12284,6 +12495,9 @@ def _chain_backstop(structured: dict | None, board, number_calls, *, coverage,
         if _told is None:
             _told = coverage.get("chain_referenced")
         if int(_told) != 0:
+            # 09-27 SITTING 3 (U-12 (c), Z2): the chain is on the page -- told by its links' own addresses or whole
+            # board-unique names (lane R's counter, P3 / N-L1) -- so the append is withheld, and now COUNTED
+            census["append_withheld_told"] = 1
             return census
     except (TypeError, ValueError):
         return census                              # no counter -> no claim that nothing was referenced
@@ -12348,6 +12562,7 @@ def _chain_backstop(structured: dict | None, board, number_calls, *, coverage,
                              hop_receipts=(_receipts[_ci] if _ci < len(_receipts) else None),
                              peer_chains=tuple(chains))
             if _told:
+                census["append_withheld_told"] = 1     # 09-27 U-12 (c): told by address / whole name, COUNTED
                 return census                      # the writer narrated a chain in its own words
         fn = getattr(_sr, "chain_page_sentence", None)
         if not callable(fn):
@@ -12632,6 +12847,10 @@ def _chain_lints(structured: dict | None, number_calls, board, *, handle_prose: 
                         continue
                     if h["n"] in cited or (h["pct_n"] and h["pct_n"] in cited):
                         continue                      # the writer already gave this hop its address
+                    if _fact_told(_page_prose(structured) + "\n" + "\n".join(toks),
+                                  handles=(h["n"], h["pct_n"]), names=(h.get("figure") or "",)):
+                        census["append_withheld_told"] = census.get("append_withheld_told", 0) + 1
+                        continue                      # 09-27 U-12 (c): the page already carries this reading
                     if pending or figured:
                         continue                      # one served figure per sentence (DESIGN B.6)
                     # E11 AT THE PROSE END, SECOND LEG (review MAJOR A-2 / B-2): on a board that names
@@ -14980,9 +15199,22 @@ def _absence_timing_words() -> str:
 
 
 def _absence_reason_words(reason: str) -> str:
-    """The reader words for one MEASURED empty-read reason (CONTRACT Y4 `agent.ABSENCE_REASONS`), off the SAME
-    seat table the served note was built from (`agent._NO_ROWS_WHY`, keyed by the reason). "" when the seat
-    declares no words for it -- the claim is then left as written and counted `absence_reason_unread`."""
+    """The reader words for one MEASURED empty-read reason (CONTRACT Y4 `agent.ABSENCE_REASONS`).
+
+    09-27 FIX SITTING 3 (lane A, S2 V-2; CONTRACT Z20): THE BOOK'S READER WORDS FIRST -- `state_conventions.yaml`
+    ``absence_reason_words`` (lane R; its key set equals `agent.ABSENCE_REASONS`, asserted on lane R's deck),
+    read through the render's one book reader. HEAD wrote the SEAT's model-facing note into the reader's prose
+    ("scope/coverage gap, not a timing claim"). Where the book declares no words for a reason the seat's own
+    table (`agent._NO_ROWS_WHY`, keyed by the reason) is read as before -- the false timing claim is still
+    corrected, never left standing for want of a book entry. "" when neither declares words: the claim is then
+    left as written and counted `absence_reason_unread`."""
+    try:
+        from leviathan.graphrag.state.render import book_words as _bw  # lazy: phase-2 only
+        _w = str(_bw("absence_reason_words", str(reason or "")) or "").strip()
+        if _w:
+            return _w
+    except Exception:  # noqa: BLE001 -- no book: the seat's own table below
+        pass
     try:
         from leviathan.graphrag.numbers import agent as _ag  # lazy
         return str((getattr(_ag, "_NO_ROWS_WHY", None) or {}).get(str(reason or "")) or "")
@@ -15119,6 +15351,17 @@ def _seam_absence_claims(structured: dict, rows: dict, *, handle_prose: bool = F
     if not rows:
         return out
     calls = list(number_calls or [])
+    # 09-27 SITTING 3 (U-12 (c), CONTRACT Z2): the page as the writer left it -- an offered reading it already
+    # carries (by its [N] or its printed figure) is not appended again beside the claim (`_told_offer`)
+    _page = _page_prose(structured)
+
+    def _told_offer(i: int) -> bool:
+        r = rows.get(i) or {}
+        fig = ("%s %s" % (r.get("value"), r.get("unit"))).strip() if r.get("value") and r.get("unit") else ""
+        if _fact_told(_page, handles=(i,), names=(fig,)):
+            out["append_withheld_told"] = out.get("append_withheld_told", 0) + 1
+            return True
+        return False
     refs = _absence_referents(board, calls, page_markets) if (board is not None or calls) else []
     seat_refs = _absence_seat_referents(calls) if (seat and calls) else []
     timing = _absence_timing_words() if seat_refs else ""
@@ -15148,7 +15391,7 @@ def _seam_absence_claims(structured: dict, rows: dict, *, handle_prose: bool = F
             cited = set(_seam_cited(sent))
             offer = [i for i in idxs if i not in cited and rows.get(i) is not None
                      and rows[i]["value"] and rows[i]["unit"] and _absence_scope_named(calls[i - 1], fold)]
-            if not offer:
+            if not offer or _told_offer(offer[0]):
                 return sent
             new = _absence_append(sent, offer[0], rows, handle_prose=handle_prose)
             if new is None:
@@ -15190,7 +15433,7 @@ def _seam_absence_claims(structured: dict, rows: dict, *, handle_prose: bool = F
                 head_seg = _seam_absence_segment(sent, am.start())
                 new = _head_absence_claim(sent, am.start(), rows, calls, refs, out, handle_prose=handle_prose,
                                           seat_try=((lambda s_, a_, b_: _seat_claim(s_, a_, b_, None))
-                                                    if seat_refs else None))
+                                                    if seat_refs else None), told=_told_offer)
                 if new != sent:
                     sent, touched = new, True
             # THE TIMING CLAIM (seat mode): the seat's own "not yet published" words, in a clause segment
@@ -15225,7 +15468,7 @@ def _absence_append(sent: str, idx: int, rows: dict, *, handle_prose: bool = Fal
 
 
 def _head_absence_claim(sent: str, pos: int, rows: dict, calls: list, refs: list, out: dict, *,
-                        handle_prose: bool = False, seat_try=None) -> str:
+                        handle_prose: bool = False, seat_try=None, told=None) -> str:
     """HEAD's per-claim body of `_seam_absence_claims` (K16), lifted so the seat mode can run beside it, every
     branch and counter HEAD's own; `seat_try` (seat mode only) is consulted exactly where HEAD counted
     `absence_unbound` for a claim NO structural referent named -- a claim HEAD binds is never re-bound, so the
@@ -15262,6 +15505,8 @@ def _head_absence_claim(sent: str, pos: int, rows: dict, calls: list, refs: list
     if len(offer) != 1:
         out["absence_unbound"] = out.get("absence_unbound", 0) + 1
         return sent
+    if callable(told) and told(next(iter(offer.values()))):
+        return sent                               # 09-27 U-12 (c): the page already carries this reading
     new = _absence_append(sent, next(iter(offer.values())), rows, handle_prose=handle_prose)
     if new is None:
         return sent
@@ -15530,6 +15775,11 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None, ser
                     census["bindings"] += 1
                     bound_handles.add(k)
                     noun = _nbl_span(b.get("noun_span")) or _nbl_handle_noun_span(sent, span[0])
+                    # 09-27 SITTING 3 (U-5, Z3): U-5's rule reads an EMPTY noun span (the separator between a noun
+                    # phrase and its figure closed it) across that ONE separator; every other dimension keeps
+                    # HEAD's span, so its reach is unchanged
+                    noun_x = (_nbl_noun_across_sep(sent, span[0]) if (noun is not None and noun[0] >= noun[1])
+                              else None) or noun
                     edits += _nbl_name_edits(sent, noun, idn, calls[k - 1])
                     # 5. THE NOUN LICENCE (09-26, A-1): the SAME bound noun span, read against the row's own
                     #    card vocabulary -- corrected only on a proven contradiction, and only where the figure
@@ -15538,8 +15788,12 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None, ser
                     #    noun. ``tail`` = the words between the figure and its handle (gate G1).
                     if b.get("backed", True) is not False:
                         _tl = sent.find("[", span[1])
-                        nedits += _nbl_noun_edits(sent, noun, _nbl_licence_for(calls[k - 1], idn, k, lics, board),
-                                                  tally=census, tail=(span[1], _tl if _tl >= 0 else len(sent)))
+                        _lic = _nbl_licence_for(calls[k - 1], idn, k, lics, board)
+                        nedits += _nbl_noun_edits(sent, noun, _lic, tally=census,
+                                                  tail=(span[1], _tl if _tl >= 0 else len(sent)))
+                        # 09-27 SITTING 3 (U-5, Z3): the metric's own name over a part its card declares inside it
+                        nedits += _nbl_channel_edits(sent, noun_x, _lic,
+                                                     tail=(span[1], _tl if _tl >= 0 else len(sent)))
                     # 3. UNIT FAMILY -- ONE classifier on both sides (V's `unit_family`, the one that
                     #    classified the written unit), so a written "%" and a served "%" can never read
                     #    as two families because two lanes spell the family differently.
@@ -15589,22 +15843,32 @@ def _name_binding_lint(structured: dict | None, number_calls, *, board=None, ser
                     # phrase with TWO rows -- the noun it follows is not this row's alone, so the licence reads
                     # nothing there
                     if not _nbl_handle_touches(sent, m.start(), m.end()):
-                        nedits += _nbl_noun_edits(sent, _hn, _nbl_licence_for(calls[mem[0] - 1], idn, mem[0],
-                                                                              lics, board), tally=census)
+                        _lic = _nbl_licence_for(calls[mem[0] - 1], idn, mem[0], lics, board)
+                        nedits += _nbl_noun_edits(sent, _hn, _lic, tally=census)
+                        nedits += _nbl_channel_edits(sent, _hn, _lic)            # 09-27 U-5 (Z3)
                 # 09-26 (A-1, fence A1-e): corrections 1-4 are emitted first and WIN an overlap; a noun edit
                 # overlapping one of them (or an earlier noun edit) is not applied, and every skip is COUNTED
                 edits = edits + _nbl_free_noun_edits(edits, nedits, census)
                 if not edits:
                     continue
                 # APPLY right to left; an edit overlapping one already applied is not applied twice.
+                # 09-27 SITTING 3 (U-10 (b)(c), A-10; CONTRACT Z8): the two NAME corrections (routing, noun) enter
+                # through the ONE splice producer, so the slot keeps one determiner, its adjectives and the noun
+                # that carries the verb's agreement; a splice that would widen onto an edit already applied keeps
+                # the plain substitution. The unit, commodity and period corrections are not name slots.
                 new, last = sent, len(sent) + 1
                 for a, e, rep, counter in sorted(set(edits), key=lambda x: (-x[0], -x[1])):
                     if e > last or a >= e:
                         continue
                     if new[a:e] == rep:
                         continue
+                    if counter in ("routing_corrected", "noun_corrected", _NBL_NOUN_AT_HEAD):
+                        a2, e2, rep2 = _nbl_splice(new, a, e, rep, head=(counter == _NBL_NOUN_AT_HEAD))
+                        if a2 <= a and e2 >= e and e2 <= last and a2 < e2:
+                            a, e, rep = a2, e2, rep2
                     new = new[:a] + rep + new[e:]
                     last = a
+                    counter = "noun_corrected" if counter == _NBL_NOUN_AT_HEAD else counter
                     census[counter] = census.get(counter, 0) + 1
                 if new != sent:
                     toks[si] = new
@@ -16141,7 +16405,8 @@ def _noun_licence(call: dict, idn: dict, *, board=None) -> dict:
     Never raises: an unreadable card is an empty licence, and an empty licence proves no contradiction."""
     out = {"licensed": frozenset(), "class": {"own": "", "other": ()}, "basis": {"own": "", "other": ()},
            "siblings": (), "routing": (), "replacement": "", "label": "", "named": frozenset(),
-           "scope": frozenset()}
+           "scope": frozenset(), "metric_words": frozenset(), "scope_words_all": frozenset(),
+           "basis_clause": frozenset()}
     if not isinstance(call, dict) or not (call.get("rows") or []):
         return out
     try:
@@ -16195,6 +16460,33 @@ def _noun_licence(call: dict, idn: dict, *, board=None) -> dict:
             if mk == metric or not lw or lw == own_lab or lw in sib:
                 continue
             sib.append(lw)
+        # 09-27 FIX SITTING 3 (lane A, U-5; CONTRACT Z3): THE METRIC'S OWN NAME, every word of it (short ones
+        # too), apart from the prose attached to it -- the words a noun bound to this figure may take from the
+        # ROUTING driver only where the metric's name carries them (`_nbl_channel_edits`). The name is the card's
+        # label, the metric's own key, the identity's name WITHOUT the basis clause `call_identity` appends to it
+        # (" (<basis>)"), the printed short name, the unit words, the card's declared figure basis, the family's
+        # declared class / basis and the cell noun -- and the basis words' LEADING CLAUSE (the seam's one clause
+        # grammar, `_SEAM_CLAUSE_BREAK_RX`): what the figure is a share / part of, never the clause after it
+        # ("any ethanol grind is inside it and is not separable" is a statement ABOUT the figure, not its name).
+        # Scope, commodity and period words are kept apart: they bound a run, never extend it.
+        _fold_all = lambda t: set(_nbl_fold_all(re.findall(r"[a-z0-9]+", str(t or "").lower())))  # noqa: E731
+        _basis_row = str(((call.get("rows") or [{}])[-1] or {}).get("basis") or basis_card or "").strip()
+        _nm = str(idn.get("name") or "")
+        if _basis_row and _nm.endswith(" (%s)" % _basis_row):
+            _nm = _nm[:-len(" (%s)" % _basis_row)]
+        _cut = _SEAM_CLAUSE_BREAK_RX.search(basis_card) if basis_card else None
+        _basis_name = basis_card[:_cut.start()] if (_cut is not None and _cut.start() > 0) else basis_card
+        _basis_clause = basis_card[len(_basis_name):] if _basis_name != basis_card else ""
+        _fig_basis = str(getattr(spec, "figure_basis", "") or "") if spec is not None else ""
+        scope_all = set()
+        for t in (idn.get("scope_words"), idn.get("commodity_words"), idn.get("period_words"), node):
+            scope_all |= _fold_all(t)
+        metric_all = set()
+        for t in [label, metric.replace("_", " "), _nm, idn.get("short"), idn.get("unit_words"), _fig_basis,
+                  own_class, own_basis, _basis_name] + list((getattr(ts, "cell_noun", None) or ())
+                                                            if ts is not None else ()):
+            metric_all |= _fold_all(t)
+        metric_all -= scope_all
         out.update({"licensed": frozenset(lic),
                     "class": {"own": own_class, "other": other_class},
                     "basis": {"own": own_basis, "other": other_basis},
@@ -16202,10 +16494,124 @@ def _noun_licence(call: dict, idn: dict, *, board=None) -> dict:
                     "routing": _nbl_routing_texts(call, idn, board),
                     "replacement": str(idn.get("short") or "").strip(),
                     "label": label.strip(),
-                    "named": frozenset(named), "scope": frozenset(scope)})
+                    "named": frozenset(named), "scope": frozenset(scope),
+                    "metric_words": frozenset(metric_all), "scope_words_all": frozenset(scope_all),
+                    # the words the card's basis CLAUSE attaches to the figure -- the part / component it
+                    # declares inside it ("any ethanol grind is inside it and is not separable") -- apart from
+                    # the name clause before it; ``frozenset()`` on a card that declares no such clause
+                    "basis_clause": frozenset(_fold_all(_basis_clause) - metric_all - scope_all)})
     except Exception:  # noqa: BLE001 -- an unreadable licence proves nothing
         pass
     return out
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-27 FIX SITTING 3 (lane A, U-5; CONTRACT Z3) -- THE METRIC'S NAME WINS OVER A CHANNEL WORD.
+# MEASURED (arm A, tariff; `fix_sitting_3_0927/verify/stale/u5_noun.out`): "Corn's ethanol-channel use, 176.66 MMT
+# for 2026/27 [N70]" over USDA PSD corn FOOD, SEED AND INDUSTRIAL use -- a row the ethanol_demand driver routed,
+# whose card says of it "any ethanol grind is inside it and is not separable". Sitting 1's licence read it
+# unchanged twice over: the binding's noun span was EMPTY (the comma between the noun and its figure closed it),
+# and the identity's name -- which carries the basis clause -- licensed "ethanol". THE FIX READS TWO FACTS OF THE
+# ROW: the metric's own NAME (the licence's ``metric_words``, the basis's leading clause only) and the text of the
+# driver that ROUTED the row (``routing``). A content word the routing driver supplies and the metric's name lacks
+# is the DRIVER'S channel, not the series; the noun phrase it opens, ending on the figure's own separator, is
+# corrected to the metric's card label. REJECTED: an "ethanol" stop word; a per-card exclusion; a longest-match
+# noun list; a licence from the card's prose overriding the served metric's own name.
+def _nbl_noun_across_sep(sent: str, fig_start: int):
+    """THE NOUN PHRASE A FIGURE FOLLOWS ACROSS ONE SEPARATOR ("Corn's ethanol-channel use, 176.66 MMT"): where the
+    text directly before the figure is a comma, a colon or a dash (the estate's citation grammar, the break
+    `_nbl_handle_noun_span` reads), the noun phrase that separator closes -- from the clause break before it to the
+    separator. ``None`` where the figure is not directly preceded by one, or the phrase is empty. It never crosses
+    a sentence or clause terminator (a period, a semicolon): only the ONE separator between a noun phrase and ITS
+    figure (threat A5-b)."""
+    pre = str(sent[:max(0, int(fig_start))])
+    m = re.search(r"(?:,|:|\s-{2,}|[\u2013\u2014])\s*\Z", pre)
+    if m is None or m.start() <= 0:
+        return None
+    a, b = _nbl_handle_noun_span(sent, m.start())
+    return (a, b) if b > a and re.search(r"[A-Za-z]", sent[a:b]) else None
+
+
+def _nbl_channel_edits(sent: str, noun, licence: dict, tail=None) -> list:
+    """U-5's correction over ONE bound noun span, as edit tuples ``(start, end, replacement, "noun_corrected")``.
+
+    THE CHANNEL WORD IS A FACT OF THE CARD: a content word of the served card's BASIS CLAUSE -- the prose its
+    ``basis_words`` attach ABOUT the figure after the name clause (FSI: "any ethanol grind is inside it and is not
+    separable"), i.e. a PART the card declares inside the figure -- that the metric's own name lacks
+    (``licence["basis_clause"]``, the metric / scope words already removed). Written as the figure's noun it names
+    the part as the whole ("Corn's ethanol-channel use", "ethanol-bearing industrial use"), which the card itself
+    says the figure cannot be split into. A card that declares no such clause gets no correction here -- the rule
+    speaks only where the card has spoken.
+
+    THE RUN is read from the END of the span backwards, word group by word group (a hyphenated compound is one
+    group; markdown and punctuation are never part of a group, so they stay the writer's), while each group
+    either carries a channel word or is made only of the metric's own name words; it stops at the first group that
+    is neither (the writer's possessive, scope, verb or market). A run with no channel word is no correction. The
+    run is replaced by the card's LABEL (a card with none gets no correction: a raw metric id never reaches prose);
+    a run that already reads as the label is left. G1 holds: where the words between the figure and its handle NAME
+    the row, the words before the figure are not its noun. Never raises."""
+    out: list = []
+    try:
+        if not noun or not isinstance(licence, dict):
+            return out
+        a0, b0 = noun
+        label = str(licence.get("label") or "").strip()
+        metric = set(licence.get("metric_words") or ())
+        chan_words = set(licence.get("basis_clause") or ())
+        if b0 <= a0 or not label or not metric or not chan_words:
+            return out
+        named = set(_nbl_fold_all(licence.get("named") or ()))
+        if tail is not None and (set(_nbl_fold_all(w for _a, _b, w in _nbl_word_spans(sent, tail[0], tail[1])))
+                                 & named):
+            return out                                     # G1: the figure names its own row after it
+        groups = [(m.start() + a0, m.end() + a0)
+                  for m in re.finditer(r"[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*", sent[a0:b0])]
+        run, has_channel = [], False
+        for ga, gb in reversed(groups):
+            raw = re.findall(r"[a-z0-9]+", sent[ga:gb].lower())
+            ws = _nbl_fold_all(raw)
+            chan = any(_nbl_tokens(r) and w in chan_words for r, w in zip(raw, ws))
+            if chan or (ws and set(ws) <= metric):
+                run.append((ga, gb))
+                has_channel = has_channel or chan
+                continue
+            break
+        if not run or not has_channel:
+            return out
+        ra, rb = run[-1][0], run[0][1]
+        lab = _nbl_fold_all(re.findall(r"[a-z0-9]+", label.lower()))
+        if _nbl_fold_all(re.findall(r"[a-z0-9]+", sent[ra:rb].lower())) == lab:
+            return out
+        rep = label
+        if _nbl_sentence_start(sent, ra) and rep[:1].islower():
+            rep = rep[:1].upper() + rep[1:]
+        out.append((ra, rb, rep, _NBL_NOUN_AT_HEAD))              # the run ends on the phrase's head noun
+    except Exception:  # noqa: BLE001 -- a correction must never be the thing that breaks an answer
+        return []
+    return out
+
+
+def _nbl_splice(text: str, a: int, e: int, rep: str, head: bool = False):
+    """ONE name correction through the ONE splice producer (U-10 / CONTRACT Z8, lane R's `rows.splice`): the slot
+    keeps one determiner, its adjectives and the noun that carries the verb's agreement. Where the replacement
+    ALREADY CARRIES the replaced span's head noun (the span's last word is a word of the replacement, on the plural
+    fold -- "... stocks" replaced by "ending stocks for United States", "... use" by "food, seed and industrial
+    use"), the writer's verb still agrees with the same noun and the replacement stands as written (HEAD's bytes).
+    ``(a, e, rep)`` unchanged where the producer is absent or raises (HEAD's substitution)."""
+    try:
+        last = (re.findall(r"[a-z0-9]+", str(text[a:e] or "").lower()) or [""])[-1]
+        if last and _desk_stem(last) in {_desk_stem(w) for w in re.findall(r"[a-z0-9]+", str(rep).lower())}:
+            return a, e, rep
+        from leviathan.graphrag.state import rows as _rows  # lazy: phase-2 only
+        fn = getattr(_rows, "splice", None)
+        if not callable(fn):
+            return a, e, rep
+        # ``head`` -- the caller's statement that its span ends at the slot's head noun -- to a producer that
+        # declares the kwarg (lane R's `rows.splice(..., head=)`); a producer that does not gets its own call
+        a2, e2, rep2 = (fn(text, a, e, rep, head=bool(head)) if _takes_kwarg(fn, "head") else fn(text, a, e, rep))
+        return int(a2), int(e2), str(rep2)
+    except Exception:  # noqa: BLE001 -- the plain substitution stands
+        return a, e, rep
 
 
 def _nbl_find_run(words: list, run) -> list:
@@ -16342,7 +16748,10 @@ def _nbl_noun_edits(sent: str, noun, licence: dict, tally: dict | None = None, t
             if rep and _free(i, j) and not _nbl_compound_edge(sent, spans[i][0], spans[j][1]):
                 if _nbl_sentence_start(sent, spans[i][0]) and rep[:1].islower():
                     rep = rep[:1].upper() + rep[1:]
-                out.append((spans[i][0], spans[j][1], rep, "noun_corrected"))
+                # 09-27 SITTING 3 (U-10 (c), Z8): a run that ends ON the phrase's head noun (CONCEPT, KIND -- by this
+                # function's own construction) says so, so the ONE splice producer keeps the verb's agreement; a
+                # CLASS / BASIS qualifier run that stops short of the head is a modifier and says nothing
+                out.append((spans[i][0], spans[j][1], rep, _NBL_NOUN_AT_HEAD if j == head else "noun_corrected"))
                 taken.append((i, j))
         # CONCEPT (a): the card's phrase, head included, carrying a proven contradiction
         best = None
@@ -16376,6 +16785,12 @@ def _nbl_noun_edits(sent: str, noun, licence: dict, tally: dict | None = None, t
     except Exception:  # noqa: BLE001 -- a correction must never be the thing that breaks an answer
         return []
     return out
+
+
+#: THE MARK A NOUN EDIT CARRIES WHEN ITS SPAN ENDS ON THE PHRASE'S HEAD NOUN (09-27 sitting 3, U-10 (c)): counted as
+#: ``noun_corrected`` like every noun edit (the census keeps its one key), and handed to the ONE splice producer as
+#: ``head=True`` -- the caller's statement lane R's `rows.splice` reads, never a guess from the next word.
+_NBL_NOUN_AT_HEAD = "noun_corrected@head"
 
 
 #: THE SERVED-SCALAR KINDS THAT ARE A COUNT OF THE ROW'S OWN OBSERVATIONS (`rows.SCALAR_KINDS`): the run the

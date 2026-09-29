@@ -1196,7 +1196,10 @@ def test_the_reserved_analog_seats_are_a_cap_and_the_borrows_are_a_read(fired):
     bd.ledger.benchmark_reads += 3
     assert bd.net_reads() == out["trace"]["net_reads"] + 3
     # AND THE SEAM RESERVES THE SEATS OFF THE BENCHMARK ALONE, in its own source.
-    assert "analog_reads=bool(benchmark_fn is not None))" in inspect.getsource(S.fill_stage2)
+    # RE-BANKED 09-27 FIX SITTING 3, LANE R (CONTRACT Z12; DECLARED in BUILD_R): the stage-2 call's tail gains the
+    # chain flag's `**_front_kw` (lane W's front-price read, empty off the chain flag) AFTER the seat reservation --
+    # the claim kept: the reservation is read off the benchmark alone.
+    assert "analog_reads=bool(benchmark_fn is not None)" in inspect.getsource(S.fill_stage2)
 
 
 def test_a_phase_pair_on_one_series_is_one_reading_and_the_block_says_so(graph):
@@ -1485,6 +1488,13 @@ def test_S8_the_stage2_kwarg_tail_is_EXTENDED_by_state_chain_and_not_moved():
     lane owes is that the kwarg EXISTS, defaults off, threads through, and reads no environment on the
     way -- all four asserted below."""
     params = list(inspect.signature(S.fill_stage2).parameters)
+    # 09-27 SITTING 3 RE-BANK (lane R, CONTRACT Z16; DECLARED in BUILD_R): the tail is APPENDED to once more --
+    # `numbers_ledger`, the turn's numbers ledger (answer.py builds it on a board turn), LAST, keyword-only, default
+    # None, so every caller that omits it is HEAD's call exactly. Nothing before it moved.
+    assert params[-1] == "numbers_ledger", params[-3:]
+    _nl = inspect.signature(S.fill_stage2).parameters["numbers_ledger"]
+    assert _nl.default is None and _nl.kind is inspect.Parameter.KEYWORD_ONLY
+    params = params[:-1]
     # 09-26 S2 RE-BANK (lane N, CONTRACT Y11): the tail is APPENDED to once more -- `recency_layers`, the
     # page-wide recency layers lane M's writer seam hands the RECENCY rows, lands LAST, keyword-only, default
     # None, so every caller that omits it is HEAD's call exactly. Nothing before it moved; the pins below read

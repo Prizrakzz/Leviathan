@@ -104,6 +104,29 @@ def _cost_census_on() -> bool:
     return os.environ.get("GRAPHRAG_COST_CENSUS", "off").strip().lower() in ("on", "1", "true")
 
 
+def _ym_lag_on() -> bool:
+    """Switch GRAPHRAG_YM_PUBLICATION_LAG (default OFF) -- FIX SITTING 3, LANE T (CONTRACT Z15, sitting 2 MAJOR
+    M-2), `_cost_census_on`'s opt-IN grammar (`on|1|true` and nothing else).
+
+    THE MEASURED DEFECT. `query._guard` admits a `year_month` card's data month at the as-of the moment the
+    month ENDS unless the read passes `ym_lag=True`, which shifts it by the card's (or the metric's) declared
+    `ym_publication_lag_days` (`registry.lag_days_for`). The state board passes it on every one of its own reads
+    since S1; the seat and the cascade never did -- so on two 09-24 pages the seat SERVED an August CHIRPS
+    drought_z knowable only 2026-09-25 at as-of 2026-09-24 (a point-in-time leak, live flag-off). THE NAME IS
+    STATE_ENGINE_DESIGN D21's OWN: the flip table already carries it. ON -> every seat read below and the cascade's
+    `fetch_window` (which asks this reader; cascade.py owns no environment read) pass `ym_lag=True`; a card that
+    declares no lag keeps HEAD's month (`lag_days_for` returns 0). OFF -> the kwarg is ABSENT at every call site
+    (omit-when-off, `query.run`'s own discipline) and the SQL is HEAD's byte for byte. The flag-off move is the
+    owner's decision (O-S3-2); until then this ships in the release set with the flip."""
+    return os.environ.get("GRAPHRAG_YM_PUBLICATION_LAG", "off").strip().lower() in ("on", "1", "true")
+
+
+def _ym_lag_kw() -> dict:
+    """`{"ym_lag": True}` under `_ym_lag_on()`, else `{}` -- the ONE spelling every seat `Q.run` call spreads, so
+    the flag-off call is HEAD's call exactly (no `ym_lag=False` keyword reaches a spy that re-declares `Q.run`)."""
+    return {"ym_lag": True} if _ym_lag_on() else {}
+
+
 def _incremental_cache_on() -> bool:
     """Kill-switch GRAPHRAG_NUMBERS_INCREMENTAL_CACHE (default ON), the `_stats_tool_on` idiom verbatim.
     OFF sends the conversation with NO moving breakpoint -- byte-identical to the pre-D-CL request, the
@@ -624,7 +647,7 @@ def _esr_aggregate_legs(esr_query: dict, asof: str, query_fn, *,
             inp["commodity"] = commodity
         try:
             spec = _forced_spec(asof, inp)
-            rows = Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first)
+            rows = Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first, **_ym_lag_kw())
         except Exception:  # noqa: BLE001 -- a failed aggregate leg is dropped, not fatal
             continue
         vals = [r for r in rows if r.get("value") not in (None, "")]
@@ -698,7 +721,7 @@ def esr_closed_year_legs(calls: Optional[list], asof: str, query_fn, *,
             try:
                 nxt = Q.run(_forced_spec(asof, {"table": "silver_esr", "metric": metric, "commodity": commodity,
                                                 "period": str(start + 1), "agg": "latest"}),
-                            query_fn=query_fn, futures_newest_first=futures_newest_first)
+                            query_fn=query_fn, futures_newest_first=futures_newest_first, **_ym_lag_kw())
                 probed[key] = any(_cell_float(r) is not None for r in nxt)
             except Exception:  # noqa: BLE001 -- an unreadable probe is an unknown year: nothing moves
                 probed[key] = None
@@ -715,7 +738,8 @@ def esr_closed_year_legs(calls: Optional[list], asof: str, query_fn, *,
         try:
             spec = _forced_spec(asof, {"table": "silver_esr", "metric": metric, "commodity": commodity,
                                        "country": q.get("country"), "period": str(start), "agg": "sum"})
-            srows = [r for r in Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first)
+            srows = [r for r in Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first,
+                                      **_ym_lag_kw())
                      if _cell_float(r) is not None]
         except Exception:  # noqa: BLE001 -- a failed companion is dropped and named
             declined.append({"handle": c.get("handle"), "metric": metric, "year": my_words,
@@ -806,7 +830,8 @@ def current_year_companion_legs(calls: Optional[list], asof: str, query_fn, *,
             continue
         try:
             spec = _forced_spec(asof, {**(c.get("query") or {}), "period": token})
-            rows = [r for r in Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first)
+            rows = [r for r in Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first,
+                                     **_ym_lag_kw())
                     if _cell_float(r) is not None]
         except Exception:  # noqa: BLE001 -- a failed companion is dropped and named
             declined.append({**rec, "reason": "companion_read_error"})
@@ -4948,7 +4973,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     _win = futures_eod_read_window(spec, _cov_date(_floor, end=False), ask_win)
                     legacy = _legacy_level_spec(spec, _win[1])
                     _lrows = [r for r in Q.run(legacy, query_fn=query_fn,
-                                               futures_newest_first=futures_newest_first)
+                                               futures_newest_first=futures_newest_first, **_ym_lag_kw())
                               if r.get("value") not in (None, "")]
                     return {"query": legacy.model_dump(exclude_none=True), "rows": _lrows,
                             "status": "ok" if _lrows else "no_rows",
@@ -4961,7 +4986,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 # reaches it. The system prompt carries the RULE and no year (B9: one sha across as-ofs).
                 _myk = _current_my_keys(spec, reg)
                 try:
-                    rows = Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first)
+                    rows = Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first,
+                                 **_ym_lag_kw())
                 except (Q.NationalFoldDeclined, Q.BalanceSumRefused) as _fd:
                     # FIX SITTING 2 (Y1 / Y2, PC-1): the national read the card cannot fold honestly, or a
                     # balance summed across its observations -- DECLINED BY NAME, never one buyer's row and

@@ -1144,8 +1144,13 @@ DESK_REGISTER_TOKENS: tuple = (
     # `declared` ALONE IS DELIBERATELY NOT A TOKEN THIS ROUND (OWNER DECISION 7): 128 uses on the ten pages
     # would put 9-33 sentences per page in front of a rewrite capped at ten; the render stops minting it in
     # the migrated classes and only its two instrument phrases are charged here.
+    # 09-27 SITTING 3 (lane R, CONTRACT Z24 / S2 OI-2, tariff F-N2 MAJOR): the SECOND phrase names WHAT THE RECORD
+    # DID -- a dated window it holds -- and never a likeness: "past episodes like this" put a Mississippi low-water
+    # window under a tariff question as "past episodes like this" (arm A tariff F-N2), a likeness the walk never
+    # made. The phrase keeps its slot (index 1: `answer._EPISODES` and `cascade._cw_desk_words` compose "one of the
+    # <phrase>" from it, desk-lit / analyst-key only), so every sentence that speaks it now says a dated window.
     ("firing", r"\bfirings?\b",
-     "the times this reading sat this far out, past episodes like this, occasions"),
+     "the times this reading sat this far out, dated windows on the record, occasions"),
     ("hop", r"\bhops?\b", "link, step in the chain"),
     ("far end", r"\bfar end\b", "where the chain ends, the last link"),
     # "the cut for a full TREATMENT" and not the contract table's "write-up": `write-up` carries the word
@@ -1155,8 +1160,10 @@ DESK_REGISTER_TOKENS: tuple = (
     ("print line", r"\bprint line\b", "the cut for a full treatment"),
     ("ranked beside", r"\branked beside\b", "compared with"),
     ("admitted", r"\badmitted\b", "counted, kept"),
-    ("seated", r"\bseated\b", "kept on the page"),
-    ("tier cap", r"\btier'?s? (?:cap|cut|fan|limit)\b", "this page's limit"),
+    # 09-27 SITTING 3 (lane R, OI-2): the two phrases that TAUGHT page-talk ("kept on the page", "this page's limit"
+    # -- the recon's page-talk population, sitting 2 N-1 / B39) now name what is kept and what is limited
+    ("seated", r"\bseated\b", "kept here"),
+    ("tier cap", r"\btier'?s? (?:cap|cut|fan|limit)\b", "the limit on how many are named here"),
     ("coverage floor", r"\bcoverage floor\b", "the bar every compared reading had to clear"),
     ("declared way", r"\bdeclared (?:way|direction)\b",
      "the way the model expects, the direction the model expects"),
@@ -1177,6 +1184,17 @@ DESK_REGISTER_TOKENS: tuple = (
     # not taught).
     ("trust tier", r"\btrust[- ]tiers?\b",
      "a revision by its own publisher, another vintage of this series, a different source"),
+    # -- 09-27 SITTING 3 (lane R, CONTRACT Z24 / S2 OI-2): THE PAGE TALKING ABOUT ITSELF ---------------------------------
+    # MEASURED on the fifty served pages (body above `## Sources`, `r_work/drives/oi2_measure.py`): "this page" / "the
+    # page" on 35 pages (80 hits: "Nothing else on this page cleared the bar for cotton", "the newest dated document
+    # behind this page"), "cleared the bar" on 19 (19), a form of "nominate" on 6 (6), "this estate" on 2 (2) -- the
+    # instrument naming its own machinery to a desk reader (N-1's population). Each row's replacement names the thing
+    # in the reader's world; each is claim-class free and scores zero on all four detectors. The render's own rows
+    # carry none of these words (0 hits on the forty rebuilt blocks), so no board class's ceiling moves.
+    ("this page", r"\b(?:this|the) page\b", "here, in this note"),
+    ("cleared the bar", r"\bclear(?:ed|s|ing)? the bar\b", "stands out on its own record, is on the watch list"),
+    ("nominated", r"\bnominat(?:e|ed|es|ing|ion|ions)\b", "on the watch list, picked to watch"),
+    ("this estate", r"\bthis estate\b", "the markets covered here"),
 )
 #: THE ELEVEN NAMES THE TABLE CARRIED AT HEAD ee06f19c, FROZEN (OWNER DECISION 8). The arm reports the
 #: register count on BOTH tables side by side -- ``count_desk_register(text, DESK_REGISTER_V1_NAMES)`` and

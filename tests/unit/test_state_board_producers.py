@@ -552,9 +552,28 @@ def test_M5_ONE_PAGE_ONE_PATTERN_ONE_COUNT_on_the_b40_fixture():
       watch:  "this reading is one of TWO OF THE TWO drivers the pattern policy-shock spike declares
                that are moving furthest from their own records here"
 
-    The watch producer read ``pr['n_matched']`` and never saw the fold at all."""
+    The watch producer read ``pr['n_matched']`` and never saw the fold at all.
+
+    RE-BANKED 09-27 FIX SITTING 3, LANE W (CONTRACT Z10, U-2; DECLARED in BUILD_W): the fixture's instance of
+    this claim WAS the U-2 defect -- ``export_ban`` / ``DMO`` are regime nodes (``policy_event``) with NO dated
+    action on the b40 fixture, and HEAD counted them by the Indonesian EXPORT series' reading. A regime member is
+    now read by the walk's own regime reading of its dated action, so the fixture carries one realised,
+    point-in-time action on each node (published before the as-of, in force at it) -- the claim is unchanged:
+    ONE page, ONE pattern, ONE count, the quorum and the watch reading the one producer."""
     from leviathan.graphrag.state import __main__ as H
-    ctx = H.build_scenario("b40_event")
+    _walk = H.W.walk
+    _acts = {("malaysian_crude_palm_oil_cme", d): [
+        {"date": "2026-03-02", "source": "Indonesia Ministry of Trade", "tier": 1, "event_date": "2026-03-01",
+         "event_date_precision": "day", "text": "the %s took effect on the first of March" % w}]
+        for d, w in (("export_ban", "palm oil export ban"), ("DMO", "domestic market obligation"))}
+
+    def _with_actions(*a, receipts=None, **k):
+        return _walk(*a, receipts={**dict(receipts or {}), **_acts}, **k)
+    H.W.walk = _with_actions
+    try:
+        ctx = H.build_scenario("b40_event")
+    finally:
+        H.W.walk = _walk
     bd, ana = ctx["board"], ctx["analogs"]
     quorum = [l for l in ctx["block"].lines if l.startswith("- policy-shock spike")]
     assert quorum, "the b40 fixture must carry the policy-shock quorum row"
@@ -816,7 +835,10 @@ def test_NEW1_the_watch_draw_carries_ZERO_desk_register_hits_on_the_SHIPPED_inst
     hits = [h for line in lines for h in REG.desk_register_hits(line)]
     assert hits == [], hits
     # and the clause that charged is still a SENTENCE about the same two facts, not a deletion
-    notes = [l for l in lines if "the reading on this page that can turn inside the horizon is" in l]
+    # RE-BANKED 09-27 FIX SITTING 3, LANE AN (CONTRACT Z24 / OI-2, DECLARED in BUILD_AN): "this page" is a register
+    # token now (register.DESK_REGISTER_TOKENS, lane R), so the clause says the table's own word for it ("here");
+    # the claim this pin keeps -- the clause still renders, and still names the same two facts -- is unchanged.
+    notes = [l for l in lines if "the reading here that can turn inside the horizon is" in l]
     assert notes, "the faster-series clause still renders"
     for n in notes:
         assert "the graph" not in n
@@ -1013,8 +1035,10 @@ def test_NEW6_the_horizon_NOTE_names_the_JOINs_KEPT_NAME_and_not_the_alias_it_fo
     ctx = _r3_boards()["soybeans_now"]
     lines = [R.sb_watch(w) for w in WA.nonobvious_rows(ctx["board"], analogs=ctx["analogs"])
              if w.get("kind_words")]
-    notes = [l for l in lines if "the reading on this page that can turn inside the horizon is" in l]
-    assert notes, "the three horizon notes"
+    # RE-BANKED 09-27 FIX SITTING 3, LANE AN (Z24 / OI-2, DECLARED): "here" for the register token "this page";
+    # the claim kept is the kept name and its own grain on every horizon note the draw prints
+    notes = [l for l in lines if "the reading here that can turn inside the horizon is" in l]
+    assert notes, "the horizon notes"
     join = [l for l in ctx["block"].lines
             if l.startswith("BOARD JOIN") and "soybean crush margin" in l]
     assert join and "read it under soybean crush margin" in join[0]

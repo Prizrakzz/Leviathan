@@ -111,14 +111,17 @@ def test_the_clause_is_wired_into_config_check_main():
 def test_the_roster_is_forty_two_lints():
     """The count the wave reports. 40 at HEAD, 41 with lane 1's sampler_totality, 42 with this.
     MOVED 2026-09-24 (fix round 2, lane T): 43 -- `numbers_card_fields` APPENDED at the tail (the law this
-    roster keeps); `dag_registry_schedule` is now the second-to-last clause, in its own place."""
+    roster keeps); `dag_registry_schedule` is now the second-to-last clause, in its own place.
+    MOVED 2026-09-29 (FIX SITTING 3, lane T, ORCH-P4 / CONTRACT Z27, DECLARED): 44 -- `wasde_line_map` (sitting 2's
+    Y6 lint, graded until now only by its own deck) APPENDED at the tail; `numbers_card_fields` is second-to-last
+    and `dag_registry_schedule` third-to-last, each in its own place. The claim kept: append-never-insert."""
     import re
     labels = re.findall(r'\("([a-z0-9_]+)", (?:check_|lint_)', inspect.getsource(cc.main))
-    # The message matters more than the count (round-2 review MINOR-5): the 44th clause anyone adds
+    # The message matters more than the count (round-2 review MINOR-5): the 45th clause anyone adds
     # ANYWHERE in the estate reds a deck named for this lane, and a bare assert would tell its
     # author nothing about why a file they never opened is failing.
-    assert labels[-2] == "dag_registry_schedule"
-    assert len(labels) == 43 and labels[-1] == "numbers_card_fields", (
+    assert labels[-3] == "dag_registry_schedule" and labels[-2] == "numbers_card_fields"
+    assert len(labels) == 44 and labels[-1] == "wasde_line_map", (
         f"the config_check roster is now {len(labels)} clauses ending {labels[-1]!r}. If you "
         f"APPENDED a clause at the tail, that is the law this roster keeps (append-never-insert) "
         f"and this count is the thing to update -- here and in check_dag_registry_schedule's "

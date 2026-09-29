@@ -683,13 +683,25 @@ def test_the_handles_are_dense_and_in_call_order(scenarios):
     rows on it are [N7][N34]"), which is the whole point of that clause -- a path row cites the state
     rows on it rather than restating their figures -- so a reference is asserted to POINT AT a minted
     call, never to be one."""
+    # RE-BANKED 09-27 FIX SITTING 3, LANE R (CONTRACT Z4 / Z5; DECLARED in BUILD_R): the ASKED SIDES clause's netting
+    # facts and the PAIR RELATION line CITE handles minted on the rows above (or earlier on the same line) -- they are
+    # REFERENCES, never mints. The claim kept: every MINTED handle is dense and in call order, and every reference
+    # points at a minted call.
+    def _split(line):
+        if line.startswith(getattr(R, "PAIR_RELATION_LEAD", "\0")):
+            return "", line
+        i = line.find(R.ASK_SIDES_LEAD)
+        return (line[:i], line[i:]) if i >= 0 else (line, "")
+
     for name, ctx in scenarios.items():
         minted = [int(m) for l, h in zip(ctx["block"].lines, ctx["block"].classes)
-                  if h[0] in R.FIGURE_CLASSES for m in re.findall(r"\[N(\d+)\]", l)]
+                  if h[0] in R.FIGURE_CLASSES for m in re.findall(r"\[N(\d+)\]", _split(l)[0])]
         assert minted == sorted(minted), name
         assert sorted(set(minted)) == list(range(1, len(ctx["block"].calls) + 1)), name
         referenced = [int(m) for l, h in zip(ctx["block"].lines, ctx["block"].classes)
                       if h[0] not in R.FIGURE_CLASSES for m in re.findall(r"\[N(\d+)\]", l)]
+        referenced += [int(m) for l, h in zip(ctx["block"].lines, ctx["block"].classes)
+                       if h[0] in R.FIGURE_CLASSES for m in re.findall(r"\[N(\d+)\]", _split(l)[1])]
         assert all(1 <= r <= len(ctx["block"].calls) for r in referenced), name
 
 
@@ -938,19 +950,30 @@ def test_a_convergence_row_names_ONLY_the_rows_that_CARRY_AN_N_z(scenarios):
     """Sec 6.2's template promises "({names}, each with its own [N] z)" and the loud set admits rows
     with no state by construction (a crossed band, an open event -- doctrine M-3). The COUNT is the
     ordering fact and stands; the names are split, so a writer told that four of four demand drivers
-    are loud is not told they were measured."""
+    are loud is not told they were measured.
+
+    RE-BANKED 09-27 FIX SITTING 3, LANE W (CONTRACT Z10, U-2 + M-4; DECLARED in BUILD_W): an unmeasured member is
+    either one with NO series read (HEAD's population, "no series read here") or a READ member the walk names with
+    its REASON (``unread_reason``: a regime node whose dated action is not in force, a level held only as last
+    revised) -- read, and still never counted. The claim is unchanged: only the COUNTED names carry an [N] z, and
+    every unmeasured name is stated, never deleted."""
+    from leviathan.graphrag.state import walk as _W
     for name, ctx in scenarios.items():
         measured = {r.driver_id for r in ctx["board"].rows
                     if r.state is not None and ROWS.status_word(r.state.status) == "ok"}
         for c in ctx["board"].convergence:
+            reasons = dict(c.get("unread_reason") or {})
             assert set(c["matched_measured"]) <= measured, (name, c["name"])
-            assert not (set(c["matched_unmeasured"]) & measured), (name, c["name"])
+            assert not ((set(c["matched_unmeasured"]) - set(reasons)) & measured), (name, c["name"])
+            assert set(reasons) <= set(c["matched_unmeasured"]) & measured, (name, c["name"])
+            assert set(reasons.values()) <= set(getattr(_W, "QUORUM_UNREAD_REASONS", ())), (name, c["name"])
             assert (tuple(sorted(c["matched_measured"] + c["matched_unmeasured"]))
                     == tuple(sorted(c["matched"]))), (name, c["name"])
             line = R.sb_convergence(c)
             for d in c["matched_unmeasured"]:
                 assert R.humanise(d) in line, (name, d)   # named, never deleted
-                assert "no series read here" in line
+                if d not in reasons:
+                    assert "no series read here" in line
     ctx = scenarios["soybeans_now"]
     trade = [l for l in ctx["block"].lines if l.startswith("- trade-war demand loss")]
     assert trade and "with its own [N] z" in trade[0]

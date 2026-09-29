@@ -226,7 +226,11 @@ def test_the_seam_threads_the_flag_and_never_the_environment():
     # call 1,375 lines above it raised UnboundLocalError on every L2 turn with both flags off.
     assert "_chain_on = _state_chain_block_on(vp)" not in body
     assert "if _state_chain:" in body                              # the lints ride the SAME local
-    assert "chain=bool(state_chain)" in inspect.getsource(an._system)
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 / CONTRACT Z1 -- declared): `_system` appends the board-turn legs
+    # through ONE producer, `_mandate_parts` (the census reads the same legs); the claim kept: the persona's chain
+    # kwarg is threaded, never read from the environment.
+    assert "state_chain=state_chain" in inspect.getsource(an._system)
+    assert "chain=bool(state_chain)" in inspect.getsource(an._mandate_parts)
 
 
 # ── THE APPEND-ONLY LAW, ON UNSEEN REAL-SEAT PROSE ──────────────────────────────────────────────────
@@ -867,9 +871,11 @@ def test_B1_a_sequence_THE_POOL_CARRIES_is_never_stamped_as_one_this_page_does_n
     assert an._CHAIN_UNRANKED_CLAUSE not in st["mechanism"]
     assert cen["sentences"] == 1                       # it WAS read, and no claim was made
     assert sent[:-1] in st["mechanism"]                # every word of it survives
-    # ...and the clause says what the instrument can see, in the block's own word.
-    assert an._CHAIN_UNRANKED_CLAUSE.endswith("this page carries")
-    assert "ranked" not in an._CHAIN_UNRANKED_CLAUSE
+    # ...and the clause says what the instrument can see, in the block's own word. RE-BANKED 09-27 (fix sitting 3,
+    # lane A, U-12 / OI-2 -- declared DM2): the record is named by its reader-facing name (lane R's OI-2 put "this
+    # page" on the desk-register token table); the claim kept: the verb is "carries", never "ranked".
+    assert an._CHAIN_UNRANKED_CLAUSE.endswith("%s carries" % N.MANDATE_BLOCK_READER_NAME)
+    assert "ranked" not in an._CHAIN_UNRANKED_CLAUSE and "this page" not in an._CHAIN_UNRANKED_CLAUSE
 
 
 def test_B1_a_sequence_NO_CHAIN_OF_THE_POOL_carries_is_still_stamped(shared_hop_cell):
@@ -1121,7 +1127,7 @@ def test_the_five_served_notes_go_through_the_SHIPPED_append_only_report(cell, n
     literal: a body the pass corrected MUST come back changed, and a body it did not must not."""
     from leviathan.graphrag.state import lint as LINT
     bd, calls = cell
-    seen_changed = 0
+    seen_changed = seen_told = 0
     for name, prose in sorted(notes.items()):
         st = {"tldr": "", "mechanism": prose}
         cen = an._chain_lints(st, calls, bd)
@@ -1141,7 +1147,14 @@ def test_the_five_served_notes_go_through_the_SHIPPED_append_only_report(cell, n
         else:
             assert rep["changed"] == [], (name, cen, rep["changed"])
             assert rep["after"]["mechanism"] == rep["before"]["mechanism"], name
-    assert seen_changed == 3, seen_changed            # MEASURED on this board: three of the five
+        seen_told += int(bool(cen.get("append_withheld_told")))
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (c) / CONTRACT Z2 -- declared DM2): L1 appends a hop's reading
+    # ONLY where the page does not already carry it (its address or printed figure anywhere in the body); MEASURED
+    # on this board: one of the five bodies is still corrected, and the two HEAD also corrected now carry that
+    # reading elsewhere on their own page, so the append is WITHHELD and COUNTED (`append_withheld_told`), never
+    # silent. The claim kept: append-only on unseen real-seat prose, and non-vacuous.
+    assert seen_changed == 1, seen_changed
+    assert seen_told == 2, seen_told
 
 
 # == LANE tracekeys (2026-09-22): THE CENSUS REACHES AN ARTIFACT AND A REPORT ======================
@@ -1555,7 +1568,11 @@ def test_the_backstop_needs_the_writers_zero_and_fails_closed_without_it(turns09
     for cov in (None, {}, {"declined": "KeyError"}, {"chain_referenced": 1}, {"chain_referenced": "x"}):
         st = dict(fx["structured"])
         cen = an._chain_backstop(st, bd, calls, coverage=cov)
-        assert st == fx["structured"] and not any(cen.values()), cov
+        # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (c) -- declared DM5): a writer's non-zero counter is the chain
+        # TOLD, and the withhold is now COUNTED (`append_withheld_told`); the claim kept: nothing is appended
+        assert st == fx["structured"], cov
+        assert not cen["backstop_appended"] and not cen["backstop_withheld"], cov
+        assert cen.get("append_withheld_told", 0) == (1 if cov == {"chain_referenced": 1} else 0), cov
     # no rendered chain -> nothing; a board that carries no chains at all -> nothing
     st = dict(fx["structured"])
     empty = _types.SimpleNamespace(chains=[], rows=[], rendered_rows=(), anchor_slugs=("cotton",))
@@ -1570,7 +1587,9 @@ def test_0923_the_backstop_count_rides_the_chain_lints_census_at_the_seat():
     i = src.index("_clints = _chain_lints(structured, extra_number_calls, _board")
     seg = src[i:i + 1600]
     assert "_chain_backstop(structured, _board, extra_number_calls, coverage=_cov" in seg
-    assert "_clints[_bk] = int(_bv)" in seg
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (c) -- declared DM5): the count is ADDED (the backstop's told-withhold
+    # and L1's share `append_withheld_told`); the claim kept: it rides the chain_lints census, no new trace key
+    assert "_clints[_bk] = int(_clints.get(_bk) or 0) + int(_bv)" in seg
     assert src.index("_cov = _sbr.board_coverage(") < i          # the WRITER's coverage, counted first
 
 

@@ -1111,7 +1111,9 @@ def row_side(row) -> Optional[int]:
       EFFECT under a polarity the graph does not declare (``export_ban`` on an export level,
       ``import_tariff`` on an import level: HIGH exports are NO ban). A tail of that series is not the
       condition's side. MEASURED: on the b40 fixture the Indonesian export ban read on a low export level
-      would otherwise have been counted AGAINST the policy-shock spike.
+      would otherwise have been counted AGAINST the policy-shock spike. The quorum reads such a member by its
+      dated action instead (:func:`regime_state`, CONTRACT Z10) -- ``None`` here is where that reading starts,
+      never a verdict that the condition is met.
 
     Every other row: :func:`reading_side` of its percentile and z -- the figures the loud set ranked it by."""
     st = getattr(row, "state", None)
@@ -1127,8 +1129,81 @@ def row_side(row) -> Optional[int]:
                         _measure_value(getattr(st, "z", None)))
 
 
+#: THE TWO REASONS A QUORUM MEMBER THAT WAS READ IS STILL NOT A CONDITION SHOWING (the 09-27 fix sitting 3,
+#: lane W; CONTRACT Z10 -- U-2 + sitting 2's M-4). Each names a FACT the walk holds about the member, never a
+#: word of its name: ``regime_action_unread`` -- a node of a regime type (:data:`REGIME_NODE_TYPES`) whose
+#: condition is its DATED ACTION, and the walk's own regime reading of that node (:func:`regime_state`, the
+#: chain hop's :func:`hop_event` ladder over the draw and the action ledger) holds no action in force at the
+#: as-of; ``held_as_last_revised`` -- a served marketing-year level the store holds only as last revised
+#: (``feeders.held_as_last_revised``, the MEASURED retention stamp), a level that is no reading of the present.
+#: APPEND-NEVER-SORT; the render prints each in the book's ``quorum_words`` (lane R).
+QUORUM_UNREAD_REASONS: tuple = ("regime_action_unread", "held_as_last_revised")
+
+#: THE EVENT KINDS THAT ARE A REGIME ACTION IN FORCE on a regime node (:func:`hop_event`'s regime branch: the
+#: newest realised action, ``regime_in_force``, or the same action while its own lag window still runs,
+#: ``action_open``). Read from :data:`EVENT_KINDS`, never a second vocabulary.
+REGIME_IN_FORCE_KINDS: tuple = ("regime_in_force", "action_open")
+
+
+def regime_state(bd, row, *, receipts: Optional[dict] = None, routed: Optional[dict] = None) -> dict:
+    """THE WALK'S OWN REGIME READING OF ONE BOARD ROW (CONTRACT Z10, U-2) -- ``{"in_force": True | False |
+    None, "action": {...} | None, "why": <EVENT_KINDS word or "not_regime">}``. ZERO reads.
+
+    IT IS THE CHAIN HOP'S READING, NOT A SECOND ONE: :func:`chain_hop` over the SAME receipt map step 5 read
+    (``receipts`` -- on a chain-on turn the draw merged with the point-in-time action ledger, W-1) and the SAME
+    routing fact (``routed`` -- W-2's receipt identity), so the quorum and the chain can never read one node's
+    action two ways. ``in_force`` is True where the hop's :func:`hop_event` kind is one of
+    :data:`REGIME_IN_FORCE_KINDS`; ``None`` where nothing dated reached the node this turn (``none``); False where
+    documents reached it and none is a realised action in force (a report, a forecast). A row whose type is not
+    a regime type answers ``{"in_force": None, "action": None, "why": "not_regime"}``.
+
+    THE ACTION CARRIES NO POLARITY (``REGIME_RECEIPT_KIND``'s own note: "until the evidence carries a
+    polarity"), so an action in force reads as the regime node PRESENT -- more of the driver -- which is the
+    walk's own regime doctrine (:data:`CHAIN_REGIME_WORDS`: "a policy is read as in force until a later dated
+    action on the same link"). The side a pattern asks of the node is its card's (the pattern's direction times
+    the node's declared sign), exactly as for every other member. The rejected lexical forms: an "export ban"
+    keyword, a policy-name list, a percentile threshold on the policy's trade-flow series."""
+    if row is None or str(getattr(row, "type", "") or "") not in REGIME_NODE_TYPES:
+        return {"in_force": None, "action": None, "why": "not_regime"}
+    hp = chain_hop(bd, row, receipts=receipts, routed=routed)
+    kind = str(getattr(hp, "event_kind", "") or "none")
+    in_force = True if kind in REGIME_IN_FORCE_KINDS else (None if kind == "none" else False)
+    action = None
+    if getattr(hp, "event_date", None):
+        rc = getattr(hp, "event_receipt", None) or {}
+        action = {"kind": kind, "event_date": str(hp.event_date or "")[:10],
+                  "precision": str(getattr(hp, "event_precision", "") or ""),
+                  "document_date": str((rc.get("date") if isinstance(rc, dict) else "") or "")[:10],
+                  "origin": str((rc.get("origin") if isinstance(rc, dict) else "") or "draw")}
+    return {"in_force": in_force, "action": action, "why": kind}
+
+
+def quorum_member_facts(bd, loud_rows, read_ids, *, receipts: Optional[dict] = None,
+                        routed: Optional[dict] = None) -> tuple:
+    """``(regime, held)`` -- the two facts :func:`convergence_rows` reads for ONE board's READ loud rows
+    (CONTRACT Z10): ``regime`` = ``{driver_id: regime_state(...)}`` for each read row of a regime type, and
+    ``held`` = the read rows whose served level ``feeders.held_as_last_revised`` names. A ``context_only`` row
+    is never a member (D18) and is skipped. ZERO reads; one producer for step 12 and for every drive."""
+    regime: dict = {}
+    held: set = set()
+    read = set(read_ids or ())
+    try:
+        from leviathan.graphrag.state import feeders as _F
+        _held = _F.held_as_last_revised
+    except Exception:                                   # noqa: BLE001 -- no predicate, no held row (HEAD)
+        _held = None
+    for r in loud_rows or ():
+        if getattr(r, "context_only", False) or r.driver_id not in read:
+            continue
+        if str(getattr(r, "type", "") or "") in REGIME_NODE_TYPES:
+            regime[r.driver_id] = regime_state(bd, r, receipts=receipts, routed=routed)
+        elif _held is not None and _held(getattr(r, "state", None)):
+            held.add(r.driver_id)
+    return regime, held
+
+
 def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=(),
-                     measured_ids=None, sides=None) -> list:
+                     measured_ids=None, sides=None, regime=None, held=None) -> list:
     """ONE row per DECLARED pattern on a board, as PROXIMITY, plus its amplifier sub-lines (sec 3.5, D24).
 
     EVERY PATTERN, NOT THE FIRED ONES. `graph.regimes` returns only patterns whose matched count clears
@@ -1164,10 +1239,36 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
     and a COOL max-temperature anomaly (6th percentile) -- both drivers declared ``+`` in a ``+``
     pattern -- plus the unread export-pace lag. ``None`` (every caller that does not pass it) is HEAD,
     byte for byte, and adds no key. The rejected lexical form: pattern-name or driver-name keyword
-    rules."""
+    rules.
+
+    **A READ MEMBER WHOSE CONDITION IS NOT ITS SERIES' TAIL IS READ BY ITS OWN CONDITION** (the 09-27 fix
+    sitting 3, lane W; CONTRACT Z10 -- U-2 + M-4). Two tail kwargs, each a fact the walk holds, each ``None``
+    by default (HEAD, byte for byte), and each consulted ONLY for a READ member (one in ``measured_ids``):
+
+    * ``regime`` -- ``{driver_id: regime_state(...)}`` for the READ members of a regime type. Such a member's
+      condition is its DATED ACTION (:func:`row_side` returns ``None`` for it, and HEAD then read it as
+      matched: a 99th-percentile Indian EXPORT flow counted as the India export ban -- MEASURED on the arm-A
+      rice page, "three of the six ... are showing here (exports for India, read here for India export ban,
+      ...)" while the walk's own chain hop on that node read no dated action at all). With an action IN
+      FORCE (:func:`regime_state`'s ``in_force``) the node reads PRESENT (+1) and takes the card's tail rule
+      like every other member (matched / against / unsided); with none, the member stays in HEAD's ``matched``
+      (the ORDERING count) and joins ``matched_unmeasured`` with its reason ``regime_action_unread`` -- named,
+      never counted.
+    * ``held`` -- the READ members whose served level is held only as last revised
+      (``feeders.held_as_last_revised``): no reading of the present, so it is not a condition showing. It
+      stays in ``matched`` and joins ``matched_unmeasured`` with its reason ``held_as_last_revised``. A regime
+      member is decided by its action, never by its trade-flow series' retention.
+
+    The reasons ride the row's TAIL as ``unread_reason`` (``{driver_id: QUORUM_UNREAD_REASONS word}``), OMITTED
+    WHEN EMPTY. A phase-pair member keeps HEAD's path (the render's phase fold judges it, review round 2
+    MAJOR 10); an unread member with no series keeps HEAD's words. What this does NOT decide (docketed for the
+    generator, S3-6 ii): a ``state_marker`` member bound to a series of its INVERSE quantity -- no card declares
+    a binding's orientation, and a type-name or suffix rule standing in for it is REJECTED."""
     loud, banded = set(loud_ids), set(band_ids)
     measured = None if measured_ids is None else set(measured_ids)
     side_of = None if sides is None else dict(sides)
+    reg_of = dict(regime or {})
+    held_ids = set(held or ())
     out = []
     contract_obj = (getattr(graph, "contracts", {}) or {}).get(contract)
     declared = {str(getattr(d, "id", "") or ""): str(getattr(d, "sign", "") or "")
@@ -1176,18 +1277,34 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
         loud_members = [d for d in s.drivers if d in loud]
         against: list = []
         unsided: list = []
+        reasons: dict = {}
         if side_of is None:
             matched = loud_members
         else:
             matched = []
             pole = _SIGN_INT.get(str(getattr(s, "direction", "") or ""))
             for d in loud_members:
-                if side_of.get(d) is None:
+                read = measured is None or d in measured
+                if read and d in reg_of:
+                    # Z10 (i): a REGIME member is read by its dated action. In force -> the node PRESENT (+1),
+                    # through the card's tail rule below; none in force -> named with its reason, not counted.
+                    if (reg_of.get(d) or {}).get("in_force") is not True:
+                        matched.append(d)
+                        reasons[d] = QUORUM_UNREAD_REASONS[0]
+                        continue
+                    got = 1
+                elif read and d in held_ids:
+                    # Z10 (ii) / M-4: a level held only as last revised is no reading of the present.
+                    matched.append(d)
+                    reasons[d] = QUORUM_UNREAD_REASONS[1]
+                    continue
+                elif side_of.get(d) is None:
                     matched.append(d)              # no reading's tail to read (row_side): HEAD
                     continue
+                else:
+                    got = int(side_of.get(d) or 0)
                 want = _SIGN_INT.get(declared.get(d, ""))
                 need = (pole * want) if (pole is not None and want is not None) else 0
-                got = int(side_of.get(d) or 0)
                 if not need or not got:
                     unsided.append(d)
                 elif got == need:
@@ -1196,6 +1313,10 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
                     against.append(d)
         seen_state = matched if measured is None else [d for d in matched if d in measured]
         unread = [] if measured is None else [d for d in matched if d not in measured]
+        if reasons:
+            # THE REASONED MEMBERS LEAVE THE COUNTED SET AND JOIN THE UNREAD ONE, in HEAD's matched order.
+            seen_state = [d for d in seen_state if d not in reasons]
+            unread = [d for d in matched if d in reasons or (measured is not None and d not in measured)]
         inter = []
         for it in (getattr(s, "interactions", ()) or ()):
             when = list(it.when)
@@ -1230,6 +1351,9 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
             out[-1]["unsided"] = tuple(unsided)
             out[-1]["interactions"] = tuple(
                 dict(i, against=tuple(d for d in i["when"] if d in against)) for i in inter)
+            if reasons:
+                # Z10: each named-not-counted member's reason, at the row's TAIL, omitted when empty.
+                out[-1]["unread_reason"] = dict(reasons)
     out.sort(key=lambda r: (-r["n_matched"], r["name"]))
     return out
 
@@ -3205,8 +3329,25 @@ def chain_record_names(ch) -> tuple:
 
 
 # ── the outcome line: the base rate a PM pays for ────────────────────────────────────────────────────
+def band_month_span(band: Optional[LagBand]) -> Optional[tuple]:
+    """``(lo_months, hi_months)`` of a declared lag band -- the ONE reading :func:`chain_history` and
+    :func:`chain_outcome` both make of it (a band with no upper bound closes one quarter past its opening, or at
+    one quarter) -- or ``None`` where the band declares nothing. Shared with ``feeders.front_moves`` so the
+    window a past time's price move is read over is computed once, the same way, on both sides of the read."""
+    if band is None or band.min_q is None:
+        return None
+    lo_m, hi_m = band.months()
+    lo_m = int(lo_m or 0)
+    hi_m = int(hi_m) if hi_m is not None else max(lo_m, QUARTER_MONTHS)
+    return lo_m, hi_m
+
+
+#: THE BASIS WORD OF AN OUTCOME PRICED PER PAST TIME ON ITS OWN CONTRACT (CONTRACT Z12, U-11).
+OUTCOME_CONTRACT_CYCLE: str = "contract_cycle"
+
+
 def chain_outcome(price_values, price_dates, *, unit: str, firings, band: Optional[LagBand],
-                  declared_sign: str = "", scope: str = "") -> dict:
+                  declared_sign: str = "", scope: str = "", per_firing: Optional[dict] = None) -> dict:
     """What the ANCHOR's own price did after each past firing -- ``{n, median_move, range,
     share_declared_way, words}``, in the PAST TENSE, as history and never as a forecast.
 
@@ -3221,7 +3362,20 @@ def chain_outcome(price_values, price_dates, *, unit: str, firings, band: Option
 
     ONE CALCULATOR: the median and the range come from ``stats.quantiles``. When the sample is under
     that module's own floor the line REFUSES THE MEDIAN and prints the count and the share instead --
-    a count is not a distribution and must not be dressed as one."""
+    a count is not a distribution and must not be dressed as one.
+
+    **``per_firing`` PRICES EACH PAST TIME ON ITS OWN CONTRACT** (the 09-27 fix sitting 3, lane W; CONTRACT Z12,
+    U-11): ``feeders.front_moves``' answer. Where it is passed, each firing's move is read on the ONE contract
+    that answer names for that firing (its own ``values`` / ``dates``), over the SAME band window the tape
+    path reads (:func:`band_month_span`), and never across a roll; a firing the feeder declined (pre-coverage,
+    in flight, no front named, a contract not live over the band, a failed read) is counted under its word and
+    priced nowhere. The outcome then carries its basis (``basis: "contract_cycle"``), the contract months it read
+    (``contracts``), the counts ``in_flight`` / ``pre_coverage`` and the feeder's own ``reads`` / ``ms`` --
+    APPENDED; ``window_from`` / ``window_to`` span the windows actually priced. ``None`` (every caller that
+    passes none) is HEAD, byte for byte."""
+    if per_firing is not None:
+        return _chain_outcome_per_firing(per_firing, firings=firings, band=band,
+                                         declared_sign=declared_sign, scope=scope, unit=unit)
     out = {"n": 0, "n_in": len(list(firings or ())), "median_move": None, "low": None, "high": None,
            "share_declared_way": 0, "unit": "percent", "scope": scope,
            # THE WINDOW'S TWO DATES AS FIELDS AND NOT ONLY AS PROSE (lane R's handoff W-R5). The page's
@@ -3249,6 +3403,13 @@ def chain_outcome(price_values, price_dates, *, unit: str, firings, band: Option
         moves.append(float(ch["pct_change"]))
     if not moves:
         return out
+    return _outcome_summary(out, moves, declared_sign)
+
+
+def _outcome_summary(out: dict, moves: list, declared_sign: str) -> dict:
+    """THE ONE CALCULATOR OVER A LIST OF PAST MOVES -- the count, the share the declared way, and the middle
+    and both ends from ``stats.quantiles`` (refused under its own floor) -- written onto ``out`` with its
+    words. Both outcome paths (the anchor's tape, each past time's own contract) end here."""
     want = _SIGN_INT.get(str(declared_sign or ""))
     out["moves"] = tuple(moves)
     out["n"] = len(moves)
@@ -3260,6 +3421,71 @@ def chain_outcome(price_values, price_dates, *, unit: str, firings, band: Option
         out["low"], out["high"] = q["quantiles"]["0"], q["quantiles"]["1"]
     out["words"] = chain_outcome_words(out, declared_sign=declared_sign)
     return out
+
+
+#: THE TRACE'S SCOPE WORDS FOR AN OUTCOME PRICED PER PAST TIME (Z12): each past time's move is read on the
+#: contract the shipped roll rule names front at the CLOSE of that time's own band -- the one contract live
+#: across the whole band -- and the two dates are the earliest and the latest session actually priced.
+OUTCOME_CONTRACT_CYCLE_WORDS: str = ("the contract front at the close of each past time's own band, "
+                                     "%s to %s")
+
+
+def _chain_outcome_per_firing(fm: dict, *, firings, band: Optional[LagBand], declared_sign: str = "",
+                              scope: str = "", unit: str = "") -> dict:
+    """:func:`chain_outcome`'s ``per_firing`` branch (CONTRACT Z12). ``fm`` is ``feeders.front_moves``' answer:
+    ``{"per_firing": {firing_date: {"contract_month", "values", "dates", "unit", "status"}}, "declined":
+    {firing_date: FRONT_MOVE_DECLINES word}, "reads", "ms"}``. Each firing is read on ITS OWN entry's arrays
+    over the band window :func:`band_month_span` names -- one contract, never a splice. ZERO reads."""
+    fm = dict(fm or {})
+    pf = dict(fm.get("per_firing") or {})
+    declined = dict(fm.get("declined") or {})
+    firings = list(firings or ())
+    out = {"n": 0, "n_in": len(firings), "median_move": None, "low": None, "high": None,
+           "share_declared_way": 0, "unit": "percent", "scope": "", "window_from": "", "window_to": "",
+           "words": "no price history over the past times this reading sat this far out", "moves": ()}
+    span = band_month_span(band)
+    moves: list = []
+    froms: list = []
+    tos: list = []
+    contracts: list = []
+    if span is not None:
+        lo_m, hi_m = span
+        for f in firings:
+            e = pf.get(str(f.get("date") or "")[:10])
+            if not e or str(e.get("status") or "ok") != "ok":
+                continue
+            vals, dts = list(e.get("values") or ()), list(e.get("dates") or ())
+            j0 = _at_or_after(dts, _add_months(f["date"], lo_m) or "")
+            j1 = _at_or_before(dts, _add_months(f["date"], hi_m) or "")
+            if j0 is None or j1 is None or j1 <= j0:
+                continue
+            ch = ST.window_change([vals[j0], vals[j1]], 0, 1)
+            if ch.get("declined") or ch.get("pct_change") is None:
+                continue
+            moves.append(float(ch["pct_change"]))
+            froms.append(str(dts[j0])[:10])
+            tos.append(str(dts[j1])[:10])
+            cm = str(e.get("contract_month") or "")
+            if cm and cm not in contracts:
+                contracts.append(cm)
+    if froms:
+        out["window_from"], out["window_to"] = min(froms), max(tos)
+        out["scope"] = OUTCOME_CONTRACT_CYCLE_WORDS % (out["window_from"], out["window_to"])
+    words = [str(w) for w in declined.values()]
+    out["basis"] = OUTCOME_CONTRACT_CYCLE
+    out["contracts"] = tuple(contracts)
+    out["in_flight"] = words.count("in_flight")
+    out["pre_coverage"] = words.count("pre_coverage")
+    out["reads"] = int(fm.get("reads") or 0)
+    out["ms"] = float(fm.get("ms") or 0.0)
+    tally: dict = {}
+    for w in words:
+        tally[w] = tally.get(w, 0) + 1
+    if tally:
+        out["declines"] = dict(sorted(tally.items()))
+    if not moves:
+        return out
+    return _outcome_summary(out, moves, declared_sign)
 
 
 def chain_outcome_words(o: dict, *, declared_sign: str = "") -> str:
@@ -4730,7 +4956,7 @@ def _refused_report_key(c: Chain) -> Optional[tuple]:
 
 # ── the builder ──────────────────────────────────────────────────────────────────────────────────────
 def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=None,
-               receipts: Optional[dict] = None, routed: Optional[dict] = None) -> dict:
+               receipts: Optional[dict] = None, routed: Optional[dict] = None, front_fn=None) -> dict:
     """THE COMPOSED CHAIN LEG. ZERO reads, zero retrievals, zero environment.
 
     ``ancestor_paths``' own pool (already walked and deduped into ``bd.paths`` at step 6) crossed with
@@ -4953,7 +5179,7 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
     for c in out["rendered"]:
         chain_explain(c, named_markets=named, horizon_months=bd.horizon_months,
                       anchor=_facts(c.contract))
-        c.outcome = _outcome_for(bd, c, spread_fn=spread_fn)
+        c.outcome = _outcome_for(bd, c, spread_fn=spread_fn, front_fn=front_fn)
     for c in chain_trace_set(pool):
         if not c.notes:
             chain_explain(c, named_markets=named, horizon_months=bd.horizon_months,
@@ -5479,9 +5705,18 @@ def _tape_series(bd, slug: str):
     return None
 
 
-def _outcome_for(bd, ch: Chain, *, spread_fn=None) -> dict:
+def _outcome_for(bd, ch: Chain, *, spread_fn=None, front_fn=None) -> dict:
     """The anchor's own price move after each of the receipt hop's past firings -- or the honest line
-    that says the price array does not reach them."""
+    that says the price array does not reach them.
+
+    ``front_fn`` (the 09-27 fix sitting 3, lane W; CONTRACT Z12 -- U-11): ``front_fn(slug, firings, band) ->
+    feeders.front_moves' answer`` -- the seam builds it as ``functools.partial(feeders.front_moves, asof=bd.asof,
+    qfn=<the board's executor>)`` under GRAPHRAG_STATE_CHAIN. Where it is passed and the chain has past firings
+    (and the RV seat's ``spread_fn`` served no spread basis), each firing is priced on the contract the shipped
+    roll rule names front at the close of its own band (:func:`chain_outcome`'s ``per_firing``) instead of on
+    the anchor's ONE present front contract, whose ~330 sessions reach back about fifteen months (MEASURED on
+    the fifty banked pages: 13 of the 35 rendered chains with past firings priced none of them, 22 priced a
+    subset). A seam that raises or answers nothing reads HEAD's tape. ``None`` is HEAD, byte for byte."""
     firings = list((ch.history or {}).get("firings") or ())
     band = ch.hops[ch.receipt_index].lag_band if ch.hops else None
     vals, dates, unit, scope = (), (), "", ""
@@ -5492,6 +5727,14 @@ def _outcome_for(bd, ch: Chain, *, spread_fn=None) -> dict:
             got = {}
         vals, dates = tuple(got.get("values") or ()), tuple(got.get("dates") or ())
         unit, scope = str(got.get("unit") or ""), str(got.get("scope") or "")
+    if not vals and front_fn is not None and firings:
+        try:
+            fm = front_fn(ch.contract, firings, band)
+        except Exception:                               # noqa: BLE001 -- a seam must never kill a turn
+            fm = None
+        if isinstance(fm, dict) and ("per_firing" in fm or "declined" in fm):
+            return chain_outcome((), (), unit="", firings=firings, band=band,
+                                 declared_sign=ch.declared_sign, per_firing=fm)
     if not vals:
         # `bd.tape` IS KEYED BY ANCHOR SLUG ONLY and a `TapeState` is not a `StateRow` -- it carries no
         # `SeriesKey`, so its bundle is read by VALUE rather than by key. MEASURED: one entry on a
@@ -6234,7 +6477,8 @@ def walk(*, graph, asof: str, mode: str = "deep", anchors=(), question: str = ""
          knobs: Optional[B.BoardKnobs] = None, width: int = 2, legb_on: bool = False,
          alternative_rank: bool = False, complexes=(), chains=(),
          positioning_ids=(), stage2: bool = True, cold_start: bool = False,
-         analog_reads: bool = True, state_chain: bool = False, spread_fn=None) -> B.Board:
+         analog_reads: bool = True, state_chain: bool = False, spread_fn=None,
+         front_fn=None) -> B.Board:
     """THE WALK, in the order of sec 3.3, and it never replans.
 
     ``state_fn(ref, node) -> (StateRow, reads)`` and ``key_fn(ref, node) -> KeyPlan`` are INJECTED.
@@ -6389,14 +6633,14 @@ def walk(*, graph, asof: str, mode: str = "deep", anchors=(), question: str = ""
         _stage2(bd, graph, kn, key_fn=key_fn, state_fn=state_fn, receipts=receipts, width=width,
                 legb_cells=legb_cells, legb_on=legb_on, complexes=complexes, chains=chains,
                 turn_kind=turn_kind, analog_reads=analog_reads, state_chain=state_chain,
-                spread_fn=spread_fn)
+                spread_fn=spread_fn, front_fn=front_fn)
     return bd
 
 
 def stage2(bd: B.Board, graph, *, state_fn=None, key_fn=None, receipts=None, width: int = 2,
            legb_on: bool = False, complexes=(), chains=(), analog_reads: bool = True,
            state_chain: bool = False, spread_fn=None, extra_periods=(), ledger_reader=None,
-           routed_reader=None) -> B.Board:
+           routed_reader=None, front_fn=None) -> B.Board:
     """STAGE 2 ALONE, on a board :func:`walk` built with ``stage2=False`` (D11, sec 3.9).
 
     IT EXISTS BECAUSE THE TWO STAGES RUN AT TWO SEAMS AND NOT ONE. `walk(stage2=True)` is the harness
@@ -6429,7 +6673,12 @@ def stage2(bd: B.Board, graph, *, state_fn=None, key_fn=None, receipts=None, wid
     ``ledger_reader`` / ``routed_reader`` (the 09-26 fix sitting, W-1 / W-2) are the two store reads the
     CHAIN leg makes -- ``feeders.action_ledger``'s and ``feeders.routed_documents``' injected readers. ``None``
     (every caller) is the pooled pg statement, which declines by name where no mirror is configured; a
-    chain-off turn reads neither."""
+    chain-off turn reads neither.
+
+    ``front_fn`` (the 09-27 fix sitting 3, lane W; CONTRACT Z12 -- U-11) is the chain outcome's per-past-time
+    price read, threaded to :func:`chain_rows` -> :func:`_outcome_for`: ``front_fn(slug, firings, band)`` ->
+    ``feeders.front_moves``' answer. The serving seam builds it under GRAPHRAG_STATE_CHAIN; ``None`` (every
+    caller that passes none) prices the outcome on the anchor's own tape, HEAD's bytes."""
     if bd.knobs is None or not bd.anchors or not bd.stage_done.get(1):
         return bd
     if extra_periods:
@@ -6437,7 +6686,8 @@ def stage2(bd: B.Board, graph, *, state_fn=None, key_fn=None, receipts=None, wid
     _stage2(bd, graph, bd.knobs, key_fn=key_fn, state_fn=state_fn, receipts=receipts, width=width,
             legb_cells=B.legb_cells_of(bd.mode), legb_on=legb_on, complexes=complexes, chains=chains,
             turn_kind=bd.turn_kind, analog_reads=analog_reads, state_chain=state_chain,
-            spread_fn=spread_fn, ledger_reader=ledger_reader, routed_reader=routed_reader)
+            spread_fn=spread_fn, ledger_reader=ledger_reader, routed_reader=routed_reader,
+            front_fn=front_fn)
     return bd
 
 
@@ -6635,7 +6885,7 @@ def restamp_store_period(bd, extra_periods) -> int:
 
 def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, legb_on, complexes,
             chains, turn_kind, analog_reads: bool = True, state_chain: bool = False,
-            spread_fn=None, ledger_reader=None, routed_reader=None) -> None:
+            spread_fn=None, ledger_reader=None, routed_reader=None, front_fn=None) -> None:
     """STEPS 5-14 of sec 3.3: receipts, EVENT rows, the closure, the edges, the free fan, wave 2's
     price, wave 2, convergence, complexes and chains. IT NEVER RE-RANKS STAGE 1."""
     t0 = time.perf_counter()
@@ -6901,8 +7151,14 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
         # only for the board); zero reads -- every figure is the row's own served standing.
         sides = {r.driver_id: s for r in loud_by_board.get(slug, ())
                  if r.driver_id in read_ids for s in (row_side(r),) if s is not None}
+        # EACH READ MEMBER BY ITS OWN CONDITION (the 09-27 fix sitting 3, lane W; CONTRACT Z10 -- U-2 + M-4): a
+        # regime node by the walk's own regime reading over the SAME receipt map and routing this stage read
+        # (zero reads: :func:`regime_state` is the chain hop's ladder), and a level held only as last revised
+        # by its MEASURED retention stamp. Rides GRAPHRAG_STATE_BOARD with the rest of this stage.
+        regime, held = quorum_member_facts(bd, loud_by_board.get(slug, ()), read_ids,
+                                           receipts=receipts, routed=routed)
         rows = convergence_rows(graph, slug, ids, loud_k=int(kn.loud_k), band_ids=banded,
-                                measured_ids=read_ids, sides=sides)
+                                measured_ids=read_ids, sides=sides, regime=regime, held=held)
         bd.convergence.extend(rows)
         n_amp += sum(1 for r in rows for i in r["interactions"] if i["rendered"])
     bd.stamp("interaction", "fired" if n_amp else
@@ -6936,7 +7192,7 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
         # STEP 5's OWN RECEIPT MAP rides into the chain leg (the 09-23 fix round) so each hop's dated
         # document is classified over the list step 5 read -- and ONLY here, on the chain path.
         got = chain_rows(bd, graph, knobs=kn, chains=chains, spread_fn=spread_fn, receipts=receipts,
-                         routed=routed)
+                         routed=routed, front_fn=front_fn)
         bd.chains = got["pool"]
         bd.chain_counts = dict(got["counts"])
         bd.chain_counts["disagreement"] = got["disagreement"]

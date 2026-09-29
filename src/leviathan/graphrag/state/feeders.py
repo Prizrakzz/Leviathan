@@ -3096,6 +3096,358 @@ def _session_date(row: dict) -> str:
 
 
 # ---------------------------------------------------------------------------------------------------
+# THE FRONT PRICE AT EACH PAST TIME (the 09-27 fix sitting 3, lane W; CONTRACT Z12 -- U-11)
+# ---------------------------------------------------------------------------------------------------
+#: THE CLOSED WORDS A PAST TIME THE FEEDER COULD NOT PRICE SAYS WHY (CONTRACT Z12; APPEND-NEVER-SORT):
+#:   ``pre_coverage`` -- the band opens before the slug's own first stored session (``PRICE_COVERAGE_START``);
+#:   ``front_decline`` -- the shipped roll rule named no front at the band's close (``tape_state``'s own word),
+#:       or the slug carries no per-contract tape at all;
+#:   ``contract_expired_in_band`` -- the contract the rule named carries no session of its own between the
+#:       session it was named on and the band's close (it stopped trading inside the band);
+#:   ``in_flight`` -- the band closes after the as-of: the present, never a record (never read);
+#:   ``read_error`` -- a read failed or declined by name (pool / timeout);
+#:   ``contract_not_live_at_open`` -- APPENDED at this build: the named contract carries no session on or before
+#:       the band's opening (it was not yet trading when the band opened), so its move would not span the band.
+FRONT_MOVE_DECLINES: tuple = ("pre_coverage", "front_decline", "contract_expired_in_band", "in_flight",
+                              "read_error", "contract_not_live_at_open")
+
+
+def _front_read(slug: str, spec, ts, *, qfn, roll_inputs: bool) -> tuple:
+    """ONE bounded tape-card read -> ``(rows, status)`` -- ``status`` ``""`` on a read, else
+    ``"read_error"``. The board's own executor and the tape's own read flags (``ym_lag``, the newest-first
+    scope token and, where the rule must run, ``roll_inputs``); a per-process memo in the state cache's own
+    namespace (``GRAPHRAG_STATE_CACHE``, one bound, one clear) keyed by the COMPILED statement, so two chains
+    that price the same past time on one turn read it once. NEVER RAISES."""
+    from leviathan.graphrag.numbers import query as Q
+    try:
+        _lag = {"roll_inputs": True} if roll_inputs else {}
+        sql = Q.build_sql(spec, ts, futures_newest_first="all", ym_lag=True, **_lag)
+    except Exception:                                   # noqa: BLE001 -- an uncompilable read is a decline
+        return [], "read_error"
+    mkey = ("front_read", str(slug), sql, mirror_epoch())
+    hit = cache_get(mkey)
+    if hit is not None:
+        return list(hit), ""
+    try:
+        rows = Q.run(spec, query_fn=qfn, futures_newest_first="all", ym_lag=True, **_lag)
+    except Exception:                                   # noqa: BLE001 -- BoardReadDecline and every failure
+        return [], "read_error"
+    rows = list(rows or [])
+    cache_put(mkey, rows, str(spec.asof or ""))
+    return rows, ""
+
+
+def front_moves(slug: str, firings, band, asof: str, *, qfn, limit: int = READ_LIMIT) -> dict:
+    """THE FRONT PRICE AT EACH PAST TIME, EACH ON ITS OWN CONTRACT (CONTRACT Z12, U-11) -- ``{"per_firing":
+    {firing_date: {"contract_month", "values", "dates", "unit", "status", "named_at"}}, "reads": int, "ms":
+    float, "declined": {firing_date: FRONT_MOVE_DECLINES word}}``. NEVER RAISES; nothing is ever spliced.
+
+    THE MEASURED BOUND IT LIFTS: the chain outcome priced every past firing on the anchor's ONE present front
+    contract (``tape_state``: ~330 sessions, about fifteen months), so a past time older than that window was
+    never priced whatever the store held -- on the fifty banked pages 13 of the 35 rendered chains with past
+    firings priced none of them and 22 priced a subset, while ``silver_futures_eod`` covers soybeans / corn /
+    rice / SRW from 2010-06 and CME palm from 2016-08 (``PRICE_COVERAGE_START``). The continuous card is never
+    read (tables.yaml: "a roll-spliced continuous series has NO true vintage and NO PIT-safe cross-date
+    delta").
+
+    WHICH CONTRACT, PER PAST TIME: the one the SHIPPED roll rule (``query.select_front_expiry`` ->
+    ``futures_roll.front_month``, ``tape_state``'s own call on a single session) names FRONT AT THE CLOSE of that
+    time's own band (``walk.band_month_span`` -- the window the outcome is read over). That is the tape's own
+    reading carried back: the present outcome reads the contract front at the as-of across its past sessions,
+    and each past time reads the contract front at its band's close across the band. It is the one contract
+    that trades across the whole band -- every receipt-hop band on the fifty is three to twelve months long
+    (0-1 to 2-4 quarters) while a contract is front for one to three, so the contract front at the time itself
+    would expire inside nearly every band and its move would be a splice or a truncation. The contract must also
+    have traded at the band's opening (a session of its own on or before it), else ``contract_not_live_at_open``.
+
+    THE READS, BOUNDED AND COUNTED: ONE small read per distinct band close (the curve over the tape's own roll
+    margin before the close, with the rule's own inputs -- the front at that session), then ONE bounded read per
+    distinct front contract (firings grouped by their contract; ``contract_month`` named, the union of their
+    windows from the tape's roll margin before the earliest opening to the latest close, PIT at the board's
+    as-of). Both reads carry the board's ``limit``; ``reads`` and ``ms`` are stamped. A band that closes after the
+    as-of is ``in_flight`` and read nowhere; a band opening before coverage is ``pre_coverage`` at zero reads."""
+    t0 = time.perf_counter()
+    out: dict = {"per_firing": {}, "reads": 0, "ms": 0.0, "declined": {}}
+    asof_s = str(asof or "")[:10]
+    try:
+        from leviathan.graphrag.state import walk as _w
+        span = _w.band_month_span(band)
+    except Exception:                                   # noqa: BLE001
+        span = None
+    dates: list = []
+    for f in firings or ():
+        d = str((f.get("date") if isinstance(f, dict) else getattr(f, "date", "")) or "")[:10]
+        if d and d not in dates:
+            dates.append(d)
+    if not dates or span is None or not asof_s:
+        return out
+    lo_m, hi_m = span
+    try:
+        from leviathan.silver import futures_eod_contracts as FC
+        floor = FC.PRICE_COVERAGE_START.get(str(slug or ""))
+    except Exception:                                   # noqa: BLE001 -- an unreadable roster is a decline
+        floor = None
+    # A SLUG THE ROLL RULE CANNOT BE ASKED OF declines at ZERO reads: no per-contract tape (absent from the
+    # coverage roster), or a CASH REFERENCE whose declared roll method is ``none`` ("front month" is not a question
+    # that can be asked of a CEPEA index -- ``query.select_front_expiry``'s own refusal, read here from the rule's
+    # own table before a read is spent on it; MEASURED on the fifty: 17 past times on the Campinas corn index).
+    try:
+        from leviathan.silver import futures_roll as _FR
+        method = str(_FR.roll_method_for(str(slug or "")) or "")
+    except Exception:                                   # noqa: BLE001 -- an unmapped slug: the rule declines
+        method = ""
+    if floor is None or not method or method == "none":
+        out["declined"] = {d: "front_decline" for d in dates}
+        return out
+    floor_s = floor.isoformat() if hasattr(floor, "isoformat") else str(floor)[:10]
+    windows: dict = {}
+    for d in dates:
+        opens, closes = _w._add_months(d, lo_m), _w._add_months(d, hi_m)
+        if not opens or not closes:
+            continue                                     # never reached: chain_firings places every firing
+        if closes > asof_s:
+            out["declined"][d] = "in_flight"
+        elif opens < floor_s:
+            out["declined"][d] = "pre_coverage"
+        else:
+            windows[d] = (opens, closes)
+    if not windows:
+        out["ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
+        return out
+    from leviathan.graphrag.numbers import query as Q
+    from leviathan.graphrag.numbers.registry import load_registry
+    try:
+        ts = load_registry().get(TAPE_TABLE)
+        # THE BOARD'S OWN EXECUTOR WHEN NONE IS HANDED IN -- never ``query.run``'s default, whose per-request
+        # fallback is the two-minute wall :func:`board_query_fn` exists to refuse.
+        qfn = qfn if qfn is not None else board_query_fn()
+    except Exception:                                   # noqa: BLE001
+        for d in windows:
+            out["declined"][d] = "read_error"
+        return out
+    # 1. THE FRONT AT EACH BAND'S CLOSE -- the tape's own single-session selection, at the close.
+    fronts: dict = {}
+    for close in sorted({w[1] for w in windows.values()}):
+        # The tape's own spec (``tape_spec``'s card, metric, commodity and cap) at the BOARD's as-of -- the
+        # point-in-time cutoff every read on this turn takes -- bounded to the roll margin before the close.
+        spec = board_spec(TAPE_TABLE, TAPE_METRIC, slug, None, asof_s, "daily")
+        spec.period_start = tape_period_start(close, sessions=TAPE_ROLL_MARGIN_SESSIONS)
+        spec.period_end, spec.limit = close, int(limit or READ_LIMIT)
+        rows, why = _front_read(slug, spec, ts, qfn=qfn, roll_inputs=True)
+        out["reads"] += 1
+        if why:
+            fronts[close] = (None, None, why)
+            continue
+        start = str(spec.period_start or "")[:10]
+        sess = sorted({s for s in (_session_date(r) for r in rows) if s and start <= s <= close})
+        if not sess:
+            fronts[close] = (None, None, "front_decline")
+            continue
+        newest = sess[-1]
+        try:
+            front = Q.select_front_expiry([r for r in rows if _session_date(r) == newest], spec, ts)
+        except Exception:                               # noqa: BLE001 -- the rule refusing is a decline
+            front = []
+        cm = str((front[0] if front else {}).get("contract_month") or "")[:7]
+        fronts[close] = (cm, newest, "") if cm else (None, None, "front_decline")
+    # 2. ONE BOUNDED READ PER DISTINCT FRONT CONTRACT, over the union of its past times' windows.
+    by_c: dict = {}
+    for d, (opens, closes) in windows.items():
+        cm, named_at, why = fronts.get(closes) or (None, None, "front_decline")
+        if not cm:
+            out["declined"][d] = why or "front_decline"
+            continue
+        by_c.setdefault(cm, []).append(d)
+    for cm, ds in sorted(by_c.items()):
+        lo = tape_period_start(min(windows[d][0] for d in ds), sessions=TAPE_ROLL_MARGIN_SESSIONS)
+        hi = max(windows[d][1] for d in ds)
+        spec = board_spec(TAPE_TABLE, TAPE_METRIC, slug, None, asof_s, "daily")
+        spec.period_start, spec.period_end, spec.contract_month = lo, hi, cm
+        spec.limit = int(limit or READ_LIMIT)
+        rows, why = _front_read(slug, spec, ts, qfn=qfn, roll_inputs=False)
+        out["reads"] += 1
+        if why:
+            for d in ds:
+                out["declined"][d] = why
+            continue
+        by_date: dict = {}
+        unit = ""
+        for r in rows:
+            if str(r.get("contract_month") or "")[:7] != cm:
+                continue
+            s = _session_date(r)
+            if not s or s < lo or s > hi or s > asof_s:
+                continue
+            try:
+                by_date[s] = float(str(r.get("value")).replace(",", ""))
+            except (TypeError, ValueError):
+                continue
+            unit = unit or str(r.get("unit") or "")
+        cdates = sorted(by_date)
+        for d in ds:
+            opens, closes = windows[d]
+            named_at = (fronts.get(closes) or (None, None, ""))[1] or closes
+            own = [s for s in cdates if tape_period_start(opens, sessions=TAPE_ROLL_MARGIN_SESSIONS) <= s <= closes]
+            if not own or own[0] > opens:
+                out["declined"][d] = "contract_not_live_at_open"
+                continue
+            if own[-1] < named_at:
+                out["declined"][d] = "contract_expired_in_band"
+                continue
+            out["per_firing"][d] = {"contract_month": cm, "values": [by_date[s] for s in own],
+                                    "dates": own, "unit": unit, "status": "ok", "named_at": named_at}
+    out["ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
+    return out
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE FX JOIN (the 09-27 fix sitting 3, lane W; CONTRACT Z13 -- U-8, the feeder half)
+# ---------------------------------------------------------------------------------------------------
+#: The card every cross-currency join reads -- the SAME card the board reads for its BRL / MYR rows and the
+#: cascade reads for its cross-currency hops (``cascade._CW_FX_CROSS``); the metric per currency is
+#: ``registry.fx_metric_for``'s answer (lane T), never a string built from the ISO code here.
+FX_TABLE: str = "silver_fred_fx"
+#: THE CLOSED STATUS WORDS OF ONE CURRENCY'S FX ROW (CONTRACT Z13; APPEND-NEVER-SORT).
+FX_ROW_STATUS: tuple = ("ok", "no_fx_series", "fx_stale", "read_error")
+
+
+def _prev_weekday(iso: str) -> str:
+    """The weekday session before ``iso`` -- ONE SESSION of a Monday-to-Friday daily card, by the calendar
+    alone (a Monday's is the Friday before). ``""`` for an unplaceable date."""
+    try:
+        d = _dt.date.fromisoformat(str(iso or "")[:10])
+    except (TypeError, ValueError):
+        return ""
+    d -= _dt.timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= _dt.timedelta(days=1)
+    return d.isoformat()
+
+
+def fx_rows(currencies, asof: str, *, qfn, on_or_before: str) -> dict:
+    """THE FX ROW OF EACH NON-USD CURRENCY A PAIR NEEDS (CONTRACT Z13, U-8's feeder half) -- ``{ccy: {"metric",
+    "rate", "date", "unit", "status", "on_or_before", "card"}}`` with ``status`` one of :data:`FX_ROW_STATUS`.
+    NEVER RAISES, NEVER CONVERTS: the rate is served as the card stores it ("<CCY> per USD"), and the stats
+    engine (lane T) does the arithmetic.
+
+    * the metric is ``registry.fx_metric_for(ccy)`` -- the card metric whose DECLARED unit reads "<CCY> per
+      USD" -- read defensively; a currency the card declares no metric for is ``no_fx_series`` with the
+      currency named (the stats engine's decline then names it); a registry without the producer is
+      ``read_error`` (the producer missing is not a fact about the store);
+    * ONE bounded read per currency (the card's own ``series`` shape over the daily cadence's own read slack
+      before the date, ``CADENCE_READ_SLACK['daily']`` sessions), memoised per process in the state cache's
+      namespace, and the NEWEST rate dated on or before ``min(on_or_before, asof)`` -- never after the as-of
+      (B14) and never after the spread's own shared session;
+    * a rate older than ONE SESSION of the card before ``on_or_before`` (:func:`_prev_weekday`: a Monday
+      spread takes the Friday rate, nothing older) is ``fx_stale`` with both dates, and is never used.
+    USD needs no row and gets none."""
+    asof_s = str(asof or "")[:10]
+    bound = min(asof_s, str(on_or_before or asof_s)[:10]) if asof_s else str(on_or_before or "")[:10]
+    out: dict = {}
+    try:
+        from leviathan.graphrag.numbers import registry as _R
+        fx_for = getattr(_R, "fx_metric_for", None)
+        ts = _R.load_registry().get(FX_TABLE)
+        # the board's own executor when none is handed in (never ``query.run``'s default fallback)
+        qfn = qfn if qfn is not None else board_query_fn()
+    except Exception:                                   # noqa: BLE001
+        fx_for, ts = None, None
+    for ccy in dict.fromkeys(str(c or "").strip().upper() for c in (currencies or ())):
+        if not ccy or ccy == "USD":
+            continue
+        row = {"metric": "", "rate": None, "date": "", "unit": "", "status": "read_error",
+               "on_or_before": bound, "card": FX_TABLE}
+        out[ccy] = row
+        if not callable(fx_for) or ts is None or not bound:
+            continue
+        try:
+            metric = fx_for(ccy)
+        except Exception:                               # noqa: BLE001
+            continue
+        if not metric:
+            row["status"] = "no_fx_series"
+            continue
+        row["metric"] = str(metric)
+        try:
+            from leviathan.graphrag.numbers import query as Q
+            start = tape_period_start(bound, sessions=CADENCE_READ_SLACK["daily"])
+            spec = Q.NumberQuery(table=FX_TABLE, metric=str(metric), asof=asof_s or bound, agg="series",
+                                 period_start=start, period_end=bound, limit=READ_LIMIT)
+            mkey = ("fx_read", ccy, str(metric), asof_s, bound, mirror_epoch())
+            rows = cache_get(mkey)
+            if rows is None:
+                rows = list(Q.run(spec, query_fn=qfn) or [])
+                cache_put(mkey, rows, asof_s)
+        except Exception:                               # noqa: BLE001 -- BoardReadDecline and every failure
+            continue
+        best = None
+        for r in rows or ():
+            s = _session_date(r)
+            if not s or s > bound or not _parses(r.get("value")):
+                continue
+            if best is None or s > best[0]:
+                best = (s, r)
+        if best is None:
+            row["status"] = "fx_stale"
+            continue
+        s, r = best
+        # THE RATE'S UNIT IS THE CARD'S OWN ("<CCY> per USD ..."): the row's where it carries one, else the metric
+        # the card declares -- the words the stats engine reads the rate's direction from (lane T, U8-a).
+        unit = str(r.get("unit") or "")
+        if not unit:
+            try:
+                unit = str(getattr(_R._metric_spec(FX_TABLE, str(metric)), "unit", "") or "")
+            except Exception:                           # noqa: BLE001 -- a display fact only
+                unit = ""
+        row.update({"rate": float(str(r.get("value")).replace(",", "")), "date": s, "unit": unit})
+        row["status"] = "ok" if s >= _prev_weekday(bound) else "fx_stale"
+    return out
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE WASDE THEN-CURRENT LINE AS ITS OWN ROW (the 09-27 fix sitting 3, lane W; CONTRACT Z22 -- ORCH-P2)
+# ---------------------------------------------------------------------------------------------------
+def then_current_state(st, *, asof: str = "") -> Optional[StateRow]:
+    """THE THEN-CURRENT WASDE LINE OF ONE HELD ROW, AS ITS OWN :class:`StateRow` (CONTRACT Z22). ZERO reads.
+
+    A served marketing-year row the store holds only as last revised (:func:`held_as_last_revised`) carries,
+    on its measured retention stamp, the mapped WASDE line's newest year held AS KNOWN at the as-of
+    (:func:`then_current_line`'s ONE read, made by :func:`_retention_glue`). Sitting 2 printed that line's
+    YEAR in the held row's words ("USDA WASDE held 2023/24 by then") and never its FIGURE; this is that line
+    as ITS OWN row -- its own identity (the WASDE card, metric, commodity and scope), its own figure and unit
+    as the card stores them, its own marketing year, its own release (``knowledge_date``) and its own role
+    word (the line's ``revision_stamp``: projection / estimate) -- so the render prints it under its own
+    handle beside the held row, which STAYS (threat P1-b: the source row keeps its own figure; this line is a
+    second row's facts, never a substitute). ``None`` for every row that is not held, whose stamp carries no
+    readable line (``no_line`` / ``stale_line`` / a failed read) or whose line value does not parse."""
+    rt = retention_of(st)
+    if rt.get("state") != "held_as_last_revised":
+        return None
+    tc = rt.get("then_current") or {}
+    if not tc.get("read") or not tc.get("table") or not tc.get("metric") or not _parses(tc.get("value")):
+        return None
+    try:
+        value = float(str(tc.get("value")).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    cadence = ""
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        cadence = str(getattr(load_registry().get(str(tc["table"])), "cadence", "") or "")
+    except Exception:                                   # noqa: BLE001 -- a display fact only
+        cadence = ""
+    unit = str(tc.get("unit") or "")
+    from leviathan.graphrag.state.rows import SeriesKey
+    key = SeriesKey(ref=str(tc["table"]), commodity=str(tc.get("commodity") or ""),
+                    country=str(tc.get("country") or ""), metric=str(tc["metric"]))
+    return StateRow(key=key, status="ok", table=str(tc["table"]), metric=str(tc["metric"]), cadence=cadence,
+                    unit=unit, narrate_unit=unit, scale=1.0, role=(str(tc.get("role")) if tc.get("role") else None),
+                    level=value, level_date=str(tc.get("period") or ""),
+                    knowledge_date=str(tc.get("knowledge_date") or "")[:10] or None,
+                    asof=str(asof or getattr(st, "asof", "") or "")[:10], reads=0)
+
+
+# ---------------------------------------------------------------------------------------------------
 # THE OFFLINE HARNESS PATH (S1 item g)
 # ---------------------------------------------------------------------------------------------------
 def state_from_arrays(ref: str, values, dates, *, cadence: str = "monthly", asof: str = "",

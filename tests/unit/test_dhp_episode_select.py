@@ -93,7 +93,14 @@ def test_the_digit_lint_is_structurally_blind_to_a_fabricated_span():
     assert vf.bare_digit_verdict(f"- {_BACKED_A}") is None            # ...and so is the honest twin
     assert vf.bare_digit_verdict(f"- {_SPAN_A} -- frost (11 report dates): the record is thin.") \
         == "bare_digit"                                              # honesty: charged
-    assert "episode" not in pathlib.Path(vf.__file__).read_text(encoding="utf-8").lower()
+    # 09-29 FIX SITTING 3, LANE V -- DECLARED RE-BANK (the claim kept: verify.py reads NO episode window or span).
+    # Sitting 3's U-9 check half reads lane T's CONTRACTED served fact by its one spelling, `episode_verdict`
+    # (CONTRACT Z7: a consequence cell's verdict stamped on its legs' calls) -- a verdict, never a window. That
+    # fact's own name, in its three written forms, is the only "episode" token the module may carry.
+    _src = pathlib.Path(vf.__file__).read_text(encoding="utf-8").lower()
+    for _name in ("episode_verdict", "episode-verdict", "episode verdict"):
+        _src = _src.replace(_name, "")
+    assert "episode" not in _src
 
 
 # ══ B -- MEMBERSHIP, NEVER PARSING ═══════════════════════════════════════════════════════════════════

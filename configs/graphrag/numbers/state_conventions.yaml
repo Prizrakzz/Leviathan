@@ -497,12 +497,22 @@ quorum_words:
   asks: "it asks for"
   counted: "counted here"
   unread: "named by the pattern with no series read here, so not counted"
+  # 09-27 SITTING 3 (lane R, CONTRACT Z10): the REASON a condition the walk leaves unread is unread, where the walk
+  # names one (`walk.convergence_rows`' `unread_reason`, lane W) -- a policy condition read by its dated action and
+  # a figure held only as last revised; each replaces `unread`'s words for its own members only. Count words only.
+  regime_action_unread: "named by the pattern as a dated policy action, and no action in the direction the pattern names stands on the record at this date, so not counted"
+  held_as_last_revised: "named by the pattern on a figure held only as last revised, which is no reading of the present, so not counted"
+  # the lead's parenthetical where every named condition is unread and at least one of them WAS read as a series
+  # (HEAD's "none of those drivers has a series read here" would then be false of it)
+  none_counted: "none of them reads here as the condition the pattern names"
 
 # WHAT POPULATION A PERCENTILE, A RECORD OR A Z WAS TAKEN OVER (CONTRACT Y8, lane H's `rows.population_words`
 # formats these; N prints them wherever "of its own record" printed): the whole series, a trailing window
 # (its first month), or one contract's own life (its first session).
 population_words:
-  whole: "of its own record"
+  # 09-27 SITTING 3 (lane R, LEFTOVERS P1-i): the whole record names where it ENDS -- the last period the read held
+  # (`rows.population_words`' `{through}`); a population with no last period prints the caller's own words.
+  whole: "of its own record through {through}"
   window: "of its record since {month}"
   contract_life: "of this contract's own sessions since {day}"
 
@@ -536,3 +546,90 @@ like_state_words:
 # force on its reading says whose edge it is -- {pole} is that pole's own `phase_pairs` words ("the cool phase").
 pole_edge_words:
   other: "declared for {pole}, which is not the phase this reading puts in force"
+
+# =====================================================================================================
+# THE 09-27 FIX SITTING 3's ROW WORDS (lane R) -- declared ONCE, read by state/render.py (`book_words`,
+# `book_list`) or state/rows.py (`splice`, `population_words`); every entry is graded by clause 18's own grader
+# (`lint._row_word_errs`: ASCII, digit-free, underscore-free, register-clean on the four detectors and on the
+# desk register) in tests/unit/test_fix0927s3_lane_r.py -- `lint.ROW_WORD_BOOKS` is lint.py's table, the
+# orchestrator's to extend. A missing book is a missing clause, never a guessed word. Every entry below is a
+# FACT's words (what a served row IS), never a sentence a writer is told to copy (owner 09-27: a fix serves the
+# writer, it never scripts it).
+# =====================================================================================================
+
+# THE PANEL (U-12 block half, CONTRACT Z9): the block is what the writer READS, never what it prints. `head` is
+# appended to the SB-H header line (`render.PANEL_HEAD`); `mandate` is the mandate's one panel sentence (lane A
+# reads it through `render.book_words("panel_words", "mandate")`). One copy each, here.
+panel_words:
+  head: "Every line below is a served fact to reason over in your own words: the panel you read, not the text you print."
+  mandate: "The block of served facts is the panel you read, not the text you print: use its facts, each with its own handle, in your own words, or say in one clause why one is not used."
+
+# THE PAIR'S STANDING ON ITS OWN SPREAD (U-3 row half, CONTRACT Z5). Read by `render.pair_relation` (the FIRST word
+# of the side the spread's own sign puts the first leg on is the word its line prints) and registered whole on the
+# `pair_relation` scalar, so the verifier holds a writer's standing word to the side the served spread's sign
+# gives (lane V). The side is COMPUTED off the calculator's own value and the line's own leg order, never declared.
+pair_standing_words:
+  under: [under, below, at a discount to, cheaper than]
+  over: [over, above, at a premium to, dearer than]
+  level: [level with, even with]
+
+# THE PAIR RELATION LINE'S OWN WORDS (U-3, `render.sb_pair_relation`): the standing, and EACH declared
+# inter-commodity edge between the two legs with its own relation, sign words (rows.SIGN_WORDS) and lag
+# (render.band_words) -- never reconciled into one relation (the fan law, threat R3-a). `class_of` names a
+# declared driver commodity that is a CLASS (a hierarchy complex or group) holding the leg it joined.
+pair_relation_words:
+  standing: "{a} is {standing} {b} on this settle"
+  declared: "the driver model declares"
+  edge: "{driver} {relation} {onto}, moving it {sign} with a lag of {lag}"
+  class_of: "{declared}, a class that includes {leg},"
+  none: "the driver model declares no link between these two markets"
+  unsigned: "with no direction stated for it"
+
+# THE THRESHOLD RELATION WORDS (U-4 producer half, CONTRACT Z6): registered on every `card_threshold` scalar a
+# convention clause prints, so the verifier holds a writer's relation word about a desk line to the row's own
+# relation -- read off the convention the feeder computed (`matched`), never re-derived. Unambiguous words only
+# ("over" / "under" also name a pair standing and a watch distance, and are not relation words here).
+threshold_words:
+  past: [past, beyond, crossed]
+  inside: [inside, short of, within, not yet at]
+
+# THE ONE SPLICE PRODUCER'S HEADS (U-10 producer half, CONTRACT Z8, `rows.splice`): the generic nouns this page
+# names a served reading by. A word right after a spliced span that is one of these is the SLOT's own head and is
+# kept (the verb keeps agreeing with it); where the span IS the head, the FIRST entry stands in for it -- "series",
+# which is the same word singular and plural, so the verb the writer chose still agrees without a morphology rule.
+splice_heads: [series, reading, readings, figure, figures, level, levels, print, prints, value, values, measure, measures]
+
+# THE ASK HEAD'S NETTING FACTS (U-7 producer half, CONTRACT Z4): the words the ASKED SIDES clause prints beside each
+# fact a lean is weighed against -- the reading furthest from its own record on the side OPPOSITE the settled
+# lean (each side where balanced), the dated action on this market with its declared side (`ask_sides_words`'
+# own side words), and the front price over the longest same-contract window its line printed -- each with its
+# OWN handle; a part the block printed no handle for is not printed.
+ask_netting_words:
+  lead: "and beside them the facts a lean is weighed against"
+  opposing: "the reading on the other side furthest from its own record"
+  event: "the dated action on this market, declared"
+  tape: "the front price over the longest window it printed"
+  opposing_each: "the reading on each side furthest from its own record"
+
+# THE READER WORDS FOR EACH MEASURED ABSENCE REASON (S2 V-2, CONTRACT Z20): keys == numbers/agent.ABSENCE_REASONS
+# exactly (the lane R deck asserts it); lane A's absence correction writes these words and never the seat's
+# model-facing note.
+absence_reason_words:
+  no_card: "the record carries no source for this figure"
+  no_series: "the record carries no series for that commodity"
+  no_rows: "the record carries no value for this scope at this date"
+  declined: "the lookup was declined before any value was served"
+  store_gap: "the store dates these figures by when it wrote them, not by publication, so the gap says nothing about when they were published"
+  not_yet_published: "not yet published at this date: the first release of that period falls after it"
+  error: "the lookup failed"
+
+# THE THEN-CURRENT WASDE LINE AS ITS OWN ROW (S2 ORCH-P2, CONTRACT Z22): the role words that row prints -- the line
+# the publisher carried for the year then current, beside a series the store holds only as last revised.
+then_current_words:
+  role: "the line USDA WASDE carried for the marketing year then current, as known at this date, beside a series held only as last revised"
+
+# THE CONVERTED SPREAD'S OWN WORDS (U-8, the call site's half, CONTRACT Z13): a pair spread the stats engine put in one
+# currency names each converted leg with the rate, the rate's own unit words (the FX card's "<CCY> per USD") and the
+# rate's date, as the engine stated them (`stats.pair_level_spread`'s `converted`); the legs' own rows are untouched.
+fx_words:
+  converted: "{leg} converted at {rate} {unit}, the exchange rate of {date}"

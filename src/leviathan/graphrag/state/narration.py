@@ -70,48 +70,298 @@ MANDATE_BLOCK_SELF_NAME: str = "the block"
 #: REJECTED: a find-and-replace of "this page" in the writer's output, or a ban list the writer is told to avoid.
 MANDATE_BLOCK_READER_NAME: str = "the market record"
 
-_T_SYSTEM_STATE_BOARD_MANDATE = (
-    "THE STATE OF THE WORLD block above is this turn's board: every driver the graph declares for the "
-    "markets in play, read on its own series at this as-of and ranked by how far it sits from its own "
-    "history. Cover these four movements as a mentor, in this order of ideas, under the headings your "
-    "response contract already names and adding no heading of your own; where a movement has no "
-    "heading of its own, narrate it inside the section its ideas belong to. (1) DIRECTION: state your "
-    "read of where the anchor market's balance sits now, which way the loud drivers lean and which "
-    "leg you expect to dominate, citing the rows by handle; where the rows lean both ways, say so and "
-    "name both sides -- unless a BOARD JOIN row says two of them are one reading under two names, "
-    "which is one side and never two. Where a loud row is a large move on a short or thin history, or "
-    "a run {record} names "
-    "no mechanism for, say whether you read it as an isolated shock or as a mechanism the graph "
-    "explains -- that judgement is yours; {record} only orders. (2) EVIDENCE: for each driver you "
-    "lean on, give the figure in its unit and the plain meaning in the same sentence, and date it by "
-    "the row's own knowledge date; a LIKE STATE stanza is history -- say what measured then, over the "
-    "stated lag band, at both ends, then how many such cases the record carries, in words, and never "
-    "present it as what will happen; when {record} says no documents exist for it, say so. The "
-    "RECENCY rows belong to this movement and are owed to the reader like any other evidence: give "
-    "each layer its own plain sentence -- the newest knowledge date the number rows carry, the newest "
-    "dated document behind this answer, the session the board price tape runs through -- so the reader "
-    "learns how far each layer reaches instead of inferring one edge from another. "
-    "(3) SPILLOVERS: name the other markets {record} declares the same loud state moves, each with "
-    "the sign word {record} gives for THAT market and with its lag words where {record} states them "
-    "for it; where {record} gives a market a direction and no lag, say the direction and leave the "
-    "lag unstated rather than borrowing another market's. The sign can differ across markets and you "
-    "must keep each market's own, never reconciling two signs into one. When {record} carries a "
-    "CROSS-COMMODITY line, that line is the board's own and it names the markets the rows above "
-    "reach: those markets are what the cross-commodity section holds on this turn, each with the sign "
-    "words and the lag words its own row carries. That line licenses the section and states nothing "
-    "else: it carries no stocks-to-use rows and no handle of its own, it is not a link in a "
-    "transmission chain, and it opens no fork heading. A CROSS-COMMODITY line that sets two "
-    "commodities' stocks-to-use rows side by side is a different line under its own rule; read each "
-    "line by the rows beneath it. (4) WATCH: close with "
-    "the WATCH rows -- the next scheduled print, the level a convention names, the date a declared lag "
-    "window opens -- as concrete items with their dates; never a generic caution. Write every "
-    "PROJECTION in the conditional mood, carry its band as two calendar months, and say what it is "
-    "counted from. Base rates come from {record}'s count words, never from a figure you compute. A "
-    "BOARD ABSENCE row is a fact about coverage: name the gap in words and assert no number for it. "
-    "State each RECENCY row as a fact about the layer it names; none of them dates the answer as a "
-    "whole. Use no heading called then or now."
+# ---------------------------------------------------------------------------------------------------
+# 09-27 FIX SITTING 3 (lane A, U-12 (a)(b)(d); CONTRACT Z1) -- REQUIRED LINES BECOME REQUIRED FACTS.
+# ---------------------------------------------------------------------------------------------------
+# MEASURED (owner, 2026-09-27; `fix_sitting_3_0927/verify/stale/u12_mandates.out`): on a board turn with every
+# flag lit the mandates the writer is handed came to 3,143 words, 166 sentences and five "exactly as" -- and the
+# PM read the result as FURNITURE on six or seven of ten arm-A pages: the count line, the like-state stanza, the
+# recency line and the absence line each copied onto the page because a clause asked for the LINE ("give each
+# layer its own plain sentence", "state each of them exactly as printed", "give it one plain clause ... as it
+# prints it", "the sentence you are told to write"). The owner's word: "what's the point of the LLM if we make
+# this a rule-based if-then engine". A FIX SERVES THE WRITER, IT NEVER SCRIPTS IT.
+#
+# SO EVERY CLAUSE THE BOARD-TURN MANDATES SHIP IS NOW DECLARED ONCE, in one of two tuples, and the literals are
+# COMPOSED from them (never typed a second time):
+#   * :data:`MANDATE_FACTS` -- the facts the writer is asked for, each with the handle(s) it rides
+#     (``handles_from``): the direction read, each driver's figure, the like state's outcome in its own units,
+#     the recency layers' bounds, the spillover signs, the watch item's falsifier, the absence and its reason,
+#     the chain's links / count / scope / outcome, the ask's figures, the horizon's range, the call and its
+#     netting facts. The frame (:data:`MANDATE_RULES` ``facts_owed``) makes each one REQUIRED -- given in the
+#     writer's own words with its handle, or declined in one clause saying why -- so a fact the reader was
+#     owed can never quietly drop (threat A12-a) and a line is never the thing asked for;
+#   * :data:`MANDATE_RULES` -- the few clauses that are not facts, each naming the served fact or estate law it
+#     PROTECTS (``protects``): the response contract's own headings, figures with handles and never computed,
+#     the projection's conditional mood, the CROSS-COMMODITY line's scope (config_check (xii)(c)'s readers), no
+#     heading called then or now, the length ceiling, the register's token ban and its exemptions. A PHRASING
+#     rule the register already enforces as a token ban is DROPPED (U-12 (d)); one with no enforcer is kept as
+#     a fact rule and listed in BUILD_A (threat A12d-a).
+# THE BLOCK IS THE PANEL THE WRITER READS, NOT THE TEXT IT PRINTS (U-12 (b)): that sentence is the book's
+# (`state_conventions.yaml` ``panel_words.mandate``, lane R, Z9) -- read by :func:`panel_mandate` and never
+# typed here, so the block's header and the mandate can never say it two ways.
+# THE CENSUS (:func:`mandate_census`) counts what a turn EMITTED -- words, sentences, the asks (every one a
+# declared clause), the facts required, the rules, "exactly as" -- and the words no declared clause covers
+# (``undeclared_words``), so an imperative that slipped in outside the two tuples is a number, not a hope.
+# REJECTED: a word-count cap typed into a pin; deleting clauses without mapping their facts (the fact-coverage
+# map is BUILD_A's B48); a regex that strips "exactly as" from literals at render time.
+#
+# THE CLAUSE GRAMMAR: one clause is one declared piece of text; ``{record}`` is the record's name slot (the
+# K19 template law above), ``{handles}`` the block's own handles, ``{ceiling}`` the tier's prose ceiling,
+# ``{table}`` the register's replacement column, ``{parts}`` the netting facts' names with their handles. A
+# FACT clause names a fact; a RULE clause says what is protected. No clause carries a figure of its own.
+MANDATE_FACTS: tuple = (
+    # -- the board mandate: (1) DIRECTION ------------------------------------------------------------------
+    ("direction_read", "the readings the read leans on, each by its own [N]",
+     "your read of where the anchor market's balance sits now, which way the drivers furthest from their "
+     "own history lean and which leg you expect to dominate, with the handles of the readings it rests on; "
+     "where they lean both ways, both sides by name -- unless a BOARD JOIN line says two of them are one "
+     "reading under two names, which is one side and never two."),
+    ("shock_or_mechanism", "the reading's own [N]",
+     "Where a reading is a large move on a short or thin history, or a run {record} names no mechanism "
+     "for, whether you read it as an isolated shock or as a mechanism the driver model explains: that "
+     "judgement is yours, and {record} only orders."),
+    # -- (2) EVIDENCE ------------------------------------------------------------------------------------
+    ("driver_figures", "each driver reading's own [N]",
+     "for each driver you lean on, its figure in its unit and its plain meaning in the same sentence, "
+     "dated by the date it was known."),
+    ("like_state_outcome", "the LIKE STATE stanza's own outcome [N]",
+     "A LIKE STATE stanza is history and never what will happen: its outcome over the stated lag band in "
+     "its own units, with its handles, and how many such cases the record holds, in words -- or, where "
+     "{record} says no documents exist for it, that absence."),
+    ("recency_layers", "the RECENCY lines' own dates",
+     "The RECENCY lines belong to this movement and are owed like any other evidence: how far each layer "
+     "reaches -- the newest date its figures were known, the newest dated document behind this answer, "
+     "the session the board price tape runs through -- each a fact about its own layer, never the date "
+     "of the answer as a whole."),
+    # -- (3) SPILLOVERS ----------------------------------------------------------------------------------
+    ("spillover_signs", "each spillover market's own line",
+     "the other markets {record} declares the same state moves, each with the sign {record} gives for "
+     "THAT market and its lag words where {record} states them for it -- a market given a direction and "
+     "no lag keeps no lag rather than another market's, and two signs are never reconciled into one."),
+    ("cross_commodity_markets", "the CROSS-COMMODITY line's markets and their own lines",
+     "When {record} carries a CROSS-COMMODITY line, the markets it names, which the readings above reach, "
+     "are what the cross-commodity section holds on this turn, each with the sign and lag words its own "
+     "line carries."),
+    # -- (4) WATCH -- HEAD's kinds, and the non-obvious draw's variant (the needle below) --------------------
+    ("watch_items", "each watch item's own dated line",
+     "the items to watch -- the next scheduled print, the level a desk convention names, the date a "
+     "declared lag window opens -- each with its date and the reading that would show it wrong; never a "
+     "generic caution."),
+    ("watch_forward", "each forward item's own [N]",
+     "the forward items {record} sets out for this market, each one you keep with its mechanism, the "
+     "dated reading it rests on and the reading that would show it wrong; never a generic caution."),
+    ("watch_weighed_left", "the readings weighed and left, each by its own [N]",
+     "Where fewer items bear on this market than there is room for, the readings you weighed and left "
+     "and why -- another market's reading named as that market's -- rather than filling the space."),
+    ("scheduled_prints", "the dated note of scheduled prints",
+     "The scheduled prints are not watch items here: {record} names them once, in its own dated note, and "
+     "they stay there."),
+    ("absence_reason", "the BOARD ABSENCE line's own reason",
+     "A BOARD ABSENCE line is a fact about coverage: the gap and the reason it gives, with no number for "
+     "it."),
+    # -- the chain movement (S8), substituted in as (3) under GRAPHRAG_STATE_CHAIN -----------------------------
+    ("chain_links", "each link's own [N]",
+     "take {record}'s leading chains, in the order it gives them, and narrate each one link by link, in "
+     "the present tense, naming it by what it links -- where it starts and the market it reaches."),
+    ("chain_link_facts", "each link's own [N]",
+     "At each link give the figure in its unit and the plain meaning in the same sentence, say which way "
+     "the driver model expects that link to push the next one, and say whether the current readings "
+     "agree with the direction the model expects or run against it -- {record} gives you the word."),
+    ("chain_receipt", "the chain's dated report, by its [E]",
+     "Cite the chain's dated report at the link it acts on, by its handle, and say when it is dated; where "
+     "{record} says no dated document reaches a link inside the lag the model allows for it, say so."),
+    ("chain_history", "the chain's own count and outcome lines",
+     "THEN, and only then, say what the record shows: {record}'s own count of the past times this reading "
+     "sat this far out and how many of them moved the way the model expects, over the stated band -- "
+     "history, never a forecast -- and the chain's outcome in its own units with its handle, as what "
+     "measured after those past episodes and never as what is coming."),
+    ("pair_call", "the pair's own readings where the chain ends",
+     "Where the question sets one market against another, make the call on the pair where the chain ends: "
+     "which of the two the record leans toward and the reading that carries it, or that the record does "
+     "not settle it."),
+    ("chain_count", "the COUNT line's further count and the markets it names",
+     "Where {record} prints a COUNT line, the number of further chains it counts and the markets it names, "
+     "in one clause of your own: its other counts describe {record}'s own reading, never the market."),
+    ("one_line_chain", "the single-line chain's own [N]",
+     "Where {record} gives a chain in a single line, that chain still gets its sentence -- what it links "
+     "and which way it pushes, with its handles: a turn whose block carries a chain never reaches the "
+     "reader without one."),
+    ("chain_scope", "the chain's own arithmetic line",
+     "Where {record} states what it could read for a chain -- the terms it could do the arithmetic for, the "
+     "links no series served, a buffer series this market does not carry -- say that in the same breath: "
+     "it states what this market's data covers on this turn, never that the chain itself is a weak one."),
+    ("like_state_chain", "the LIKE STATE stanza marked as the chain's",
+     "Where {record} marks a LIKE STATE stanza as the chain's, read that stanza as the history of the chain "
+     "you named first."),
+    # -- the TL;DR clauses (each shipped only over the block lines that print its rows) -----------------------
+    ("ask_figures", "the ASK head's own handles",
+     "THE ASK: the TL;DR gives each figure this question asked for -- computed for you and printed under "
+     "{handles} -- with its unit, its period and its handle, or says in one clause why it does not bear on "
+     "the call; the call may not say the opposite of what those figures show, and no figure is computed "
+     "from them."),
+    ("horizon_range", "the ASKED HORIZON line's own handles",
+     "THE HORIZON: this question sets a horizon, and the TL;DR's horizon clause gives what the ASKED "
+     "HORIZON line holds -- what the price did after the past times its reading sat this far out, over "
+     "that band, as history, or that line's own reason there is no middle figure or no range -- and never "
+     "a forecast of your own."),
+    ("positioning_reading", "the record-extreme position's own handles",
+     "THE POSITION AT ITS RECORD'S END: wherever the answer uses the position under {handles}, which sits "
+     "at the end of its own record, it gives beside it the driver model's reading of a position that far "
+     "out -- the whole of that reading, as the model's, with no figure or direction of your own added -- "
+     "or says in one clause why it does not bear on the call."),
+    # the call against what is priced (sitting 2, Y13): HEAD's two clauses, byte for byte (CONTRACT Z4:
+    # ``netting=()`` renders HEAD's clause), declared here so the census can see them
+    ("ask_call", "the ASKED SIDES line's own handles",
+     "THE CALL AGAINST WHAT IS PRICED: the ASKED SIDES line under {handles} counts the readings on this "
+     "market that settle each side and prints the front price beside them. In the TL;DR, state the lean "
+     "those counts give, weighed against that front price and its standing, or say in one clause why they "
+     "settle no lean."),
+    ("ask_call_balanced", "the ASKED SIDES line's own handles",
+     "THE CALL AGAINST WHAT IS PRICED: the ASKED SIDES line under {handles} counts as many readings on this "
+     "market settling one side as the other and prints the front price beside them. In the TL;DR, name "
+     "both legs, each with the readings that carry it, weighed against that front price and its "
+     "standing."),
+    # U-7 (CONTRACT Z4): the netting facts the ASKED SIDES line printed, each by its own handle
+    ("netting", "the netting parts' own handles on the ASKED SIDES line",
+     "Beside that lean the line also prints {parts}: net the lean against each of them, or say in one "
+     "clause why not."),
+    # -- the writer seam's facts (answer._SYSTEM_WRITER_SEAM is composed from these) ------------------------
+    ("watch_four_facts", "each watch item's own [N]",
+     "(3) EVERY WATCH ITEM CARRIES FOUR FACTS -- the figure in its own unit, the date it was read, the "
+     "window it acts in and the one print that would show it wrong -- or it is not a watch item: take the "
+     "next candidate offered instead, and never more items, or other items, than this turn's selection "
+     "clause offers."),
+    ("cross_market_hypothesis", "each pair's own consequence handles",
+     "(4) A CROSS-MARKET PARAGRAPH GIVES ITS HYPOTHESIS BEFORE ITS VERDICT, per pair: the declared "
+     "relation with its sign where the line states one, the co-movement it predicts, the moves observed, "
+     "then the verdict -- one direction per relation across the answer, no percentage past two decimals, "
+     "and an episode window more than five years old in one sentence that says what it settles, or not "
+     "at all."),
+    ("decline_record", "our record's own first date for the series",
+     "(5) A DECLINE IS A FACT ABOUT OUR RECORD, NEVER ABOUT THE WORLD: where a figure is missing because "
+     "our series does not reach the window asked for, what we hold and from when -- never that the market "
+     "had no price then."),
+    # -- the desk register (the one fact rule with no enforcer, threat A12d-a) -------------------------------
+    ("pattern_conditions", "the pattern's own condition readings",
+     "A pattern is given by the conditions this market shows, in the market's own words, and the ones that "
+     "read on the other side or carry no reading here -- never as in force or met, which the record does "
+     "not decide, and never by the count it needs or the size of the roster it draws from."),
 )
+
+MANDATE_RULES: tuple = (
+    ("board_intro", "what the panel holds (the block's own composition, sec 6.2)",
+     "THE STATE OF THE WORLD block above is this turn's reading of every driver the driver model declares "
+     "for the markets in play, each on its own series at this as-of and ordered by how far it sits from "
+     "its own history."),
+    ("headings", "the response contract's own headings and its order of ideas (D-RC-3)",
+     "Cover these {movements} movements as a mentor, in this order of ideas, under the headings your response "
+     "contract already names and adding no heading of your own; where a movement has no heading of its "
+     "own, narrate it inside the section its ideas belong to."),
+    ("facts_owed", "every fact below reaches the reader or is declined by name (use-or-say-why-not)",
+     "Every fact asked for below is owed to the reader: give it in your own words with its handle, or say "
+     "in one clause why you leave it out."),
+    ("cross_commodity_scope", "the persona's CROSS-COMMODITY readers (_SYSTEM_CASCADE_A / _B / "
+     "_TRANSMISSION; config_check (xii)(c))",
+     "That line licenses the section and states nothing else: it carries no stocks-to-use rows and no "
+     "handle of its own, it is not a link in a transmission chain, and it opens no fork heading."),
+    ("cross_commodity_su", "the stocks-to-use CROSS-COMMODITY line's own rule (the cascade persona's reader)",
+     "A CROSS-COMMODITY line that sets two commodities' stocks-to-use readings side by side is a different "
+     "line under its own rule; read each line by the readings beneath it."),
+    ("projection", "no forecast in the writer's voice; the projection's band and origin are served facts",
+     "Write every PROJECTION in the conditional mood, with its band as two calendar months and what it is "
+     "counted from."),
+    ("base_rates", "NO ARITHMETIC IN THE MODEL'S HEAD (a base rate is the record's own count)",
+     "Base rates come from {record}'s count words, never from a figure you compute."),
+    ("no_then_now", "the then/now doctrine: history and state are facts, never section headings",
+     "Use no heading called then or now."),
+    ("chain_selection", "selection, never enumeration (the few catches narrated, the rest counted)",
+     "Narrate those leading chains and not the rest of the driver model."),
+    ("no_restate", "one reading, one telling (a figure is given once)",
+     "Do not restate under the record a reading this movement has already given its figure to."),
+    # -- the writer seam's rules --------------------------------------------------------------------------------
+    ("seam_head", "the answer's own contract is named as live on this turn",
+     "THE ANSWER'S OWN CONTRACT (the readings above are live this turn, so these five bind):"),
+    ("length", "the tier's prose ceiling, one producer with prose_over_budget (O-S2-1: selection)",
+     "(1) LENGTH. Write at most {ceiling} words of prose across the TL;DR and every heading together -- a "
+     "HARD BOUND for this tier, not a target, kept by selection: the few movements that carry the call, the "
+     "rest counted in one sentence, no fact given twice under two names and no history that reaches no "
+     "conclusion, and never a figure, a named disagreement or a falsifier dropped to fit it."),
+    ("no_cut", "O-S2-1: the post-writer cut is report-only (CEILING_CUT_APPLIES False)",
+     "Nothing you write is cut after you, so the bound is yours to keep."),
+    ("cut", "O-S2-1 flipped: the cut drops whole lowest-ranked movement paragraphs, never the call's own",
+     "A draft over the bound loses its lowest-ranked whole movement paragraphs after you -- never the "
+     "TL;DR, the chain, the disagreement, the watch list, a falsifier or the only citation of a reading the "
+     "TL;DR names -- so keep the movements that carry the call."),
+    ("tldr_consistency", "the TL;DR is bound by its own cited readings (the seam's superlative / class lint)",
+     "(2) THE TL;DR IS THE ONLY LINE THAT TRAVELS, so it says nothing its own cited readings deny: a "
+     "superlative is the word its cited reading carries, never a record for a reading short of its "
+     "record's end; the class is the one the reading names; and a two-sided body gives a TL;DR naming BOTH "
+     "legs."),
+    # -- the desk register: its token ban and the ban's exemptions (register.py's two tables) -------------------
+    ("register_ban", "register.DESK_REGISTER_TOKENS (the lint and the prompt share one producer)",
+     "REGISTER: you are writing for a commodity desk, so write about the MARKET and never about the "
+     "instrument that produced the reading; the blocks above are working notes to you, and their words are "
+     "not the reader's. Say the market thing instead: {table}."),
+    ("register_exempt", "register.DESK_REGISTER_EXEMPT (the prompt never forbids what the lint permits, WP-A8)",
+     "The ban leaves the market's own names alone: a named exchange, institution or commodity board (the "
+     "CBOT soybean board, the board crush, the Malaysian Palm Oil Board, the Chicago Board of Trade) -- a "
+     "commodity's board only with its exchange named -- a desk, market, trade, delivery or contract "
+     "convention, row crops, warehouse and delivery receipts and the receipt of something, and the named "
+     "chart and port idioms."),
+    ("register_handles", "the citation handles and the figures the verifier holds",
+     "A changed word never moves a citation handle or changes a figure."),
+    ("date_spelling", "a calendar date a reader can read (no prose-side corrector; the numbers block may "
+     "carry the source's undashed stamp)",
+     "Every calendar date is an ISO date or the day and the month written out, never the year, the month "
+     "and the day run together; a year standing alone and a marketing year stay as they are."),
+    ("register_recency", "register.DESK_REGISTER_EXEMPT's first entry (the tape layer's own name), on the block's turns",
+     "The RECENCY layers keep one phrase of their own, the board price tape, which is the tape layer's "
+     "name."),
+)
+
+#: every clause by its key -- the ONE lookup the composed literals below are built from
+_CLAUSE: dict = {k: c for k, _h, c in MANDATE_FACTS + MANDATE_RULES}
+
+
+def _compose(layout, **fill) -> str:
+    """ONE literal composed from declared clauses: ``layout`` is a sequence of ``(header, key)`` pairs, the
+    header a movement's enumerator ("(1) DIRECTION: ") or ``""``; the clauses are joined by one space. The
+    text of every clause is :data:`MANDATE_FACTS` / :data:`MANDATE_RULES`' own -- never typed a second time.
+    ``fill`` sets the STRUCTURAL slots a literal knows when it is composed (the ``{movements}`` count the
+    headings rule states, which the chain substitution renumbers); every other slot (``{record}``,
+    ``{handles}``, ...) stays for the literal's own producer to fill."""
+    out = " ".join((h + _CLAUSE[k]) for h, k in layout)
+    for slot, value in fill.items():
+        out = out.replace("{%s}" % slot, str(value))
+    return out
+
+
+_LAYOUT_BOARD: tuple = (
+    ("", "board_intro"), ("", "headings"), ("", "facts_owed"),
+    ("(1) DIRECTION: ", "direction_read"), ("", "shock_or_mechanism"),
+    ("(2) EVIDENCE: ", "driver_figures"), ("", "like_state_outcome"), ("", "recency_layers"),
+    ("(3) SPILLOVERS: ", "spillover_signs"), ("", "cross_commodity_markets"), ("", "cross_commodity_scope"),
+    ("", "cross_commodity_su"),
+    ("(4) WATCH: close with ", "watch_items"),
+    ("", "projection"), ("", "base_rates"), ("", "absence_reason"), ("", "no_then_now"),
+)
+_T_SYSTEM_STATE_BOARD_MANDATE: str = _compose(_LAYOUT_BOARD, movements="four")
 SYSTEM_STATE_BOARD_MANDATE: str = _T_SYSTEM_STATE_BOARD_MANDATE.format(record=MANDATE_BLOCK_SELF_NAME)
+
+#: THE WRITER SEAM'S CONTRACT (``answer._SYSTEM_WRITER_SEAM``, lane E 09-17), COMPOSED from the declared clauses
+#: like every other board-turn literal: its ``{ceiling}`` slot stays for ``answer._system_writer_seam_mandate``
+#: (``response_contracts.prose_ceiling``, one producer with the lint's ``prose_over_budget``). HEAD's two
+#: quoted TEMPLATES are gone -- the cross-market paragraph's "'substitutes should move in opposite directions;
+#: both rose; the relation did not hold on this window'" and the decline's "say 'our price history for that
+#: market does not reach that window'" (sentences handed to the writer to copy); each clause now names the FACTS
+#: the sentence owes (the relation with its sign, the predicted co-move, the observed moves, the verdict; what we
+#: hold and from when). The superlative's worked example ("write 'the 91st percentile of its own record'") is
+#: the fact it carried: the word the cited reading carries.
+WRITER_SEAM_NO_CUT: str = _CLAUSE["no_cut"]
+WRITER_SEAM_CUT: str = _CLAUSE["cut"]
+WRITER_SEAM_TEMPLATE: str = ("\n\n" + _CLAUSE["seam_head"] + "\n" + _CLAUSE["length"] + " " + WRITER_SEAM_NO_CUT
+                             + "\n" + "\n".join(_CLAUSE[k] for k in ("tldr_consistency", "watch_four_facts",
+                                                                    "cross_market_hypothesis", "decline_record")))
 
 #: S7b R2 -- THE DESK REGISTER. A SECOND, FLAG-SCOPED LITERAL, appended under `GRAPHRAG_DESK_REGISTER`
 #: and NEVER an edit to the mandate above, which is the `_SYSTEM_CASCADE_WALK_MANDATE` idiom
@@ -210,44 +460,21 @@ SYSTEM_STATE_BOARD_MANDATE: str = _T_SYSTEM_STATE_BOARD_MANDATE.format(record=MA
 #: are" took a BAN clause as its antecedent and the five exempt idioms attached to it. The two-listing
 #: paragraph now follows "Write any of those exactly as a desk writes them" and restates its own
 #: subject, so neither sentence depends on the other's position.
-SYSTEM_DESK_REGISTER_MANDATE = (
-    "REGISTER: you are writing for a commodity desk, so write about the MARKET and never about the "
-    "instrument that produced the reading. The blocks above are working notes to you; their words are "
-    "not the reader's words. Do not tell the reader what you are reading from -- no naming of the "
-    "board, the graph, a state read, a series key, a node, a knowledge date, a convention, a receipt, "
-    "a row or a walk, and no calling a reading loud. Say the market thing instead: {table}. A named "
-    "exchange, institution or commodity board is the market's own name and stays exactly as written -- "
-    "the CBOT soybean board, the board crush, the Malaysian Palm Oil Board, the Chicago Board of Trade. "
-    "So are the other phrases that only LOOK like our words: the desk convention (and a market, trade, "
-    "delivery or contract convention), row crops, warehouse and delivery receipts and the receipt OF "
-    "something, and the named chart and port idioms. Write any of those exactly as a desk writes them. "
-    "A NAMED EXCHANGE OR INSTITUTION is the market's own name only when the exchange or the "
-    "institution is actually named with it: the CBOT soybean board is how a desk writes it and a bare "
-    "wheat board is not -- that one reads as the old single-desk marketing monopoly rather than as "
-    "Chicago wheat, so write Chicago wheat or the CBOT wheat contract. Where two listings are in play, "
-    "name them -- CBOT and ZCE, Chicago and Dalian -- or write each exchange's own currency; writing "
-    "'on each board' is the instrument's own word wearing a quantifier, and no desk says it. "
-    "Everything else the blocks "
-    "name, name in the reader's words: give the "
-    "figure, its unit, the market it belongs to and the date it was read through, and let those stand "
-    "as the reason. Keep every citation "
-    "handle exactly where it is; changing a word never changes a figure. "
-    "TWO MORE RULES, BOTH ABOUT HOW A FACT IS SPELLED AND NEITHER ABOUT WHICH FACT. A PATTERN IS "
-    "NAMED BY ITS CONDITIONS AND NEVER BY ITS SCORE: say which of its conditions this market is showing, "
-    "in the market's own words, and which read on the other side or carry no reading here -- the crush "
-    "margin is wide and the meal basis is firm, two of its conditions, while export pace reads on the "
-    "other side -- and never call the pattern in force or met, because the record counts its conditions "
-    "and does not decide that; do not print the "
-    "number a pattern needs to fire, and do not print the size of the roster it draws from, because a "
-    "reader shown a score and not a condition can check neither. THAT IS A RULE ABOUT SCORING "
-    "MACHINERY AND NOT ABOUT COUNTING: a count in words is a fact about the market and is owed to the "
-    "reader wherever the blocks give one -- how many other markets carry the same state and which way "
-    "each of them leans, and how many such cases the record holds behind a like-state reading. AND "
-    "EVERY CALENDAR DATE YOU PRINT IS SPELLED THE WAY A DESK SPELLS ONE -- an ISO date, or the day and "
-    "the month written out -- never as the year, the month and the day run together with no "
-    "separators, whatever spelling the notes above happen to carry. A YEAR STANDING ALONE AND A "
-    "MARKETING YEAR ARE NOT CALENDAR DATES AND STAY EXACTLY AS THEY ARE: since 2022, in 2012, MY2026."
-)
+#: 09-27 FIX SITTING 3 (lane A, U-12 (d)): THE DESK REGISTER KEEPS ITS TOKEN BANS AND DROPS EVERY PHRASING RULE.
+#: HEAD's literal was 588 words beside its table, and most of them told the writer HOW to phrase: the list of
+#: instrument words in prose (the table below already carries each one and its replacement), the bare-board
+#: aside and the two-listing rule ("on each board" -- ``board`` is a token the lint charges and the rewrite
+#: corrects), "Everything else ... name in the reader's words" (the board mandate's EVIDENCE movement owes that
+#: fact), the scoring-vs-counting clarifier (the board mandate owes the counts), and the worked examples (a
+#: sentence handed to the writer to copy). Each dropped rule is mapped to its enforcer in BUILD_A (threat
+#: A12d-a). What SHIPS: the ban with its table (register.py's one producer), the ban's exemptions
+#: (``DESK_REGISTER_EXEMPT`` -- a ban with no exemption forbids what the lint permits, WP-A8), the handle law, and
+#: the two rules no token enforces -- the pattern's conditions (the max FATAL: a quorum counting one reading
+#: twice is only catchable when its conditions are named; "in force" has no token) and the calendar-date
+#: spelling (no prose-side corrector exists). COMPOSED from the declared clauses; no "exactly as".
+SYSTEM_DESK_REGISTER_MANDATE: str = _compose((("", "register_ban"), ("", "register_exempt"),
+                                               ("", "register_handles"), ("", "pattern_conditions"),
+                                               ("", "date_spelling")))
 
 #: The RECENCY half, appended by :func:`desk_register_mandate` ONLY when the board's own mandate ships
 #: on the same turn -- the leg that supplies the three dated facts it instructs about, and the only leg
@@ -258,18 +485,11 @@ SYSTEM_DESK_REGISTER_MANDATE = (
 #: three facts are unchanged; each is now named by its LAYER (the figures, the dated documents, the board price
 #: tape), and the sentence that named the banned words in order to forbid them ("a knowledge date or a number
 #: row") names the layer instead, so the clause carries no desk-register word of its own.
-DESK_REGISTER_RECENCY_CLAUSE = (
-    " One more phrase is the market's own and stays exactly as the blocks give it: the board price "
-    "tape, which is the sentence you are told to write for the tape layer. The RECENCY movement keeps "
-    "every one of its three facts and changes only their "
-    "words: name each layer by what it is -- the figures, the dated documents, the board price tape -- "
-    "and give the newest and oldest dates the figures carry, the date of the newest dated document, and "
-    "the session the board price tape runs through: three dated facts, each "
-    "about the layer it names, and none of them dating the answer as a whole. Where the blocks above "
-    "or the movement that asks for this name a layer in their own working words, those words are not "
-    "yours: write that the newest figure was known on its date, in the same desk spelling every other "
-    "date wears."
-)
+#: 09-27 FIX SITTING 3 (lane A, U-12 (a)): HEAD told the writer the tape phrase was "the sentence you are told to
+#: write for the tape layer" and re-listed the three recency facts -- a LINE asked for, twice. The board mandate's
+#: EVIDENCE movement now asks for each layer's bounds as FACTS in the reader's words, so this half keeps only what
+#: the ban itself needs on a board turn: the tape layer's own name is exempt (``DESK_REGISTER_EXEMPT`` row 0).
+DESK_REGISTER_RECENCY_CLAUSE: str = " " + _CLAUSE["register_recency"]
 
 #: The four movements, the heading each lands under, and the FALLBACK where that heading is a licensed
 #: one rather than a canonical one (D-RC-3). It is a TABLE rather than prose so a reviewer can check the
@@ -386,21 +606,13 @@ def mandate_movements(chain: bool = False) -> tuple:
 #: bytes on every board turn -- (a) the parenthetical names only THREE of the five HEAD ``KIND_WORDS``,
 #: omitting ``analog_trigger`` and ``policy_date``, and (b) "close with THE WATCH ROWS" reads as
 #: reproduce even with the watch flag off. Both are docketed.
-MANDATE_WATCH_HEAD_RX: str = (
-    "(4) WATCH: close with "
-    "the WATCH rows -- the next scheduled print, the level a convention names, the date a declared lag "
-    "window opens -- as concrete items with their dates; never a generic caution."
-)
-_T_MANDATE_WATCH_NONOBVIOUS: str = (
-    "(4) WATCH: close with "
-    "the forward items {record} sets out for this market, and give each one you keep its mechanism, the "
-    "dated reading it rests on and the reading that would show it wrong, as concrete items with their "
-    "dates; never a generic caution. Where fewer items bear on this market than there is room for, say "
-    "which readings you weighed and left and why, in the market's own words -- a reading that belongs to "
-    "another market is named as that market's -- rather than filling the space. The "
-    "scheduled prints are NOT watch items here; {record} names them once, in its own dated note, and "
-    "that note is where they stay."
-)
+#: 09-27 SITTING 3 (U-12 (a)): HEAD's needle ordered the writer to "close with the WATCH rows" -- a LINE; both
+#: variants now ask for each item's FACTS (its date and the reading that would show it wrong -- the watch item's
+#: falsifier). Both are COMPOSED from the declared clauses; the needle is the composed HEAD movement, so the
+#: substitution below still keys on exactly the text the base literal carries.
+MANDATE_WATCH_HEAD_RX: str = "(4) WATCH: close with " + _CLAUSE["watch_items"]
+_T_MANDATE_WATCH_NONOBVIOUS: str = _compose((("(4) WATCH: close with ", "watch_forward"),
+                                             ("", "watch_weighed_left"), ("", "scheduled_prints")))
 MANDATE_WATCH_NONOBVIOUS: str = _T_MANDATE_WATCH_NONOBVIOUS.format(record=MANDATE_BLOCK_SELF_NAME)
 
 
@@ -484,38 +696,19 @@ MANDATE_WATCH_NONOBVIOUS: str = _T_MANDATE_WATCH_NONOBVIOUS.format(record=MANDAT
 #: page-talk rather than forbidding a phrase -- the J6 doctrine), and the count line gets ONE plain clause
 #: with one number, the rest of that line being the record's own reading. REJECTED: a post-writer
 #: find-and-replace of "renders" / "puts first", or adding them to the desk-register table.
-_T_MANDATE_CHAIN_MOVEMENT: str = (
-    "(3) THE CHAIN: take {record}'s leading chains, in the order it gives them, and narrate each chain "
-    "it sets out link by link the same way -- link by link, in the present tense. Name every chain by what it "
-    "links -- where it starts and the market it reaches -- and never by where or how {record} shows it: "
-    "the reader is told what moves what. Make a market or a reading the subject of every sentence here -- "
-    "the series, what it reads and what it moves -- never {record} itself or the way it assembled what it "
-    "read. At each link give the figure in "
-    "its unit and the plain meaning in the same sentence, say which way the driver model expects "
-    "that link to push the next one, and say whether the current readings agree with the direction "
-    "the model expects or run against it -- {record} gives you the word. Cite the chain's dated "
-    "report at the link it acts on, by its handle, and say when it is dated; where {record} says no "
-    "dated document reaches a link inside the lag the model allows for it, say so. THEN, and only "
-    "then, say what the record shows: {record}'s own count of the past times this reading sat this "
-    "far out and how many of them moved the way the model expects, in its words, over the stated "
-    "band -- history, never a forecast -- and give the chain's own outcome line the same way, as what "
-    "measured after those past episodes and never as what is coming. Where the question sets one "
-    "market against another, make the call on the pair where the chain ends: one sentence naming "
-    "which of the two the record leans toward and the reading that carries it, or saying plainly "
-    "that the record does not settle it. Narrate those leading chains and not the rest of the driver "
-    "model; where {record} prints a COUNT line, give it one plain clause -- the number of further chains "
-    "it prints, as it prints it, and the markets it names -- and move on: the line's other counts describe "
-    "{record}'s own reading, never the market. Where {record} gives a chain in a single line, that "
-    "chain still gets its sentence: say what it links and which way it pushes, in {record}'s own "
-    "words -- a turn whose "
-    "block carries a chain never reaches the reader without one. Where {record} states what it "
-    "could read for a chain -- the terms it could do the arithmetic for, the links no series served, "
-    "a buffer series this market does not carry -- say that in the same breath: it states what this "
-    "market's data covers on this turn, never that the chain itself is a weak one. Do not restate "
-    "under the record a reading this movement has already given its figure to, and where {record} "
-    "marks a LIKE STATE stanza as the chain's, read that stanza as the history of the chain you named "
-    "first."
-)
+#: 09-27 FIX SITTING 3 (lane A, U-12 (a)) -- THE CHAIN MOVEMENT ASKS FOR FACTS, NOT LINES. Its B.5 orders are
+#: HEAD's, clause for clause (the deck's clause map), and three LINE orders became the FACTS they carried: the COUNT
+#: line's "one plain clause -- the number of further chains it prints, as it prints it" is now the further count
+#: and the markets it names, in one clause of the writer's own; "give the chain's own outcome line the same way" is
+#: now the chain's outcome in its own units with its handle; the single-line chain's "in {record}'s own words" is
+#: now what it links and which way it pushes, with its handles. The two PHRASING rules ("never by where or how
+#: {record} shows it", "Make a market or a reading the subject of every sentence ... never {record} itself") are
+#: DROPPED: the page-talk they fenced is the desk register's token ban (register.py, OI-2's machinery words) and
+#: the record's reader-facing name (N-1), never a sentence the writer must obey.
+_T_MANDATE_CHAIN_MOVEMENT: str = _compose((
+    ("(3) THE CHAIN: ", "chain_links"), ("", "chain_link_facts"), ("", "chain_receipt"), ("", "chain_history"),
+    ("", "pair_call"), ("", "chain_selection"), ("", "chain_count"), ("", "one_line_chain"), ("", "chain_scope"),
+    ("", "no_restate"), ("", "like_state_chain")))
 MANDATE_CHAIN_MOVEMENT: str = _T_MANDATE_CHAIN_MOVEMENT.format(record=MANDATE_BLOCK_SELF_NAME)
 
 #: THE THREE NEEDLES THE SUBSTITUTION KEYS ON, asserted at call time exactly as
@@ -559,23 +752,13 @@ MANDATE_WATCH_NUMBER_CHAIN: str = "(5) WATCH: close with "
 #: printed, and the writer states "the figure as printed" -- the token the row itself carries. Both are
 #: written in the reader's words from the first draft (graded below by the same four detectors and the
 #: desk register as every other shipped literal here).
-MANDATE_ASK_HEAD: str = (
-    "THE ASK: the ASKED lines that open the notes above carry the figures this question asked for, "
-    "computed for you and printed under their own handles ({handles}). In the TL;DR, state each of them exactly as printed -- the "
-    "figure, its unit, its period and its handle -- or say in one clause why it does not bear on the "
-    "call. Your call on the question may not say the opposite of what those figures show, and no figure "
-    "of your own is computed from them."
-)
+#: 09-27 SITTING 3 (U-12 (a)): "state each of them exactly as printed" asked for the head's LINES; the clause now
+#: asks for each FIGURE with its unit, period and handle (the facts the line carries), in the writer's own sentence.
+MANDATE_ASK_HEAD: str = _CLAUSE["ask_figures"]
 #: FIXER PASS (REVIEW_RA M5 / WT MAJOR-3): the head's ASKED HORIZON line is either the answering chain's
 #: outcome (a chain on the question's OWN markets, read on that market's own price) or its one-line decline
-#: when no such chain fits -- so the clause names the LINE, never a chain that may not be there.
-MANDATE_HORIZON_ROW: str = (
-    "THE HORIZON: this question sets a horizon, and the ASKED HORIZON line states what the price "
-    "did after the past times its reading sat this far out, over that band -- or why the record gives no "
-    "range for it. The TL;DR's horizon clause states that line in its own words -- the range it prints, "
-    "as history, or its own reason there is no middle figure or no range -- and never a forecast of your "
-    "own."
-)
+#: when no such chain fits -- so the clause names the LINE's facts, never a chain that may not be there.
+MANDATE_HORIZON_ROW: str = _CLAUSE["horizon_range"]
 
 
 def _join_handles(handles) -> str:
@@ -609,13 +792,9 @@ def ask_head_mandate(handles) -> str:
 #: it asks for the card's own words beside the position, or one clause saying why they do not bear on the call
 #: (D18: positioning is context, never a cause the graph declares). REJECTED: a "reversal" phrase injected by
 #: the writer seam or appended post-writer.
-MANDATE_POSITIONING_ASYMMETRY: str = (
-    "THE POSITION AT ITS RECORD'S END: the position under {handles} sits at the end of its own record, and "
-    "the driver model's own words on what a position that far out means are quoted beside it. "
-    "Wherever the answer uses that position, carry those words beside it as the model's reading, in the "
-    "model's own words and with no figure or direction of your own added to them -- or say in one clause "
-    "why they do not bear on the call."
-)
+#: 09-27 SITTING 3 (U-12 (a)): "carry those words beside it" asked for the card's LINE; the clause now asks for the
+#: model's reading WHOLE (the fact sitting 1's A-4 measured half-read), in the writer's sentence, adding nothing.
+MANDATE_POSITIONING_ASYMMETRY: str = _CLAUSE["positioning_reading"]
 
 
 #: 09-26 FIX SITTING 2 (lane N, CONTRACT Y13 / M-4): THE CALL WEIGHED AGAINST WHAT IS PRICED. MEASURED (arm A: max
@@ -623,27 +802,59 @@ MANDATE_POSITIONING_ASYMMETRY: str = (
 #: block printed. The block's ASKED SIDES line (``render.sb_ask_sides``) prints the board's SETTLED side counts as
 #: served figures beside the front price's handle; this clause asks the writer to weigh the one against the other,
 #: or to say why not. It carries NO figure, NO direction word and NO arithmetic: the counts are the line's own.
-MANDATE_ASK_CALL: str = (
-    "THE CALL AGAINST WHAT IS PRICED: the ASKED SIDES line under {handles} counts the readings on this market "
-    "that settle each side and prints the front price beside them. In the TL;DR, state the lean those counts "
-    "give, weighed against that front price and its standing, or say in one clause why they settle no lean."
-)
-MANDATE_ASK_CALL_BALANCED: str = (
-    "THE CALL AGAINST WHAT IS PRICED: the ASKED SIDES line under {handles} counts as many readings on this "
-    "market settling one side as the other and prints the front price beside them. In the TL;DR, name both "
-    "legs, each with the readings that carry it, weighed against that front price and its standing."
-)
+MANDATE_ASK_CALL: str = _CLAUSE["ask_call"]
+MANDATE_ASK_CALL_BALANCED: str = _CLAUSE["ask_call_balanced"]
+#: 09-27 FIX SITTING 3 (lane A, U-7 mandate half; CONTRACT Z4): THE CALL'S NETTING FACTS. MEASURED (arm A: cotton
+#: "call not tested against its own tape", tariff "call not netted against the event", corn/wheat "loudest reading
+#: against the lean", max "the tiebreak ignores the page's ..."): the lean was never set against the reading that
+#: opposes it, the event's own sign or the tape's move. Lane R's ASKED SIDES line now PRINTS those three as served
+#: facts, each with its own handle (``render.ask_netting_facts``); this clause names them BY HANDLE and asks the one
+#: question -- net the lean against them, or say why not. NO FIGURE, NO DIRECTION WORD, NO SENTENCE TO COPY: a
+#: part's name says which fact it is, never which way it points (threat A7-b).
+NETTING_PART_WORDS: dict = {"opposing": "the reading set against that lean",
+                            "opposing_balanced": "the reading leading each side",
+                            "event": "the event's own sign", "tape": "the tape's move"}
+#: the order the parts are named in -- the producer's own key order (CONTRACT Z4)
+NETTING_PARTS: tuple = ("opposing", "event", "tape")
 
 
-def ask_call_mandate(handles, *, balanced: bool = False) -> str:
+def netting_parts_words(netting, *, balanced: bool = False) -> str:
+    """The netting facts the line printed, each named by its kind with its own handles -- "the reading set against
+    that lean ([N5]), the event's own sign ([E3]) and the tape's move ([N9])" -- in :data:`NETTING_PARTS` order;
+    ``""`` when no part carries a handle. ``netting`` is ``answer._ask_netting_printed``'s value: a mapping (or a
+    sequence of pairs) ``{part: (handle, ...)}``; a part with no printed handle is never named (threat A7-a)."""
+    try:
+        got = dict(netting or {})
+    except (TypeError, ValueError):
+        return ""
+    named = []
+    for part in NETTING_PARTS:
+        hs = [str(h).strip() for h in (got.get(part) or ()) if str(h or "").strip()]
+        if not hs:
+            continue
+        word = NETTING_PART_WORDS["opposing_balanced" if (part == "opposing" and balanced) else part]
+        named.append("%s (%s)" % (word, _join_handles(hs)))
+    if not named:
+        return ""
+    return named[0] if len(named) == 1 else ", ".join(named[:-1]) + " and " + named[-1]
+
+
+def ask_call_mandate(handles, *, balanced: bool = False, netting=()) -> str:
     """:data:`MANDATE_ASK_CALL` (or its balanced twin) with the handles of the block line carrying
     ``render.ASK_SIDES_LEAD``, in block order. ``""`` for no handle -- the clause never ships over a block that
     printed no such line (CONTRACT Y13; ``answer._ask_sides_printed`` finds them, the ``_ask_head_printed``
-    idiom)."""
+    idiom).
+
+    ``netting`` (CONTRACT Z4, TAIL kwarg): the netting facts the SAME line printed, ``{part: (handle, ...)}``
+    (``answer._ask_netting_printed``); each part is named by its kind and its own handles and the writer is asked
+    to net the lean against them or say why not (:data:`MANDATE_FACTS` ``netting``). ``()`` -> HEAD's clause
+    byte for byte."""
     joined = _join_handles(handles)
     if not joined:
         return ""
-    return (MANDATE_ASK_CALL_BALANCED if balanced else MANDATE_ASK_CALL).format(handles=joined)
+    out = (MANDATE_ASK_CALL_BALANCED if balanced else MANDATE_ASK_CALL).format(handles=joined)
+    parts = netting_parts_words(netting, balanced=balanced) if netting else ""
+    return out + " " + _CLAUSE["netting"].format(parts=parts) if parts else out
 
 
 def positioning_asymmetry_mandate(handles) -> str:
@@ -754,6 +965,113 @@ def mandate_for(volatile_prompt: Optional[str]) -> str:
     already measured on the walk."""
     from leviathan.graphrag.state.render import block_marker_present
     return SYSTEM_STATE_BOARD_MANDATE if block_marker_present(volatile_prompt) else ""
+
+
+# ---------------------------------------------------------------------------------------------------
+# 09-27 FIX SITTING 3 (lane A, U-12 (b) + the census; CONTRACT Z1 / Z9)
+# ---------------------------------------------------------------------------------------------------
+def panel_mandate() -> str:
+    """THE ONE SENTENCE THAT TELLS THE WRITER THE BLOCK IS THE PANEL IT READS, NOT THE TEXT IT PRINTS (U-12 (b)) --
+    the book's words (``state_conventions.yaml`` ``panel_words.mandate``, lane R, CONTRACT Z9: the block header and
+    the mandate read ONE declaration), read through the render's one book reader. ``""`` while the book declares
+    none (the producer not landed): the sentence is never typed here a second time. Lazily imported and belted:
+    this module keeps no import-time dependency on ``render`` and never raises."""
+    try:
+        from leviathan.graphrag.state.render import book_words
+        return str(book_words("panel_words", "mandate") or "").strip()
+    except Exception:                                   # noqa: BLE001 -- no book, no sentence
+        return ""
+
+
+#: THE CENSUS'S ONE TOKENIZER (CONTRACT Z1): a word is a letter followed by letters, apostrophes or hyphens.
+_CENSUS_WORD = re.compile(r"[A-Za-z][A-Za-z'-]*")
+#: THE MOVEMENT ENUMERATOR the composed literals carry before a movement's first clause ("(3) SPILLOVERS: ",
+#: "(3) THE CHAIN: ", "(5) WATCH: close with "): structure, never an ask. Built from the movement TABLE
+#: (:func:`mandate_movements`, both states) -- the names the layouts print, never a second list.
+_CENSUS_HEADER = re.compile(r"\(\d\) (?:THE )?(?:%s): (?:close with )?" % "|".join(
+    re.escape(m[0]) for m in mandate_movements(chain=True)))
+#: the parts a board turn emits that are NOT composed from this module's clauses: lane AN's selection clause
+#: (``watch.WATCH_SELECTION_CLAUSE``) -- counted in the words, never in the asks or the coverage.
+MANDATE_FOREIGN_PARTS: tuple = ("watch_selection",)
+
+
+def _clause_rx(clause: str):
+    """ONE declared clause as a pattern: its literal text with every ``{slot}`` read as any run of text (the slot's
+    value -- a handle list, the record's name, the tier's ceiling, the register's table)."""
+    segs = re.split(r"\{[a-z_]+\}", str(clause))
+    return re.compile("(?s)" + ".+?".join(re.escape(x) for x in segs))
+
+
+def mandate_asks(parts) -> dict:
+    """``{"facts": [key, ...], "rules": [key, ...], "undeclared_words": int}`` over the emitted ``parts`` (a mapping
+    ``{part name: text}``) -- every declared clause found in the text, in :data:`MANDATE_FACTS` / :data:`MANDATE_RULES`
+    order (a clause emitted twice is counted twice), and the words of the non-foreign parts that NO declared clause,
+    movement enumerator or the book's panel sentence covers. ``undeclared_words`` 0 is the claim "every ask on this
+    turn is a declared clause": an imperative typed outside the two tuples is a number here."""
+    try:
+        items = list(dict(parts or {}).items())
+    except (TypeError, ValueError):
+        items = []
+    facts, rules, undeclared = [], [], 0
+    panel = panel_mandate()
+    for name, text in items:
+        text = str(text or "")
+        if not text or name in MANDATE_FOREIGN_PARTS:
+            continue
+        covered = [False] * len(text)
+        for tup, out in ((MANDATE_FACTS, facts), (MANDATE_RULES, rules)):
+            for key, _h, clause in tup:
+                for m in _clause_rx(clause).finditer(text):
+                    out.append(key)
+                    for i in range(m.start(), m.end()):
+                        covered[i] = True
+        extra = [m.span() for m in _CENSUS_HEADER.finditer(text)]
+        if panel:
+            extra += [(m.start(), m.end()) for m in re.finditer(re.escape(panel), text)]
+        for a, b in extra:
+            for i in range(a, b):
+                covered[i] = True
+        rest = "".join(ch if not covered[i] else " " for i, ch in enumerate(text))
+        undeclared += len(_CENSUS_WORD.findall(rest))
+    order_f = {k: i for i, (k, _h, _c) in enumerate(MANDATE_FACTS)}
+    order_r = {k: i for i, (k, _h, _c) in enumerate(MANDATE_RULES)}
+    return {"facts": sorted(facts, key=lambda k: order_f[k]), "rules": sorted(rules, key=lambda k: order_r[k]),
+            "undeclared_words": int(undeclared)}
+
+
+def mandate_census(parts, *, facts_emitted=None, rules_emitted=None) -> dict:
+    """THE MANDATE CENSUS (CONTRACT Z1) over the board-turn mandate parts actually EMITTED on this turn (``parts`` =
+    ``{part name: text}``, ``answer._mandate_parts``' own list): ``{"words", "sentences", "asks", "facts_required",
+    "rules", "exactly_as", "undeclared_words", "foreign_words", "by_part": {name: words}}``.
+
+    ONE TOKENIZER (``[A-Za-z][A-Za-z'-]*``) and the verifier's own sentence splitter (``verify.sentences``, lazily
+    read; its own pattern if the verifier cannot be imported). ``asks`` are the declared clauses the text carries --
+    every ask on a turn comes from the two tuples, so ``asks == facts_required + rules`` when the caller's counts
+    and the text agree, and the pin's ceiling (``asks <= facts_required + rules``) is DERIVED from the facts the
+    turn requires, never a typed number. ``facts_emitted`` / ``rules_emitted`` default to the counts found in the
+    text (:func:`mandate_asks`). ``exactly_as`` counts the phrase over every part, foreign ones included. Never
+    raises: an unreadable part counts nothing."""
+    try:
+        items = [(str(k), str(v or "")) for k, v in dict(parts or {}).items()]
+    except (TypeError, ValueError):
+        items = []
+    try:
+        from leviathan.graphrag.verify import sentences as _sents
+    except Exception:                                   # noqa: BLE001 -- the verifier's own splitter pattern
+        def _sents(t):
+            return [x for x in re.split(r"(?<=[.!?;])\s+", str(t or "")) if x.strip()]
+    found = mandate_asks(dict(items))
+    by_part = {k: len(_CENSUS_WORD.findall(v)) for k, v in items}
+    fe = len(found["facts"]) if facts_emitted is None else int(facts_emitted)
+    re_ = len(found["rules"]) if rules_emitted is None else int(rules_emitted)
+    return {"words": int(sum(by_part.values())),
+            "sentences": int(sum(len(_sents(v)) for _k, v in items)),
+            "asks": len(found["facts"]) + len(found["rules"]),
+            "facts_required": fe, "rules": re_,
+            "exactly_as": int(sum(len(re.findall(r"exactly as", v, re.I)) for _k, v in items)),
+            "undeclared_words": int(found["undeclared_words"]),
+            "foreign_words": int(sum(n for k, n in by_part.items() if k in MANDATE_FOREIGN_PARTS)),
+            "by_part": by_part}
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -1249,15 +1567,20 @@ def check_literals() -> list:
     # 09-26 SITTING 2 (Y13): the call-against-what-is-priced clause, both forms, graded as they SHIP
     _call = ("MANDATE_ASK_CALL", ask_call_mandate(("[N21]",)))
     _callb = ("MANDATE_ASK_CALL_BALANCED", ask_call_mandate(("[N21]",), balanced=True))
+    # 09-27 SITTING 3 (U-7, Z4): the call clause WITH its netting facts, both forms, graded as it SHIPS
+    _nett = {"opposing": ("[N5]",), "event": ("[E3]",), "tape": ("[N9]",)}
+    _calln = ("MANDATE_ASK_CALL[netting]", ask_call_mandate(("[N21]",), netting=_nett))
+    _callbn = ("MANDATE_ASK_CALL_BALANCED[netting]", ask_call_mandate(("[N21]",), balanced=True, netting=_nett))
     try:
         from leviathan.graphrag.register import count_desk_register as _cdr
-        for _n, _t in (_ask, _hzn, _pos, _call, _callb):
+        for _n, _t in (_ask, _hzn, _pos, _call, _callb, _calln, _callbn):
             if _cdr(_t):
                 errs.append(f"narration.{_n}: {_cdr(_t)} desk-register charge(s)")
     except Exception as exc:                        # noqa: BLE001 -- named, never raised onward
         errs.append(f"narration: could not grade the ask / horizon clauses: {exc}")
     for name, text in (("SYSTEM_STATE_BOARD_MANDATE", SYSTEM_STATE_BOARD_MANDATE),
                        _watch_mandate, _chain_mandate, _desk_mandate, _ask, _hzn, _pos, _call, _callb,
+                       _calln, _callbn,
                        ("RECENCY_LEDGER_SENTENCE", RECENCY_LEDGER_SENTENCE),
                        ("SYSTEM_RECENCY_CLAUSE", SYSTEM_RECENCY_CLAUSE),
                        _desk):
@@ -1291,6 +1614,40 @@ def check_literals() -> list:
         if BANNED_RECENCY_PHRASE in _t:
             errs.append(f"narration.{_n}: carries the banned recency phrase")
     errs += _check_chain_movement()
+    errs += _check_declared_clauses()
+    return errs
+
+
+def _check_declared_clauses() -> list:
+    """U-12 (CONTRACT Z1) AT BUILD: the two tuples are the ONE home of every clause the board-turn mandates ship.
+    Each key is declared once across both; no clause carries "exactly as" (the owner's pin -- a required LINE
+    spelled as a copy order); every clause is ASCII; every composed literal is covered by declared clauses alone
+    (:func:`mandate_asks` ``undeclared_words`` 0) on the widest board cell, desk register lit."""
+    errs: list = []
+    keys = [k for k, _h, _c in MANDATE_FACTS + MANDATE_RULES]
+    dup = sorted({k for k in keys if keys.count(k) > 1})
+    if dup:
+        errs.append("narration: clause key(s) declared twice: %s" % ", ".join(dup))
+    for k, _h, c in MANDATE_FACTS + MANDATE_RULES:
+        if re.search(r"exactly as", c, re.I):
+            errs.append("narration.%s: carries 'exactly as' -- ask for the FACT, never a copy of a line" % k)
+        try:
+            c.encode("ascii")
+        except UnicodeEncodeError:
+            errs.append("narration.%s: not ASCII" % k)
+        if not str(_h).strip():
+            errs.append("narration.%s: declares nothing it rides or protects" % k)
+    try:
+        widest = {"state_board_mandate": state_board_mandate(nonobvious=True, chain=True, desk=True),
+                  "ask_head": ask_head_mandate(("[N11]",)), "horizon": MANDATE_HORIZON_ROW,
+                  "positioning": positioning_asymmetry_mandate(("[N14]",)),
+                  "ask_call": ask_call_mandate(("[N21]",), netting={"opposing": ("[N5]",)}),
+                  "desk_register": desk_register_mandate(state_board=True)}
+        n = mandate_asks(widest)["undeclared_words"]
+        if n:
+            errs.append("narration: %d mandate word(s) sit outside every declared clause" % n)
+    except Exception as exc:                            # noqa: BLE001 -- named, never raised onward
+        errs.append(f"narration: could not census the composed mandates: {exc}")
     return errs
 
 

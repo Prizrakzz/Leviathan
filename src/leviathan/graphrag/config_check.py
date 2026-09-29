@@ -1876,6 +1876,26 @@ def check_cascade_walk() -> list[str]:
             errs.append(f"walk: relation phrase {phrase!r} ({rel}) is directional or templated")
         if any(ch.isdigit() for ch in phrase):
             errs.append(f"walk: relation phrase {phrase!r} carries a digit")
+    # (ii-b) FIX SITTING 3 (CONTRACT Z7, U9-a): the analyst-key words -- each relation phrase WITH its declared
+    # sign (`cascade.cw_relation_words`, the sign read from `state.rows.SIGN_WORDS`) -- are held to the SAME
+    # orientation-free rule on every (relation, declared sign) the vocabulary carries: no directed verb, no
+    # placeholder, no digit, and never the bare phrase when the sign is one the vocabulary declares.
+    try:
+        from leviathan.graphrag.state import rows as _srows
+        _signs = tuple((_srows.SIGN_WORDS or {}).keys())
+    except Exception as exc:  # noqa: BLE001
+        _signs = ()
+        errs.append(f"walk: the sign vocabulary (state.rows.SIGN_WORDS) did not load: {exc}")
+    for rel in _cq._CW_RELATION_WORDS:
+        for sg_ in _signs:
+            w = _cq.cw_relation_words(rel, sg_, display=_cq.CW_DISPLAY_ANALYST)
+            if directed.search(w) or "{" in w or any(ch.isdigit() for ch in w):
+                errs.append(f"walk: analyst relation words {w!r} ({rel}, {sg_}) are directional, templated "
+                            f"or carry a digit")
+            if w == _cq._CW_RELATION_WORDS[rel]:
+                errs.append(f"walk: analyst relation words for ({rel}, {sg_}) carry no declared sign")
+            if _cq.cw_relation_words(rel, sg_) != _cq._CW_RELATION_WORDS[rel]:
+                errs.append(f"walk: relation words for ({rel}, {sg_}) move OFF the analyst key")
     # (iii) blurbs on admissible edges.
     telemetry = _re.compile(r"AUTHOR-ON-STRUCTURE|Tier\s*\d|lift\s*[\d.]|Jaccard|co-mention"
                             r"|\bprops\b", _re.I)
@@ -6705,6 +6725,17 @@ def check_numbers_card_fields(reg=None, conventions: Optional[dict] = None) -> l
     return errs
 
 
+def check_wasde_line_map() -> list[str]:
+    """FIX SITTING 3 (ORCH-P4, CONTRACT Z27): sitting 2's CONTRACT Y6 lint over the PSD-to-WASDE line map
+    (`registry.WASDE_LINE_OF`) -- the map's own rule, read from its one home (`registry.check_wasde_line_map`),
+    never restated here. A pure read of the numbers registry; empty == clean."""
+    try:
+        from leviathan.graphrag.numbers import registry as _nreg
+        return list(_nreg.check_wasde_line_map() or [])
+    except Exception as exc:  # noqa: BLE001 -- an unreadable lint is one failure, never a crashed roster
+        return [f"wasde_line_map: the lint did not run: {exc}"]
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -6774,7 +6805,11 @@ def main() -> int:
                         # law. The round's card fields, each graded against the rule its reader relies
                         # on (figure_basis digit-free, definition phrases from the card's own desc, the
                         # WASDE sheet registry, the PSD families, labels_low, the ASK head's tier cap).
-                        ("numbers_card_fields", check_numbers_card_fields())):
+                        ("numbers_card_fields", check_numbers_card_fields()),
+                        # FIX SITTING 3 (ORCH-P4, CONTRACT Z27): APPENDED AT THE TAIL, the append-never-insert
+                        # law. Sitting 2's Y6 map (`registry.WASDE_LINE_OF`) was graded only by its own deck; a
+                        # pure read of the numbers registry.
+                        ("wasde_line_map", check_wasde_line_map())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

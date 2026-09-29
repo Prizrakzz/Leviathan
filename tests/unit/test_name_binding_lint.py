@@ -119,9 +119,13 @@ def test_K4_the_rice_routing_name_is_replaced_by_the_rows_own_short_name():
     assert cen["outcome"] == "ok" and cen["routing_corrected"] == 1, cen
     assert "India export ban" not in st["mechanism"]
     # FIXER PASS (REVIEW_RA M1): the replacement is the name the BLOCK printed for the row (R's stamp)
-    assert "the exports for India [N70]" in st["mechanism"], st["mechanism"]
-    assert st["mechanism"].replace("the exports for India [N70]",
-                                   "the India export ban [N70]") == RICE        # nothing else moved
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-10 / CONTRACT Z8 -- declared DM1): the correction enters through the
+    # ONE splice producer (`rows.splice`, lane R's grammar), so the expected sentence is that producer's own decision
+    # for this span; the claims kept: the replacement is the name the block printed, and nothing else moved.
+    a = RICE.index("India export ban")
+    exp = _spliced(RICE, a, a + len("India export ban"), "exports for India")
+    assert st["mechanism"] == exp, st["mechanism"]
+    assert "exports for India" in st["mechanism"] and "India export ban" not in st["mechanism"]
 
 
 def test_K4_the_soyoil_commodity_cut_gets_its_product_word_back():
@@ -506,6 +510,24 @@ def test_K21_the_horizon_clause_is_gated_on_the_row_the_block_carries(monkeypatc
     assert an._horizon_row_on(bd, "x") is False                                  # no outcome row to state
 
 
+def _spliced(text: str, a: int, e: int, name: str, head: bool = False) -> str:
+    """09-27 (fix sitting 3, U-10 / CONTRACT Z8): ``text`` with ``text[a:e]`` corrected to ``name`` exactly as the
+    name-binding lint corrects it -- through the ONE splice producer (lane R's `rows.splice`, read defensively: its
+    ``head`` kwarg only where it declares one; HEAD's plain substitution where it is absent), the capital the lint
+    gives a sentence-opening replacement included. The expected text is the producer's decision, never re-typed."""
+    import inspect as _i
+
+    from leviathan.graphrag.state import rows as _ROWS
+    rep = name[:1].upper() + name[1:] if an._nbl_sentence_start(text, a) and name[:1].islower() else name
+    fn = getattr(_ROWS, "splice", None)
+    if callable(fn):
+        a2, e2, rep2 = (fn(text, a, e, rep, head=head) if "head" in _i.signature(fn).parameters
+                        else fn(text, a, e, rep))
+        if a2 <= a and e2 >= e:
+            a, e, rep = a2, e2, rep2
+    return text[:a] + rep + text[e:]
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # K19 -- THE MANDATES SPEAK THE REGISTER TABLE'S WORDS
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -658,7 +680,10 @@ def test_fixer_RA_M1_the_replacement_is_the_name_the_block_printed_never_a_secon
                  commodity="_global", period="2026-08", routing="El Nino",
                  series_short="the tropical Pacific sea-surface temperature anomaly", commodity_words="")
     out, cen = _one(1, oni, "El Nino reads 0.98 degC [N1].")
-    assert out == "The tropical Pacific sea-surface temperature anomaly reads 0.98 degC [N1].", out
+    # RE-BANKED 09-27 (U-10 / Z8 -- declared DM1): the producer's own decision for the span (see the rice pin above)
+    assert out == _spliced("El Nino reads 0.98 degC [N1].", 0, len("El Nino"),
+                           "the tropical Pacific sea-surface temperature anomaly"), out
+    assert "tropical Pacific sea-surface temperature anomaly" in out
     assert "global" not in out and cen["routing_corrected"] == 1
 
 
@@ -745,8 +770,9 @@ def test_fixer_B20_a_routing_word_inside_the_rows_own_printed_name_is_the_row_na
                  series_short="the longest dry-day run in the month, as a z-score for SE Asia Palm Belt",
                  commodity_words="")
     out2, cen2 = _one(34, dry, "Drought reads 0.79 sigma [N34].")
-    assert out2 == ("The longest dry-day run in the month, as a z-score for SE Asia Palm Belt reads 0.79 sigma "
-                    "[N34]."), out2
+    # RE-BANKED 09-27 (U-10 / Z8 -- declared DM1): the producer's own decision for the span
+    assert out2 == _spliced("Drought reads 0.79 sigma [N34].", 0, len("Drought"),
+                            "the longest dry-day run in the month, as a z-score for SE Asia Palm Belt"), out2
     # every word counts, short ones included: "crude oil" is not a word-subset of the printed Brent name
     assert not an._nbl_words_within("crude oil", "the Brent crude price against its own five-year record")
 

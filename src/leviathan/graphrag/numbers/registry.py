@@ -1301,6 +1301,59 @@ def wasde_line_for(table: str, metric: str, scope: str, *, commodity: Optional[s
             "scope": str(base["scope"]), "commodity": com}
 
 
+#: FIX SITTING 3, LANE T (CONTRACT Z13, U-8): the EXCHANGE-RATE CARD -- the card the board's feeder reads one
+#: rate per non-base currency from, the same card the cascade walk prices its cross-currency hops off
+#: (``cascade._CW_FX_TABLE``). Named by its registry id, the way ``WASDE_TABLE`` names WASDE's.
+FX_TABLE: str = "silver_fred_fx"
+
+
+def _fx_quotes(reg: Optional[NumbersRegistry] = None) -> tuple:
+    """``({normalised quote currency: [metric, ...]}, {normalised base currency, ...})`` over the exchange-rate
+    card's metrics whose DECLARED unit reads "<quote> per <base>" (``stats.fx_quote_parts``: the card's own unit
+    words, one parser for the calculator and this reader). ``({}, set())`` for an unknown card. NEVER RAISES."""
+    try:
+        from leviathan.graphrag.numbers import stats as _st  # the pure leaf: no cycle, no I/O
+        ts = (reg or load_registry()).get(FX_TABLE)
+        metrics = dict(getattr(ts, "metrics", None) or {})
+    except Exception:  # noqa: BLE001 -- an unknown card declares nothing
+        return {}, set()
+    quotes: dict = {}
+    bases: set = set()
+    for name, spec in sorted(metrics.items()):
+        parts = _st.fx_quote_parts(getattr(spec, "unit", None))
+        if parts is None:
+            continue
+        quotes.setdefault(normalise_unit_phrase(parts[0]), []).append(str(name))
+        bases.add(normalise_unit_phrase(parts[1]))
+    return quotes, bases
+
+
+def fx_base_currency(reg: Optional[NumbersRegistry] = None) -> Optional[str]:
+    """The ONE currency every rate on the exchange-rate card is quoted against, as the card's unit words spell it
+    (normalised: "usd"), or ``None`` where the card declares none or more than one (a mixed-base card has no
+    single conversion target and this reader never picks one). NEVER RAISES."""
+    _q, bases = _fx_quotes(reg)
+    return next(iter(bases)) if len(bases) == 1 else None
+
+
+def fx_metric_for(currency: str, *, reg: Optional[NumbersRegistry] = None) -> Optional[str]:
+    """FIX SITTING 3, LANE T (CONTRACT Z13, U-8): the exchange-rate card's metric whose DECLARED unit reads
+    "<currency> per <the card's one base>" -- "EUR" -> ``eur_usd`` because that metric's unit is "EUR per USD
+    (ECB via Frankfurter)" -- or ``None``: a blank currency, the base currency itself, a currency the card quotes
+    no rate for, a card whose rates are quoted against more than one base, or a currency two metrics both claim.
+    READ OFF THE CARD'S UNIT WORDS, never built from the ISO code (the rejected lexical form: ``code.lower() +
+    "_usd"``); the lane T deck pins it equal to ``cascade._CW_FX_CROSS`` on the four currencies that map carries.
+    NEVER RAISES."""
+    c = normalise_unit_phrase(currency)
+    if not c:
+        return None
+    quotes, bases = _fx_quotes(reg)
+    hits = quotes.get(c) or []
+    if len(bases) != 1 or c in bases or len(hits) != 1:
+        return None
+    return hits[0]
+
+
 def check_wasde_line_map(reg: Optional[NumbersRegistry] = None) -> list[str]:
     """THE MAP'S LINT (CONTRACT Y6, B13). Every entry, against the facts its reader relies on:
 
@@ -1313,9 +1366,9 @@ def check_wasde_line_map(reg: Optional[NumbersRegistry] = None) -> list[str]:
       4. the scope rule is known, the source card declares the axis the rule reads (``reporter``) and the
          target card has a country axis to put it on;
       5. WASDE declares at least one whole balance sheet (a map with no commodity to read is dead config).
-    Empty == clean. NEVER RAISES (a registry that does not load is reported as one problem). Its caller is
-    its own deck until ``config_check.main`` carries a roster entry for it (config_check.py is not this
-    lane's file -- the ``check_metric_lags`` precedent)."""
+    Empty == clean. NEVER RAISES (a registry that does not load is reported as one problem). FIX SITTING 3
+    (ORCH-P4, CONTRACT Z27): ``config_check.main`` carries its roster entry (``wasde_line_map``), appended at
+    the roster's tail -- no longer a lint whose only caller is its own deck."""
     try:
         reg = reg or load_registry()
     except Exception as exc:  # noqa: BLE001

@@ -41,7 +41,7 @@ from typing import Optional
 from leviathan.graphrag.state import render as R
 from leviathan.graphrag.state import transforms as TR
 from leviathan.graphrag.state.calendar import next_release
-from leviathan.graphrag.state.feeders import CADENCE_DAYS
+from leviathan.graphrag.state.feeders import CADENCE_DAYS, held_as_last_revised
 from leviathan.graphrag.state.rows import status_word
 
 #: The ONE closed kind enum (sec 5.1). Order is the design's own numbering, and it is also the
@@ -449,15 +449,21 @@ def watch_leg(bd, rows) -> dict:
     histogram cannot move."""
     if not rows:
         return bd.stamp("watch", "not_reached")
+    # 09-27 SITTING 3 (CONTRACT Z11 / Z17): THE NON-OBVIOUS DRAW'S OWN COUNTS ride the leg's stamp -- the
+    # carried-market candidates held off the list (``carried_not_call``) and the loud rows held only as last
+    # revised (``held_as_last_revised``), each omitted when zero. HEAD's five kinds carry no census, so a
+    # flag-off leg stamps HEAD's record byte for byte.
+    census = next((dict(w["draw_census"]) for w in rows
+                   if isinstance(w, dict) and isinstance(w.get("draw_census"), dict)), {})
     fired = [w for w in rows if not w.get("declined")]
     if fired:
-        return bd.stamp("watch", "fired")
+        return bd.stamp("watch", "fired", **census)
     voters = [w for w in rows if w.get("kind") != "release_footnote"] or list(rows)
     counts: dict = {}
     for w in voters:
         counts[w["declined"]] = counts.get(w["declined"], 0) + 1
     word = sorted(counts, key=lambda x: (-counts[x], x))[0]
-    return bd.stamp("watch", "declined", reason=word)
+    return bd.stamp("watch", "declined", reason=word, **census)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -762,8 +768,12 @@ NONOBVIOUS_BODIES: dict = {
     "approaching_line_away": ("the reading has not crossed the line the desk convention calls {label} "
                               "and its run points AWAY from it: {run_n} consecutive {periods} "
                               "{run_words}, {side}{progress}{figure}"),
+    # 09-27 SITTING 3 (Z24 / OI-2): "this page" is a register token now (lane R's table: "here, in this note"),
+    # so every watch sentence that said it says the table's own words -- the same fact in the reader's object,
+    # each graded phrase ("cannot place its run", "cannot place this reading against it", "cannot place any of
+    # them") kept whole for the lint and the pins that read it.
     "approaching_line_unplaced": ("the reading has not crossed the line the desk convention calls "
-                                  "{label} and this page cannot place its run against that line: "
+                                  "{label} and this note cannot place its run against that line: "
                                   "{run_n} consecutive {periods} {run_words}, {side}{progress}"
                                   "{figure}"),
     # {fold} IS THE QUORUM ROW'S OWN CLAUSE, in the quorum row's own spelling (`render.fold_clause`) --
@@ -795,7 +805,7 @@ NONOBVIOUS_BODIES: dict = {
     "spillover_reach": ("this same reading is declared on {n_far} other markets -- {n_same} in the "
                         "same direction, {n_opposite} in the opposite and {n_undirected} with no "
                         "committed direction -- so a move here is a move a desk has to price on "
-                        "markets this page is not about{nearest}"),
+                        "markets this note is not about{nearest}"),
     # AND WHERE THIS ROW'S OWN EDGE CARRIES NO DIRECTION, THERE IS NOTHING TO COMPARE THE FAR ONES
     # WITH. 11 of the 430 drawn rows are in that position on the banked population (every one of them
     # China state reserves, whose own declared edge is `0`), and a "same direction" count against an
@@ -803,10 +813,10 @@ NONOBVIOUS_BODIES: dict = {
     # made. The reach is still the fact, and the reach is what the sentence keeps.
     "spillover_reach_unplaced": ("this same reading is declared on {n_far} other markets, {n_directed} "
                                  "of them with a committed direction of their own and {n_undirected} "
-                                 "without, and this page cannot place any of them with or against "
+                                 "without, and this note cannot place any of them with or against "
                                  "this reading because the edge declared here carries no committed "
                                  "direction either -- so a move here is a move a desk has to price on "
-                                 "markets this page is not about{nearest}"),
+                                 "markets this note is not about{nearest}"),
     "recurrence": ("the record has been in a state like this one before: {n_like} like {states} in "
                    "{n_obs} observations of this series, the nearest dated {date}, so the base rate "
                    "is the record's and not a guess"),
@@ -858,7 +868,7 @@ NONOBVIOUS_CLAUSES: dict = {
                                "one measurement said twice"),
     "tail_line_uncrossed": ("; a desk line is declared for this series and this reading has not "
                             "crossed it, so the record's own tail is the fact here"),
-    "tail_line_unplaced": ("; a desk line is declared for this series and this page cannot place this "
+    "tail_line_unplaced": ("; a desk line is declared for this series and this note cannot place this "
                            "reading against it, so the record's own tail is the fact here"),
     # A THRESHOLD OF ONE IS NOT A CONVERGENCE, AND THE SENTENCE NOW SAYS SO (review round 3, minor).
     # Nine of the 339 declared patterns these boards carry declare `threshold: 1`, where ONE driver
@@ -1073,8 +1083,18 @@ _GRAMMAR: frozenset = _content_tokens(" ".join(
 #: argument, and threading the mode through ``answer._system`` is an edit to the REGISTER lane's two
 #: files. The clause therefore names all three ceilings AND the rule the block itself carries, so it is
 #: correct without the tier and exact with it (``scratchpad/s7b/SEAM_PATCH_W2.txt``).
+#:
+#: **09-27 SITTING 3 (CONTRACT Z24 / S2 OI-2): IT NO LONGER TEACHES THE MACHINERY'S OWN WORDS.** The recon of the
+#: fifty pages traced "cleared the bar" (17 pages) and "nominat-" (8) to this clause among others (sitting 2's
+#: b39), and register.py's desk table is where both are charged (lane R's half of Z24). The two sentences
+#: carry the same facts in the reader's objects: the items are candidates "picked to watch" (the table's own
+#: column for "nominated", the NEW-1 precedent), and the honest line names what was weighed and left and why --
+#: the words the board mandate's own watch close already uses (``narration``'s N-1 rewrite); the table's column
+#: for "cleared the bar" ("stands out on its own record") is NOT borrowed, because the absence line it would
+#: stand for says the readings were short of what an item needs, which is a different claim. Every other
+#: sentence, bound and mark is HEAD's.
 WATCH_SELECTION_CLAUSE: str = (
-    "The WATCH items are CANDIDATES nominated for you, not a list to reproduce. Each one carries the "
+    "The WATCH items are CANDIDATES picked to watch, not a list to reproduce. Each one carries the "
     "mechanism it rests on, the dated reading that backs it, the citation of the line where that "
     "figure is printed, and the reading that would show it wrong. KEEP AT MOST THE ITEMS MARKED A CORE "
     "ITEM: each of those says its own place and how many core items there are, and an item marked an "
@@ -1083,8 +1103,8 @@ WATCH_SELECTION_CLAUSE: str = (
     "own mark says how many this list actually drew. Keep what a desk would act on, "
     "drop what it would not, merge two items that are one idea, and order them as you judge. You may "
     "add ONE item of your own only if you name its mechanism and the dated reading it rests on, and it "
-    "counts against that number. Fewer backed items and an honest line saying nothing else cleared the "
-    "bar beat a full list where two of them are noise."
+    "counts against that number. Fewer backed items, and an honest line saying which other readings you "
+    "weighed and left and why, beat a full list where two of them are noise."
 )
 
 
@@ -1556,7 +1576,7 @@ def _anchor_words(win: dict) -> str:
 def _cand(kind: str, row, *, what: str, dates: str,
           floor: tuple, far_words: tuple = (), win: Optional[dict] = None, asof: str = "",
           identity: Optional[tuple] = None, variant: str = "",
-          extra: Optional[dict] = None) -> dict:
+          extra: Optional[dict] = None, counts: tuple = ()) -> dict:
     """ONE candidate, in the SB-W row shape the shipped renderer already takes.
 
     The dict is a superset of what :func:`watch_rows` emits, so ``render.sb_watch`` renders it with no
@@ -1604,6 +1624,8 @@ def _cand(kind: str, row, *, what: str, dates: str,
         "variant": v, "floor": floor, "far_words": tuple(far_words),
         "dedupe": identity or _dedupe_key(row), "driver_id": row.driver_id,
         **(extra or {}),
+        # Z18: the counts this line's template FORMATTED, each with its noun -- omitted when it formats none
+        **({"formatted_counts": [[v, n] for v, n in dict.fromkeys(tuple(counts))]} if counts else {}),
     }
 
 
@@ -1747,6 +1769,68 @@ def call_rows(bd) -> frozenset:
     except Exception:                                   # noqa: BLE001 -- no call rows is HEAD's draw
         return frozenset()
     return frozenset(out)
+
+
+def _current(st) -> bool:
+    """IS THIS STATE A READING OF THE PRESENT (09-27 sitting 3, CONTRACT Z17 / S2 M-4)? A served, ``ok`` state
+    that is NOT held only as last revised (``feeders.held_as_last_revised``, the ONE Y5 predicate, read off
+    the measured retention stamp -- a row nothing measured answers False, so every HEAD-shaped board keeps
+    HEAD's population). A held row's SB-1 line still prints with its held words; what it is not is a
+    current reading a forward item can rest on ("the reading sits in the top decile" of a level the
+    publisher stopped revising years ago)."""
+    if st is None or status_word(getattr(st, "status", "")) != "ok":
+        return False
+    try:
+        return not held_as_last_revised(st)
+    except Exception:                                   # noqa: BLE001 -- an unreadable stamp is HEAD's answer
+        return True
+
+
+def pole_row(bd, row) -> tuple:
+    """THE ROW KEY A PHASE PAIR'S ONE-SERIES WATCH ITEM IS MINTED ON (09-27 sitting 3, CONTRACT Z14 / S2 M-1).
+
+    A declared phase pair (El Nino / La Nina, IOD positive / negative) is ONE series read by two driver rows,
+    and the reading puts ONE pole in force. Every claim a one-series candidate makes -- the reading past its
+    line, in its tail, running at a line, carried onto other markets, a state the record has been in -- is a
+    claim about THAT reading, so the item is minted on the in-force pole's row: its identity, its handle and
+    its ``watch_rows`` stamp all follow. The pole is read off the ONE producer: the fan entry's
+    ``pole_in_force`` stamp (``walk.fan_identity``), and where the row has no fan entry the stamp's own rule
+    (``walk.hop_phase`` + ``walk._phase_reorients``), so a row with no entry states the same pole.
+
+    MEASURED BEFORE THIS (S2 VERIFY M-1): which pole's row carried the item was decided by a RANK TIE --
+    ``rank_key``'s string stabiliser sorts "El_Nino" before "La_Nina" -- and once N-2's honest quorum stopped
+    lifting La Nina's rank term, b40 drew "El Nino on CME palm oil ... declared on thirty-three other markets"
+    under La Nina, with La Nina's facts (``_fan_facts`` already reads the in-force pole's entry).
+
+    ``row.key`` WHERE ANYTHING IS MISSING, and each guard is a fact rather than a preference: the in-force
+    pole must be a row of THIS board, read ok and not held (:func:`_current`), LOUD (it is a rendered state
+    line, so the item keeps a handle to cite), and on the SAME series and declared offset
+    (:func:`_dedupe_key`) -- two poles read on two different series are two readings, and re-keying one onto
+    the other would switch the reading. REJECTED: renaming in ``render.sb_watch`` (identity, handle and stamp
+    would stay on the wrong pole) and reverting N-2's count (re-opens "so it is in force")."""
+    key = tuple(getattr(row, "key", ()) or ())
+    try:
+        drv = str(getattr(row, "driver_id", "") or "")
+        con = str(getattr(row, "contract", "") or "")
+        own = next((e for e in (getattr(bd, "fan", None) or ())
+                    if e.get("contract") == con and e.get("driver_id") == drv), None)
+        live = str((own or {}).get("pole_in_force") or "")
+        if own is None:
+            st = getattr(row, "state", None)
+            if st is not None and status_word(getattr(st, "status", "")) == "ok":
+                from leviathan.graphrag.state import walk as _W
+                ph = _W.hop_phase(drv, st)
+                if _W._phase_reorients(ph):
+                    live = str(ph.get("phase_in_force_driver") or "")
+        if not live or live == drv or not hasattr(bd, "row"):
+            return key
+        lrow = bd.row(con, live)
+        if (lrow is None or not getattr(lrow, "legs", {}).get("loud") or not _current(getattr(lrow, "state", None))
+                or _dedupe_key(lrow) != _dedupe_key(row)):
+            return key
+        return tuple(lrow.key)
+    except Exception:                                   # noqa: BLE001 -- no pole read is HEAD's row
+        return key
 
 
 def _floor_of(row, *, pattern_rows=(), path_n: int = 0, base_rate=None, dist=None) -> tuple:
@@ -2115,14 +2199,26 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
 
     out: list = []
     for row in loud:
-        st = row.state
-        if st is None or status_word(st.status) != "ok":
+        # 09-27 SITTING 3 (Z17 / S2 M-4): THE CURRENT-STATE PREDICATE READS THE HELD STAMP. A row held only as
+        # last revised is no reading of the present, so it backs no forward item; its own SB-1 line still
+        # prints with its held words, and the draw counts it (``held_as_last_revised`` on the watch leg).
+        if not _current(row.state):
             continue
         # -- BAN 1: a context_only row is never a watch anchor unless the question names positioning --
         #    ``NodeRow.subject`` is Amendment 1's own exception and the ONLY one: the board sets it when
         #    the resolved subject IS this driver. The refusal is counted on the trace and never rendered.
         if row.context_only and not getattr(row, "subject", False):
             continue
+        # 09-27 SITTING 3 (Z14 / S2 M-1): A PHASE PAIR'S ONE-SERIES ITEM IS MINTED ON THE POLE IN FORCE. ``src`` is
+        # the row the loop reached and keeps what is ITS OWN -- its pattern membership and the rank term every
+        # pattern that NAMES it earns (review round 3, NEW-5: the membership is refused, the rank term kept);
+        # ``row`` becomes the in-force pole's row for everything the item SAYS and CITES -- its label, key,
+        # window, paths, fan, floor, falsifier and like-state stanza -- because they are one reading.
+        src = row
+        _pk = pole_row(bd, row)
+        if _pk != tuple(row.key):
+            row = bd.row(*_pk)
+        st = row.state
         win = _reading_window(bd, row)
         # -- BAN 2, SAID AS THE CODE ACTUALLY IMPLEMENTS IT (review round 2, minor f). The first comment
         #    here read "a CLOSED window is never nominated", which this loop does not do and R6 does not
@@ -2137,10 +2233,15 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
         dates = ("" if not open_win else
                  (str(win["opens"]) if win.get("closes") is None
                   else f"{win['opens']} to {win['closes']}"))
-        pat = _pattern_facts(bd, row, patterns, series_of)
+        pat = _pattern_facts(bd, src, patterns, series_of)
         paths = _paths_on(bd, row)
         fan = _fan_facts(bd, row)
+        # the in-force pole's own like-state stanza first; the reached row's where the pole seeded none (one
+        # series, so its like states are the reading's -- and `like_state_base_rate` pairs it with the pole
+        # row's own record, whose observation count is that same series')
         stanza = stanza_by_row.get(row.key)
+        if stanza is None and src is not row:
+            stanza = stanza_by_row.get(src.key)
         base = None
         if stanza is not None:
             base = like_state_base_rate(stanza, row)
@@ -2161,6 +2262,12 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
                             **({"anchor_date": win["anchor_date"]} if win.get("anchor_date") else {})},
                  "tail": _tail_fraction(st), "run_n": n_run, "run_direction": direction}
 
+        # 09-27 SITTING 3 (Z18 / S2 V-3): THE COUNTS EACH TEMPLATE FORMATS, with the noun the line prints
+        # beside them -- declared HERE, where the sentence is formatted, and read off the template's own
+        # slots (:func:`_slot_counts`), so render registers what the line said and never guesses it from a
+        # number word that happens to sit on the line for another noun.
+        _run_count = {"run_n": (n_run, f"consecutive {periods}")}
+
         # 1 PAST THE LINE, with the run still going deeper -- the convex state
         if "past_a_declared_line" in floor and conv and conv.get("label"):
             out.append(_cand(
@@ -2168,7 +2275,8 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
                 what=NONOBVIOUS_BODIES["past_the_line"].format(
                     label=conv["label"], run_n=R.words_for_int(n_run), periods=periods,
                     run_words=run_word, side=side, figure=fig),
-                dates=dates, win=win, asof=asof, floor=floor, extra=extra))
+                dates=dates, win=win, asof=asof, floor=floor, extra=extra,
+                counts=_slot_counts(NONOBVIOUS_BODIES["past_the_line"], _run_count)))
 
         # 2 THE RECORD'S OWN TAIL -- band-free, and the only kind the balance sheet can reach
         elif "record_tail" in floor:
@@ -2223,10 +2331,14 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
                     floor=floor, extra={**extra, "line_progress": progress,
                                         "line_label": cd["label"], "run_toward": toward,
                                         # THE ROW CITES THE FIGURE ITS DISTANCE IS MEASURED ON (item 9)
-                                        "backing_stat": str(cd.get("stat_key") or "level")}))
+                                        "backing_stat": str(cd.get("stat_key") or "level")},
+                    # the progress PERCENT is a measure and not a count, so it is not declared one
+                    counts=_slot_counts(NONOBVIOUS_BODIES[variant], _run_count)))
 
         # 4 A DECLARED PATTERN AT ITS OWN THRESHOLD, amplifier line first
-        if pat["row"] is not None and pat["at_threshold"]:
+        # (Z14: a pole NOT in force is a member of no pattern -- the phase producer's own verdict, which
+        # `_pattern_facts`' fold already applies as `phase_opposed`; only the reached row IN force mints one)
+        if src is row and pat["row"] is not None and pat["at_threshold"]:
             pr = pat["row"]
             amp = ""
             if pat["amplified"]:
@@ -2251,9 +2363,15 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
             # M IN ALL" was false of a page whose quorum row prints that member's own reading two lines
             # up. The number is the quorum's and does not move; both surfaces now say which number it is.
             _unread_cl = ("" if not _n_un else
-                          f", with {R.words_for_int(_n_un)} more that pattern names and this page "
-                          f"reads no series for, {R.words_for_int(int(_cnt['n_distinct']))} of the "
+                          f", with {R.words_for_int(_n_un)} more that pattern names whose series is "
+                          f"not read here, {R.words_for_int(int(_cnt['n_distinct']))} of the "
                           f"{R.words_for_int(int(pr.get('n_declared') or 0))} counted here")
+            _pcounts = _slot_counts(NONOBVIOUS_BODIES[_body], {
+                "n_matched": (int(_cnt["n_measured"]), "drivers"),
+                "n_declared": (int(pr.get("n_declared") or 0), "drivers"),
+                "threshold": (int(pr.get("threshold") or 0), "drivers")})
+            if _unread_cl:
+                _pcounts += ((_n_un, "drivers"), (int(_cnt["n_distinct"]), "drivers"))
             out.append(_cand(
                 "convergence_amplified", row,
                 variant=(_body if _body != "convergence_amplified" else None),
@@ -2263,7 +2381,7 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
                     pattern=R.pattern_label(pr.get("name")),
                     threshold=R.words_for_int(int(pr.get("threshold") or 0)), alone=alone,
                     amplifier=amp, fold=f"{_alias_cl}{_opp_cl}", unread=_unread_cl),
-                dates=dates, win=win, asof=asof,
+                dates=dates, win=win, asof=asof, counts=_pcounts,
                 # THE IDENTITY OF A PATTERN CANDIDATE IS THE PATTERN, NOT THE ROW, and that is the
                 # single largest correction this producer took at its own landing. MEASURED on the
                 # b40 fixture at max: SEVEN of seven ceiling slots were pattern rows, and five of them
@@ -2276,12 +2394,20 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
 
         # 5 TWO OR MORE DECLARED UPSTREAM PATHS MEETING ON THIS PRICE
         if paths["n"] >= 2:
+            _ucounts = _slot_counts(NONOBVIOUS_BODIES["upstream_convergence"], {
+                "n_paths": (int(paths["n"]), "declared upstream paths"),
+                "depth": (int(paths["depth"]), "links")})
+            # the cause list's own remainder ("and N further causes"), counted where `name_list` prints it
+            # as that count's own word (it prints "many" past its table, which is no count)
+            _rest = len(paths["tops"]) - 3
+            if _rest > 0 and R.count_words(_rest) == R.words_for_int(_rest):
+                _ucounts += ((_rest, "further cause" if _rest == 1 else "further causes"),)   # its own agreement
             out.append(_cand(
                 "upstream_convergence", row,
                 what=NONOBVIOUS_BODIES["upstream_convergence"].format(
                     n_paths=R.words_for_int(paths["n"]), depth=R.words_for_int(paths["depth"]),
                     causes=R.name_list([R.humanise(t) for t in paths["tops"]], 3, noun="causes")),
-                dates=dates, win=win, asof=asof, floor=floor, extra=extra))
+                dates=dates, win=win, asof=asof, floor=floor, extra=extra, counts=_ucounts))
 
         # 6 THE SAME READING DECLARED ON OTHER MARKETS -- the spillover, with its own far-board words
         # TWO IS THE FLOOR AND NOT ONE, and the correction is the sentence's own grammar. At ``n >= 1``
@@ -2321,10 +2447,17 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
                     n_directed=R.words_for_int(int(fan.get("unplaced") or 0)),
                     n_undirected=R.words_for_int(int(fan.get("undirected") or 0)),
                     nearest=near_words) + _oth_cl
+            _scounts = _slot_counts(NONOBVIOUS_BODIES[variant], {
+                "n_far": (int(fan["n"]), "other markets"), "n_same": (int(fan["same"]), "markets"),
+                "n_opposite": (int(fan["opposite"]), "markets"),
+                "n_undirected": (int(fan.get("undirected") or 0), "markets"),
+                "n_directed": (int(fan.get("unplaced") or 0), "markets")})
+            if _oth_cl:
+                _scounts += ((_oth, "market" if _oth == 1 else "markets"),)
             out.append(_cand(
                 "spillover_reach", row, variant=variant, what=body,
                 dates=dates, win=win, asof=asof,
-                floor=floor, far_words=far_tokens, extra=extra))
+                floor=floor, far_words=far_tokens, extra=extra, counts=_scounts))
 
         # 7 A STATE THE RECORD HAS BEEN IN BEFORE -- with its base rate, or it is not nominated
         # A RECURRENCE WITH NO DATED LIKE STATE IS NOT A RECURRENCE. The base rate says how often, and
@@ -2338,6 +2471,12 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
         if ("base_rated_episode" in floor and base is not None
                 and stanza is not None and stanza.get("date")):
             variant, rdate, rfill = _recurrence_member(stanza)
+            _rcounts = _slot_counts(NONOBVIOUS_BODIES[variant], {
+                "n_like": (int(base["n"]), "like state" if base["n"] == 1 else "like states"),
+                "n_obs": (int(base["m"]), "observations"),
+                "k_seen": (int(stanza.get("dims_seen") or 0), str(rfill.get("dims_noun") or "dimensions")),
+                "n_dims": (int(stanza.get("dims_declared") or stanza.get("dims_seen") or 0),
+                           str(rfill.get("dims_noun") or "dimensions"))})
             out.append(_cand(
                 "recurrence", row, variant=variant,
                 what=NONOBVIOUS_BODIES[variant].format(
@@ -2346,8 +2485,24 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
                     n_obs=R.words_for_int(base["m"]), date=rdate, **rfill),
                 dates=rdate, asof=asof,
                 floor=floor, far_words=(rdate,) if rdate else (),
-                extra={**extra, "base_rate": dict(base)}))
+                extra={**extra, "base_rate": dict(base)}, counts=_rcounts))
     return out
+
+
+def _slot_counts(template: str, fill: dict) -> tuple:
+    """``((value, noun), ...)`` -- the counts a candidate's TEMPLATE formats into its line (09-27 sitting 3,
+    CONTRACT Z18 / S2 V-3), read off the template's OWN slots: a ``fill`` entry whose slot the template does
+    not carry was never printed and is never declared formatted (``convergence_amplified_alone`` prints no
+    ``{n_matched}``; the unplaced spillover prints no ``{n_same}``). The noun is the one the line prints beside
+    the count, or the thing it counts where the line prints none after it ("{n_same} in the same direction"
+    counts markets). ``render._stamp_watch_row`` registers exactly these, which retires its number-word
+    presence test (a "three" printed for conditions registered as three markets)."""
+    slots = {s[1:-1] for s in _SLOT_RX.findall(str(template or ""))}
+    out: list = []
+    for k, (v, noun) in fill.items():
+        if k in slots and v is not None and int(v) >= 0 and noun:
+            out.append((int(v), str(noun)))
+    return tuple(out)
 
 
 def _recurrence_member(stanza: dict) -> tuple:
@@ -2581,8 +2736,7 @@ HORIZON_PRINT_WORDS: dict = {
 #: What the clause says where this board carries NO reading fast enough to turn inside the horizon. It
 #: is a FACT about the page, not a gesture at a series nobody named: "watch a faster series on the same
 #: mechanism" is advice a PM cannot act on.
-HORIZON_FASTER_FALLBACK = ("no reading on this page prints on a grain shorter than the horizon asked "
-                           "about")
+HORIZON_FASTER_FALLBACK = ("no reading here prints on a grain shorter than the horizon asked about")
 
 
 #: ONE READER, so the render cannot spell a cause this module does not declare.
@@ -2640,7 +2794,8 @@ def _faster_series_words(bd, row, horizon_days: float, *, series_of: Optional[di
     best = None
     for r in (getattr(bd, "rows", ()) or ()):
         st = getattr(r, "state", None)
-        if st is None or status_word(getattr(st, "status", "") or "") != "ok":
+        # Z17: a row held only as last revised is no reading that can turn -- never the one named here
+        if not _current(st):
             continue
         if row is not None and (r.key == row.key or r.contract != row.contract):
             continue
@@ -2663,11 +2818,12 @@ def _faster_series_words(bd, row, horizon_days: float, *, series_of: Optional[di
                       and getattr(r, "state", None) is not None), None)
         if _swap is not None:
             _r, _st = _swap, _swap.state
-    return (f"the reading on this page that can turn inside the horizon is "
+    # 09-27 SITTING 3 (Z24): "this page" -> the register table's own words ("here"), the same fact
+    return (f"the reading here that can turn inside the horizon is "
             f"{R.row_words(_r.contract, _r.driver_id)}, which prints every "
             f"{R.period_noun(str(getattr(_st, 'cadence', '') or ''), 1)}"
             + ("; the driver model names it a condition of the same declared pattern" if same else
-               "; it is the shortest grain this page carries and the driver model does not name it a "
+               "; it is the shortest grain carried here and the driver model does not name it a "
                "condition of the same pattern"))
 
 
@@ -2680,6 +2836,143 @@ def _add_months_iso(iso: str, months: int) -> Optional[str]:
         return _add_months(str(iso), int(months))
     except Exception:                                   # noqa: BLE001 -- an unplaceable label is no bound
         return None
+
+
+def _horizon_bounds(bd) -> tuple:
+    """``(horizon_end, horizon_days)`` -- the turn's horizon as a closing ISO date and a length in days, or
+    ``(None, 0.0)`` where the question asked for none. HEAD's own two lines from :func:`stamp_release_clock`,
+    said once (``_MONTH_DAYS`` is ``feeders.CADENCE_DAYS['monthly']``)."""
+    hm = getattr(bd, "horizon_months", None)
+    if not hm:
+        return None, 0.0
+    return _add_months_iso(str(bd.asof), int(hm)), float(int(hm)) * _MONTH_DAYS
+
+
+def _row_clock(bd, st, *, calendar_doc: Optional[dict] = None, bounds: Optional[tuple] = None) -> dict:
+    """THE ONE HORIZON PRODUCER FOR ONE READING (09-27 sitting 3, CONTRACT Z11): ``{"end", "days",
+    "standing", "rel", "when", "turns_inside"}``.
+
+    TWO FACTS, EACH READ OFF WHAT THE ESTATE DECLARES, never a list of drivers:
+      * ``standing`` -- the PERIOD fact: the series' own period (``CADENCE_DAYS[st.cadence]``, the grain the
+        card declares) is LONGER than the horizon, so no new period can open inside it; whatever prints inside
+        the horizon restates the period already reported (review round 2, MAJOR 6's own correction);
+      * ``when`` -- the PRINT fact: the next scheduled print off the card's own release rule
+        (``calendar.next_release``: the day, the week, or the day its window OPENS -- HEAD's diary date).
+    ``turns_inside`` joins them: ``False`` where the period is longer than the horizon or the next print
+    lands after it; ``True`` where the period fits and the next print lands inside it (a ``daily_sessions``
+    rule prints on the next session, inside any horizon); ``None`` where the question asked no horizon, the
+    series has no table or no declared rule, or the horizon's end cannot be placed -- an unknown is never a
+    ``False``. ``rel`` is the undeclined release (``None`` otherwise), for the stamp that dates the row."""
+    end, days = bounds if bounds is not None else _horizon_bounds(bd)
+    out = {"end": end, "days": days, "standing": False, "rel": None, "when": "", "turns_inside": None}
+    if st is None:
+        return out
+    per = CADENCE_DAYS.get(str(getattr(st, "cadence", "") or ""))
+    out["standing"] = bool(days and per and float(per) > float(days))
+    table = str(getattr(st, "table", "") or "")
+    rel = next_release(table, bd.asof, doc=calendar_doc) if table else None
+    if rel is not None and not rel.declined:
+        out["rel"] = rel
+        out["when"] = str(rel.date or rel.opens or rel.week_of or "")
+    if not days:
+        return out
+    if out["standing"]:
+        out["turns_inside"] = False
+    elif out["rel"] is not None and out["when"]:
+        out["turns_inside"] = (str(out["when"]) <= str(end)) if end else None
+    elif out["rel"] is not None and str(getattr(out["rel"], "kind", "") or "") == "daily_sessions":
+        out["turns_inside"] = True
+    return out
+
+
+def turns_inside(bd, row, *, calendar_doc: Optional[dict] = None) -> Optional[bool]:
+    """CAN THIS ROW'S SERIES PRINT A NEW VALUE INSIDE THE TURN'S HORIZON (CONTRACT Z11)? The next scheduled
+    print lands inside the horizon AND the series' own period is not longer than it -- :func:`_row_clock`'s
+    ``turns_inside``; ``None`` where there is no horizon, no calendar rule or no state to read. The same
+    producer :func:`stamp_release_clock` marks from, so the draw and the marks read one fact."""
+    return _row_clock(bd, getattr(row, "state", None), calendar_doc=calendar_doc)["turns_inside"]
+
+
+def _carried_markets(bd) -> frozenset:
+    """THE MARKETS A SUBJECT CARRIED ONTO THIS BOARD THAT THE QUESTION DID NOT ASK ABOUT (CONTRACT Z11): every
+    anchor the subject resolver seated (``source == "subject"``, its ``carried`` group) that is neither NAMED
+    by the question nor at distance 0 of the question's own reach (``walk.question_reach``: 0 = a market the
+    question named or planned). Read off the anchors' own provenance fields -- never a market list. Empty on
+    every turn the resolver did not reach, so those boards draw on HEAD's population."""
+    out: set = set()
+    for a in (getattr(bd, "anchors", None) or ()):
+        try:
+            if (str(getattr(a, "source", "") or "") == "subject" and not getattr(a, "named", False)
+                    and getattr(a, "distance", None) != 0):
+                out.add(str(a.contract))
+        except Exception:                               # noqa: BLE001 -- an unreadable anchor carries nothing
+            continue
+    return frozenset(out)
+
+
+def call_legs(bd) -> frozenset:
+    """THE ROWS THE PAGE'S CALL STANDS ON (09-27 sitting 3, CONTRACT Z11 / U-6) -- a SUPERSET of
+    :func:`call_rows`, read first:
+
+      * :func:`call_rows` -- the lead readings and the measured links of every rendered chain that holds a
+        question seat (HEAD's RT-6 set, unchanged);
+      * THE LOUDEST RENDERED READING ON EACH SETTLED SIDE of every ASKED SIDES count -- per market the question
+        asks about (not a carried market) whose price path the block prints, the first row in the board's own
+        loud order whose C-I3b side (``render.board_side``, the one side rule) is "for", and the first whose
+        side is "against". ONE row per settled side, never the side's roster (threat AN6-f), and only a
+        current reading (:func:`_current`: never a row held only as last revised);
+      * THE NETTING FACTS' ROWS -- the opposing reading and the event row ``render.ask_netting_facts`` (lane R,
+        CONTRACT Z4) names, joined to this board's rows by ROW IDENTITY (``render.row_identity_for``); read
+        defensively, so a tree without the producer draws on the other legs alone.
+
+    THE ASK HEAD'S SEAT ROWS ARE NOT READ HERE, and that is stated rather than guessed: they are the numbers
+    seat's calculator calls, which reach ``render_board`` as ``ask_rows`` and never reach the watch call
+    (BUILD_AN names the one-line seam change); the ask head's HORIZON row is already a leg through the
+    horizon-seated chain in :func:`call_rows`, and its spread's legs are price paths, which no watch item
+    rests on. REJECTED: a typed priority list of drivers -- every leg here is a row the page's own call
+    reads."""
+    out: set = set(call_rows(bd))
+    carried = _carried_markets(bd)
+    try:
+        order = {k: i for i, k in enumerate(getattr(bd, "order", None) or ())}
+        loud = sorted((r for r in (getattr(bd, "rows", None) or ())
+                       if r.legs.get("loud") and _current(r.state)),
+                      key=lambda r: order.get(r.key, len(order)))
+        tape = getattr(bd, "tape", None) or {}
+        for slug in (getattr(bd, "anchor_slugs", None) or ()):
+            tp = tape.get(slug)
+            if slug in carried or tp is None or status_word(getattr(tp, "status", "") or "") != "ok":
+                continue
+            seen: set = set()
+            for r in loud:
+                if r.contract != slug:
+                    continue
+                side = R.board_side(bd, r)
+                if side in ("for", "against") and side not in seen:
+                    seen.add(side)
+                    out.add(tuple(r.key))
+                if len(seen) == 2:
+                    break
+    except Exception:                                   # noqa: BLE001 -- a side leg never costs the draw
+        pass
+    fn = getattr(R, "ask_netting_facts", None)
+    if fn is not None:
+        try:
+            facts = fn(bd) or {}
+            ids = {str(p.get("row_id") or "") for p in (facts.get("opposing") or ()) if isinstance(p, dict)}
+            ev = facts.get("event") if isinstance(facts.get("event"), dict) else {}
+            ids.add(str(ev.get("row_id") or ""))
+            ids.discard("")
+            if ids:
+                for r in (getattr(bd, "rows", None) or ()):
+                    if not _current(getattr(r, "state", None)):
+                        continue
+                    ident = R.row_identity_for(r)
+                    if ident is not None and str(getattr(ident, "row_id", "") or "") in ids:
+                        out.add(tuple(r.key))
+        except Exception:                               # noqa: BLE001 -- the netting leg never costs the draw
+            pass
+    return frozenset(out)
 
 
 def stamp_release_clock(bd, cands, *, calendar_doc: Optional[dict] = None) -> None:
@@ -2700,13 +2993,17 @@ def stamp_release_clock(bd, cands, *, calendar_doc: Optional[dict] = None) -> No
     next scheduled print lands past the horizon is MARKED, never struck -- correcting, not deleting --
     and the writer is told what to do instead.
 
-    A turn with NO horizon (the question asked for none) marks nothing: there is no bound to miss."""
+    A turn with NO horizon (the question asked for none) marks nothing: there is no bound to miss.
+
+    09-27 SITTING 3 (Z11): THE HORIZON FACTS ARE :func:`_row_clock`'s -- ONE producer, read here AFTER the draw
+    for the marks and by :func:`turns_inside` BEFORE it for the ranking, so the row the draw seats as
+    turning inside the horizon and the row this stamp marks as missing it can never disagree. Every mark,
+    date and word below is HEAD's; the one addition is the release WINDOW's two ends (Z19 / S2 OI-8)."""
     by_key = {r.key: r for r in (getattr(bd, "rows", ()) or ())}
-    horizon_end, horizon_days = None, 0.0
+    bounds = _horizon_bounds(bd)
+    horizon_end, horizon_days = bounds
     _smap: dict = {}
     if getattr(bd, "horizon_months", None):
-        horizon_end = _add_months_iso(str(bd.asof), int(bd.horizon_months))
-        horizon_days = float(int(bd.horizon_months)) * _MONTH_DAYS
         # ONE FOLD MAP FOR THE WHOLE STAMP (review round 3, NEW-6): the horizon note names a READING,
         # and the name a reading is read under is `render.group_keep`'s, off this map.
         _smap = R.series_by_driver(bd)
@@ -2715,28 +3012,31 @@ def stamp_release_clock(bd, cands, *, calendar_doc: Optional[dict] = None) -> No
             continue
         row = by_key.get(c.get("row"))
         st = getattr(row, "state", None) if row is not None else None
+        clk = _row_clock(bd, st, calendar_doc=calendar_doc, bounds=bounds)
         # THE CADENCE ARM RUNS FIRST AND NEEDS NO CALENDAR: a series whose own PERIOD is longer than the
         # horizon cannot open a new period inside it. It says nothing about REVISION -- see
         # `HORIZON_MISS_CLAUSES`' own note for the measured correction (review round 2, MAJOR 6) -- and
         # the faster reading the clause points at is named off this board.
-        if horizon_days and st is not None:
-            per = CADENCE_DAYS.get(str(getattr(st, "cadence", "") or ""))
-            if per and float(per) > float(horizon_days):
-                c["horizon_miss"] = "cadence"
-                c["horizon_faster"] = _faster_series_words(bd, row, horizon_days, series_of=_smap)
-        table = str(getattr(st, "table", "") or "")
-        if not table:
-            continue
-        rel = next_release(table, bd.asof, doc=calendar_doc)
-        if rel.declined:
+        if horizon_days and st is not None and clk["standing"]:
+            c["horizon_miss"] = "cadence"
+            c["horizon_faster"] = _faster_series_words(bd, row, horizon_days, series_of=_smap)
+        rel = clk["rel"]
+        if rel is None:
             continue
         # THE DATE A READER CAN DIARISE is the one the window OPENS on where the rule gives a window,
         # and the day itself where it gives a day. `daily_sessions` gives neither and is left alone --
         # "on the next session" is not a diary entry and the row already says the cadence.
-        when = rel.date or rel.opens or rel.week_of
+        when = clk["when"]
         if not when:
             continue
         c["next_print"] = str(when)
+        # 09-27 SITTING 3 (Z19 / S2 OI-8): A RULE THAT IS A WINDOW KEEPS BOTH ENDS. `next_print` stays the day
+        # the window OPENS (HEAD's diary date, which the horizon test reads); the window's own two ends ride
+        # beside it (Y9's names), and the SB-W line then says "between <opens> and <closes>" -- never the
+        # opening day as if it were the print (cocoa 09-26: "next print 1 October 2026" for ONI's days one to
+        # five). A rule that gives a day or a week carries no window and keeps HEAD's line.
+        if rel.opens and rel.closes:
+            c["next_print_opens"], c["next_print_closes"] = str(rel.opens), str(rel.closes)
         # THE RULE BEHIND THE DATE, kept as a TRACE field and deliberately not rendered (review round 2,
         # minor 3 -- "written and never read"). A date computed from a monthly WINDOW and a date a
         # publisher states outright are two different confidences, and a trace reader who cannot tell
@@ -2888,7 +3188,7 @@ def nonobvious_rows(bd, *, analogs=(), cap: Optional[int] = None,
     # admission clause that does.
     kcap = max(1, (ceiling + 2) // 3)
 
-    def _draw(limit: int, series_cap: int, kind_cap: int, row_cap: int, slot: str, only=None) -> None:
+    def _draw(limit: int, series_cap: int, kind_cap: int, row_cap: int, slot: str, pred=None) -> None:
         """One pass of the draw, up to ``limit`` rows, under one set of caps.
 
         ``slot`` IS THE PASS AND NOT THE POSITION. Labelling by ``len(out) < ceiling`` would stamp
@@ -2901,8 +3201,8 @@ def nonobvious_rows(bd, *, analogs=(), cap: Optional[int] = None,
                 return
             if c.get("slot"):
                 continue                                # already taken by an earlier pass
-            if only is not None and c.get("row") not in only:
-                continue                                # 09-25 (RT-6): the call pass seats call rows only
+            if pred is not None and not pred(c):
+                continue                                # 09-27 (Z11): each pass seats what its rule admits
             # THE SERIES CAP -- R10's fold: one reading per slot inside the ceiling.
             if per_series.get(c["dedupe"], 0) >= series_cap:
                 continue
@@ -2932,14 +3232,62 @@ def nonobvious_rows(bd, *, analogs=(), cap: Optional[int] = None,
     # 09-25 (RT-6): THE LIST WATCHES THE CALL. The rows the page's call rests on (:func:`call_rows`) take
     # their best-ranked candidate FIRST, under the ceiling's own caps; the ruling's rank then fills the rest
     # of the ceiling exactly as before. A board whose call rows cleared no floor draws byte for byte as HEAD.
-    _calls = call_rows(bd)
-    if _calls:
-        _draw(ceiling, 1, kcap, 1, "ceiling", only=_calls)
-        for c in out:
-            c["call_row"] = True
-    _draw(ceiling, 1, kcap, 1, "ceiling")
+    #
+    # 09-27 SITTING 3 (CONTRACT Z11 / U-6): THE LIST WATCHES THE CALL, BY THE CALL'S OWN LEGS AND THE HORIZON'S
+    # OWN CLOCK. MEASURED on the arm-A PM reads (max, cotton, corn/wheat, soyoil/palm, 2024): "the watch list
+    # does not watch the call", "the lead falsifier restates a period longer than the horizon", "misses the
+    # near-dated lever"; on the harness, soybeans_now at a three-month horizon seated an ANNUAL-period item as
+    # core six of six (its `horizon_miss=cadence` mark was stamped AFTER the draw, so it never entered it).
+    # Every candidate is stamped BEFORE the draw with three FACTS the writer and the trace read -- `call_leg`
+    # (its row is one of :func:`call_legs`), `turns_inside` and `standing` (:func:`_row_clock`, the producer
+    # the post-draw marks read too) -- and the passes read them:
+    #   1. the CALL pass seats call legs whose series can print a new value inside the horizon (or where no
+    #      horizon was asked) and whose period does not outrun it, under the ceiling's own caps;
+    #   2. the ruling's rank (`rank_key`, UNCHANGED) fills the rest of the ceiling -- except that a STANDING
+    #      row (its period longer than the horizon) never takes a ceiling slot: it can only restate a period;
+    #   3. the nomination tail, as before, where a standing row may sit, stamped and marked standing context.
+    # A candidate on a market the subject CARRIED onto the board and the question did not ask about
+    # (:func:`_carried_markets`) is drawn only where it is a call leg (counted `carried_not_call`). The
+    # writer still chooses and words the list; nothing here hands it a sentence, and the 2N draw stays.
+    # REJECTED: a typed priority list of drivers; a new rank term (the ruling's seven are untouched).
+    _legs = call_legs(bd)
+    _carried = _carried_markets(bd)
+    _bounds = _horizon_bounds(bd)
+    _by_key = {tuple(r.key): r for r in (getattr(bd, "rows", None) or ())}
+    for c in cands:
+        _r = _by_key.get(tuple(c.get("row") or ()))
+        _clk = _row_clock(bd, getattr(_r, "state", None), calendar_doc=calendar_doc, bounds=_bounds)
+        c["call_leg"] = tuple(c.get("row") or ()) in _legs
+        c["turns_inside"] = _clk["turns_inside"]
+        c["standing"] = bool(_clk["standing"])
+
+    def _mkt(c) -> str:
+        return str((tuple(c.get("row") or ()) or ("",))[0])
+
+    def _drawable(c) -> bool:                           # a carried market's item only as a call leg
+        return bool(c["call_leg"]) or _mkt(c) not in _carried
+
+    _draw(ceiling, 1, kcap, 1, "ceiling",
+          pred=lambda c: c["call_leg"] and c["turns_inside"] is not False and not c["standing"])
+    for c in out:
+        c["call_row"] = True
+    _draw(ceiling, 1, kcap, 1, "ceiling", pred=lambda c: _drawable(c) and not c["standing"])
     taken = len(out)
-    _draw(nominate, 2, 2 * kcap, 2, "nomination")
+    # THE TAIL WATCHES THE CALL TOO. MEASURED on the corn/wheat quick boards (0924 / 0925): the Scan core holds
+    # one reading kind (`kcap` 1), a higher-ranked call leg took it, and the tail's rank then seated a non-call
+    # reading ahead of the page's lead reading -- which left the list entirely. So a call leg's best candidate
+    # enters the tail first as well, under the tail's own relaxed caps; the rank fills the rest as before.
+    _draw(nominate, 2, 2 * kcap, 2, "nomination", pred=lambda c: c["call_leg"])
+    _draw(nominate, 2, 2 * kcap, 2, "nomination", pred=_drawable)
+    # THE DRAW'S OWN COUNTS, for the watch leg (``watch_leg`` stamps them; each omitted when zero): the
+    # carried-market candidates held off the list because they are not a call leg, and the loud rows held
+    # only as last revised that backed no item (Z17).
+    _census = {"carried_not_call": sum(1 for c in ranked if not _drawable(c)),
+               "held_as_last_revised": sum(
+                   1 for r in (getattr(bd, "rows", None) or ())
+                   if r.legs.get("loud") and getattr(r, "state", None) is not None
+                   and status_word(getattr(r.state, "status", "")) == "ok" and not _current(r.state))}
+    _census = {k: v for k, v in _census.items() if v}
     # THE CEILING REACHES THE WRITER, and until this landing it did not (review round 2, MAJOR 2).
     # `nonobvious_k` sized the draw and `_draw` stamped the pass, but `render.sb_watch` printed the same
     # line for both passes and the selection licence named no number -- so a Scan block handed the
@@ -2952,7 +3300,10 @@ def nonobvious_rows(bd, *, analogs=(), cap: Optional[int] = None,
         for i, c in enumerate(drawn, 1):
             c["slot_index"], c["slot_size"] = i, len(drawn)
     if not out:
-        return [absence_row()]
+        _ab = absence_row()
+        if _census:
+            _ab["draw_census"] = dict(_census)
+        return [_ab]
     # THE HONEST ABSENCE LINE ALSO RIDES A PARTIAL FILL, and that is the ruling's own sentence: "four
     # backed items and one honest absence line beat five rows where two are noise". A tier whose
     # ceiling is five and whose board cleared the bar with four says so, in one line, rather than
@@ -2970,6 +3321,19 @@ def nonobvious_rows(bd, *, analogs=(), cap: Optional[int] = None,
     # scheduled print, and a MARK where that print cannot land inside the turn's horizon.
     stamp_release_clock(bd, rows, calendar_doc=calendar_doc)
     if taken < ceiling:
-        rows.append(absence_row(partial=True, alternates=len(out) > taken))
+        # 09-27 (Z11): THE CAPS' WORD IS TRUE ONLY OF ALTERNATES THE CAPS HELD BACK. A standing row sits in the
+        # tail because its period outruns the horizon, not because a cap bound it -- and it says so on its own
+        # line (its `cadence` note). The caps' note ("the items above marked alternates ... were held back by
+        # those caps") is therefore added only where NO alternate is standing, and the exhausted note only
+        # where there are no alternates at all; a tail that carries a standing row gets neither -- no sentence
+        # here is true of it, each standing row states its own reason, and HEAD (which seated those rows in the
+        # core) printed no note either. The missing third sentence is docketed for the book (BUILD_AN).
+        _alts = out[taken:]
+        if not _alts:
+            rows.append(absence_row(partial=True, alternates=False))
+        elif not any(c.get("standing") for c in _alts):
+            rows.append(absence_row(partial=True, alternates=True))
+    if _census and rows:
+        rows[0]["draw_census"] = dict(_census)
     foot = release_footnote(bd, calendar_doc=calendar_doc)
     return rows + ([foot] if foot is not None else [])

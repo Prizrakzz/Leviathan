@@ -1086,10 +1086,17 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # default the empty tuple) and `ask_sides_balanced` (the board's own count read, default True -- inert
     # without `ask_sides`). DECLARED RE-BANK: the claim kept is unchanged -- appended at the tail, in the
     # order added, and the default-off value renders HEAD's bytes (checked below).
+    # ...and the 09-27 fix sitting 3 (lane A, CONTRACT Z4 / U-7) appends ONE more after `ask_sides_balanced`:
+    # `ask_netting` (the netting facts the ASKED SIDES line printed, default the empty tuple -- read only inside
+    # the call clause). DECLARED RE-BANK: the claim kept -- appended at the tail, in the order added, and the
+    # default-off value renders HEAD's bytes (checked below).
     _APPENDS = [n for n in ("numbers_budget", "state_board", "desk_register", "watch_selection",
                             "register_licence", "state_chain", "ask_head", "horizon_row",
-                            "positioning_asymmetry", "ask_sides", "ask_sides_balanced")
+                            "positioning_asymmetry", "ask_sides", "ask_sides_balanced", "ask_netting")
                 if n in _tail]
+    if "ask_netting" in _tail:
+        assert params["ask_netting"].default == ()
+        assert an._system(ask_netting=()) == base
     if "ask_sides" in _tail:
         assert params["ask_sides"].default == () and params["ask_sides_balanced"].default is True
         assert an._system(ask_sides=(), ask_sides_balanced=True) == base
@@ -1229,7 +1236,11 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # ENGINE PHASE 2 appends `board` (GRAPHRAG_STATE_BOARD, default None -- a PAYLOAD dict, not a
     # bool, for the same reason `extreme_locator` is one) at the tail, the fourth dark append to
     # ride this list. The construction is unchanged: each name is OPTIONAL and ORDERED.
-    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role", "xc_sublegs_on_composer", "board")
+    # FIX SITTING 3 RE-ANCHOR (2026-09-29, lane T, DECLARED), by exactly ONE more name and WITHOUT loosening
+    # the join: CONTRACT Z16 (sitting 2 M-3 / OI-3 b) appends `numbers_ledger` (default None -- the board turn's
+    # NumbersLedger, passed only on a board turn) at the tail, after `board`. Same optional-and-ordered rule.
+    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role", "xc_sublegs_on_composer", "board",
+                               "numbers_ledger")
                    if n in _qtail]
     assert _qtail[len(_qtail) - 2 - len(_K9_APPENDS):len(_qtail) - len(_K9_APPENDS)] == _PRE_K9_6, _qtail
     assert _qtail[len(_qtail) - len(_K9_APPENDS):] == _K9_APPENDS, _qtail   # appended, in order added
@@ -1508,7 +1519,11 @@ def test_g11_the_extrema_clock_repair_is_reachable_flag_gated_and_byte_inert_whe
     # in the order they were added". PRE-BANK kept; the pin's own subject is unchanged.
     _PRE_K9_6_LAST = "extrema_own_date"                        # the banked HEAD tail name
     _tail = list(qs)
-    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role", "xc_sublegs_on_composer", "board")
+    # FIX SITTING 3 RE-ANCHOR (2026-09-29, lane T, DECLARED), by exactly ONE more name and WITHOUT loosening
+    # the join: CONTRACT Z16 (sitting 2 M-3 / OI-3 b) appends `numbers_ledger` (default None -- the board turn's
+    # NumbersLedger, passed only on a board turn) at the tail, after `board`. Same optional-and-ordered rule.
+    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role", "xc_sublegs_on_composer", "board",
+                               "numbers_ledger")
                    if n in _tail]          # S5/S6 RE-ANCHOR: the dark appends, same optional-and-ordered rule
     assert _tail[len(_tail) - 1 - len(_K9_APPENDS)] == _PRE_K9_6_LAST, _tail[-3:]
     assert _tail[len(_tail) - len(_K9_APPENDS):] == _K9_APPENDS, _tail[-3:]

@@ -5214,7 +5214,7 @@ def _count_at(toks: list, i: int, table: dict):
     return None
 
 
-def _count_check(prose, pool: dict) -> dict:
+def _count_check(prose, pool: dict, kinds: dict | None = None, counters: dict | None = None) -> dict:
     """Every count in the writer's prose (word or digit) that sits beside a noun the trace's own counter keys
     mint, compared with EVERY counter under that noun. A FLOOR by construction: a printed count matching any
     counter under its noun passes, so a mismatch is a count the trace carries under no key for that noun --
@@ -5226,12 +5226,24 @@ def _count_check(prose, pool: dict) -> dict:
     THE BLOCK'S OWN NOUN FIRST (fix sitting 2, threat I2-a): where the words right after a count are a
     qualified noun the block registered (a TUPLE key of `_count_pool`, from CONTRACT C-I6's
     `served_counts[].noun`), the count is read against THAT noun's counts ONLY -- the longest registered
-    phrase wins -- and the head-noun floor applies only where no registered phrase follows the count."""
+    phrase wins -- and the head-noun floor applies only where no registered phrase follows the count.
+
+    THE COUNT'S KIND (fix sitting 3, R-I2a): where the block's `served_counts` entries carry lane R's `kind`
+    (`kinds`, from `_count_kinds`; `counters` the trace's own counter pool without them), every count that
+    PASSED is read for what backed it -- the kind(s) of the block's count at that value under that noun, or a
+    trace counter -- and a pass backed by ONE kind alone, under a noun the block registers for two kinds or
+    more, with no trace counter behind it, is listed (`kind_bound`): the floor passed it on a count of that
+    kind only, and the prose's noun cannot say which of the block's counts the writer meant (the fan's markets
+    against the chain line's). It is never a mismatch -- the census cannot tell -- and a human reads each one
+    by its clause. `kinds` None (HEAD's trace, no kind) returns HEAD's two keys byte for byte."""
     if not isinstance(prose, str) or not prose.strip() or not pool:
-        return {"checked": 0, "mismatches": []}
+        return ({"checked": 0, "mismatches": []} if kinds is None else
+                {"checked": 0, "mismatches": [], "kind_bound": [], "passed_on": {}})
     table = _spelled_counts()
     phrases = sorted((k for k in pool if isinstance(k, tuple)), key=len, reverse=True)
     checked, mism = 0, []
+    bound: list = []
+    passed_on: dict = {}
     # every bracket is masked BEFORE the clause split (a grouped `[N41, N42]` carries its own comma), and a
     # citation handle leaves a marker behind so its clause can be recognised as a served row's
     text = _COUNT_BRACKET_RX.sub(
@@ -5262,8 +5274,20 @@ def _count_check(prose, pool: dict) -> dict:
                     mism.append({"noun": " ".join(noun) if isinstance(noun, tuple) else noun, "printed": v,
                                  "quote": " ".join(clause.split())[:200],
                                  "trace_values": sorted(pool[noun])[:12]})
+                elif kinds is not None:
+                    via = sorted((kinds.get(noun) or {}).get(v) or ())
+                    via += ["trace counter"] if v in ((counters or {}).get(noun) or ()) else []
+                    for w in via:
+                        passed_on[w] = passed_on.get(w, 0) + 1
+                    noun_kinds = {k for ks in (kinds.get(noun) or {}).values() for k in ks}
+                    if len(noun_kinds) >= 2 and len(via) == 1 and via[0] in noun_kinds:
+                        bound.append({"noun": " ".join(noun) if isinstance(noun, tuple) else noun, "printed": v,
+                                      "kind": via[0], "noun_kinds": sorted(noun_kinds),
+                                      "quote": " ".join(clause.split())[:200]})
             i = max(j, i + 1)
-    return {"checked": checked, "mismatches": mism}
+    if kinds is None:
+        return {"checked": checked, "mismatches": mism}
+    return {"checked": checked, "mismatches": mism, "kind_bound": bound, "passed_on": passed_on}
 
 
 # -- FIX SITTING 2 (lane I, CONTRACT Y15): the readers of the re-based fields and of this sitting's seams --
@@ -5428,14 +5452,22 @@ def _esr_national_read(rec: dict) -> dict:
             "why": None, "x": x}
 
 
-def _held_rows_read(rec: dict) -> dict:
+def _held_rows_read(rec: dict, r: dict | None = None) -> dict:
     """Rows held as LAST REVISED cited in the TL;DR (CONTRACT Y15; the stamp is Y5's
     `period_behind.why == "last_revised"`, traced as `state_board.retention`). ABSENT until the retention
     stamp is on the record. WHERE IT IS, the census reads the stamped population (`retention.stamped`) as the
     denominator and STILL reads the TL;DR half ABSENT: no contracted trace key maps a held row to the [N]
     handle a TL;DR cites (`row_states` carries no `period_behind`, `retention` names no row) -- a BLOCKER named
-    in the lane's evidence, never guessed at from prose or from a value join."""
+    in the lane's evidence, never guessed at from prose or from a value join.
+
+    FIX SITTING 3 (lane I, CONTRACT Z21) -- THE BLOCKER'S KEY, READ WHERE IT LANDS. `state_board.held_rows =
+    [{"handle", "row_id"}]` (lane R, via the seam's `_trace_extra`, omitted when empty) names every RENDERED row
+    held as last revised by its own LEVEL handle. Where it is on the record the TL;DR half is read: the held
+    rows the TL;DR cites by that handle, of the held rows carrying one. Where it is not, HEAD's reading above
+    is unchanged byte for byte (the retention denominator, the TL;DR half ABSENT)."""
     sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    if isinstance(sb.get("held_rows"), list):
+        return _held_rows_tldr_read(rec, r, sb["held_rows"])
     ret = sb.get("retention")
     if not isinstance(ret, dict) or not ret:
         return _absent("state_board.retention absent (the P-1 retention stamp is not on the record)")
@@ -5460,6 +5492,315 @@ def _window_draw_read(rec: dict) -> dict:
     x = {k: (int(wd[k]) if _is_count(wd.get(k)) else None)
          for k in ("nodes", "stale", "added", "statements", "ms", "floor_unknown")}
     return {"v": int(wd["added"]), "d": x["stale"], "src": "bridge_query.window_draw", "why": None, "x": x}
+
+
+# -- FIX SITTING 3 (lane I, CONTRACT Z21 / Z23 / R-I2a): the TL;DR's own citations, the netting parts, the
+# block's sentences on the page, the mandate census, the held rows and the count's kind -------------------------
+# Every reader keeps the census's law: ABSENT (never 0, never False) where its producer key is not on the
+# record, a population and a denominator, vacuity-censused like every other row, and REPORT-ONLY. None of
+# them decides a fact from prose: a citation is an address the ONE handle parser reads (`verify._HANDLE` /
+# `_handle_members`), a count is read off the trace, and a copied sentence is the block's own sentence found
+# on the page by ONE declared similarity over the census's own tokenizer -- never a phrase list.
+def _tldr_text(rec: dict, r: dict | None = None) -> tuple:
+    """`(text, source)` -- the TL;DR the writer SERVED: a live row's post-verify `structured['tldr']`; a
+    BANKED record's `raw_draft.verified_tldr` (after the handle passes) else `raw_draft.postverify_tldr`, and
+    the source says it is the draft. `(None, None)` where no TL;DR is on the record (a numbers-only turn
+    renders none; the served body's bold lead-in is never parsed out of prose)."""
+    out = r.get("out") if isinstance(r, dict) and isinstance(r.get("out"), dict) else None
+    if out is not None:
+        st = out.get("structured")
+        t = st.get("tldr") if isinstance(st, dict) else None
+        return (t, "post-verify structured tldr") if isinstance(t, str) and t.strip() else (None, None)
+    rd = rec.get("raw_draft") if isinstance(rec.get("raw_draft"), dict) else {}
+    for pre in ("verified_", "postverify_"):
+        t = rd.get(pre + "tldr")
+        if isinstance(t, str) and t.strip():
+            return t, f"raw_draft.{pre}tldr (the banked draft's TL;DR, not the served page)"
+    return None, None
+
+
+def _cited_addresses(text) -> frozenset:
+    """Every `(kind, index)` ledger address a text cites -- `[N12]`, `[E4]`, and every member of a grouped
+    or ranged token -- through THE handle parser (`verify._HANDLE` + `verify._handle_members`, the members
+    `verify.cited_number_handles` reads for its N half). Read defensively: without the parser's members only
+    the [N] half is read (`cited_number_handles`), never a second grammar."""
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415 -- the ONE handle parser
+    rx, members = getattr(_vf, "_HANDLE", None), getattr(_vf, "_handle_members", None)
+    if rx is None or members is None:
+        return frozenset(("N", int(i)) for i in _vf.cited_number_handles(str(text or "")))
+    out: set = set()
+    for m in rx.finditer(str(text or "")):
+        out.update((str(k), int(i)) for k, i in members(m.group(0)))
+    return frozenset(out)
+
+
+def _address_of(v, kind: str = "N") -> frozenset:
+    """ONE trace handle as ledger addresses: an int is `kind`'s index (a board handle is an [N] -- the
+    `_handle_int` reading); a string carrying its own kind ("E4", "[N12]") is read by the handle parser; a
+    bare-digit string is `kind`'s. Empty for anything else (a bool is never a handle)."""
+    if isinstance(v, bool) or v is None:
+        return frozenset()
+    if isinstance(v, int):
+        return frozenset({(kind, int(v))})
+    s = str(v).strip().strip("[]").strip() if isinstance(v, str) else ""
+    if not s:
+        return frozenset()
+    if s[0].isdigit():
+        h = _handle_int(s)
+        return frozenset({(kind, h)}) if h is not None else frozenset()
+    return _cited_addresses(f"[{s}]")
+
+
+def _fact_addresses(item) -> frozenset:
+    """The ledger addresses of ONE served fact as the trace spells it (CONTRACT Z4): a bare handle, or a part
+    dict carrying the render's own `handle` ([N]) and `e_handle` ([E]) -- two addresses of ONE fact, so
+    citing either tells it."""
+    if isinstance(item, dict):
+        return _address_of(item.get("handle"), "N") | _address_of(item.get("e_handle"), "E")
+    return _address_of(item, "N")
+
+
+#: CONTRACT Z4's three netting parts, in the contract's order: the keys `state_board.ask_netting` carries
+#: (`{"opposing": [handles], "event": handle, "tape": handle}`, each omitted when absent). The contract's own
+#: closed key set, read back -- never a word list over prose.
+_NETTING_PARTS: tuple = ("opposing", "event", "tape")
+
+
+def _netting_parts(an: dict) -> list:
+    """`[(part, label, [addresses, ...]), ...]` -- each netting part the ask head PRINTED with at least one
+    handle, and the facts inside it (opposing is a LIST: the loudest reading against the lean, or on a
+    balanced board the loudest on each side -- each its own fact). A part with no printed handle is not a
+    part (Z4: "a part is present only when the block PRINTED its handle"). Read in the CONTRACT'S spelling
+    only -- the three part keys, each a handle (or a list of them for opposing, or a part dict carrying the
+    render's own `handle` / `e_handle`); a key the contract does not name is never read."""
+    out = []
+    for part in _NETTING_PARTS:
+        val = an.get(part)
+        items = list(val) if isinstance(val, (list, tuple)) else ([] if val is None else [val])
+        facts = [a for a in (_fact_addresses(it) for it in items) if a]
+        if facts:
+            out.append((part, part, facts))
+    return out
+
+
+def _netting_read(rec: dict, r: dict | None, prose) -> dict:
+    """NETTING PRESENT (U-7, CONTRACT Z23): of the netting parts the ask head printed
+    (`state_board.ask_netting`, lane R's Z4 -- the loudest reading against the lean, the open event's own
+    reading, the tape's move), how many the TL;DR CITES by their own ledger address. A part holding several
+    readings (a balanced board's loudest on each side) is netted only when the TL;DR cites every one of them
+    -- the instrument's error stays UNDER-claim. The writer's one-clause "why not" is not machine-readable:
+    the instrument reports parts netted and parts not netted and never grades a reason. A part named whole
+    WITHOUT its address is not credited: the contract's trace spelling carries each part's handles and no
+    name, and a name the trace does not carry is never guessed (a market's board label, the tape's only
+    name, would read "netted" on every TL;DR that names its market). ABSENT where the key is not on the
+    record, where no part carries a handle, and where no TL;DR is on the record."""
+    sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    an = sb.get("ask_netting")
+    if not isinstance(an, dict) or not an:
+        return _absent("state_board.ask_netting absent (no netting fact on the ask head)")
+    parts = _netting_parts(an)
+    if not parts:
+        return _absent("no netting part carries a printed handle", d=0)
+    tldr, src = _tldr_text(rec, r)
+    if tldr is None:
+        return _absent("no TL;DR on the record", d=len(parts))
+    cited, on_page = _cited_addresses(tldr), _cited_addresses(prose if isinstance(prose, str) else tldr)
+    x, netted = {}, []
+    for part, label, facts in parts:
+        told = sum(1 for f in facts if f & cited)
+        ok = told == len(facts)
+        netted += [label] if ok else []
+        c = x.setdefault(part, {"printed": 0, "netted": 0, "readings": 0, "readings_cited": 0,
+                                "cited_on_page": 0})
+        c["printed"] += 1
+        c["netted"] += int(ok)
+        c["readings"] += len(facts)
+        c["readings_cited"] += told
+        c["cited_on_page"] += int(any(f & on_page for f in facts))
+    return {"v": len(netted), "d": len(parts), "src": src, "why": None, "x": x,
+            "_page": {"printed": [lb for _p, lb, _f in parts], "netted": netted}}
+
+
+def _held_rows_tldr_read(rec: dict, r: dict | None, held: list) -> dict:
+    """CONTRACT Z21's reading (see `_held_rows_read`): the held rows the TL;DR cites by their own LEVEL
+    handle, of the held rows that carry one. ABSENT where no held row carries a handle and where no TL;DR is
+    on the record; the breakdown carries the held rows and those cited anywhere in the writer's prose."""
+    hs = [a for a in (_address_of(h.get("handle"), "N") for h in held if isinstance(h, dict)) if a]
+    if not hs:
+        return _absent("no held row carries a handle (state_board.held_rows)", d=0)
+    tldr, src = _tldr_text(rec, r)
+    if tldr is None:
+        return _absent("no TL;DR on the record", d=len(hs))
+    cited = _cited_addresses(tldr)
+    v = sum(1 for a in hs if a & cited)
+    return {"v": v, "d": len(hs), "src": f"{src} against state_board.held_rows[].handle", "why": None,
+            "x": {"held_rows": len(held), "with_handle": len(hs), "cited_in_tldr": v}}
+
+
+#: THE NEAR-VERBATIM TEST (U-12, CONTRACT Z23), declared ONCE: a block sentence is FOUND on the page when at
+#: least `_FURNITURE_SHARE` of its content-token `_FURNITURE_GRAM`-grams occur inside ONE page sentence.
+#: MEASURED on the forty board pages of the fifty (the blocks rebuilt from their traces at HEAD, against each
+#: page as served -- lane_i/proto_furniture*.out): a sentence the writer carried over clause by clause
+#: ("every chain carried here points lower for this market, and none the other way"; the price-record
+#: sentence reordered) reads 0.62-0.83; a stock phrase inside the writer's own sentence ("the lag the model
+#: allows for it", "a market this question did not name") reads 0.44-0.56. Handles, figures, dates and spelled
+#: counts are masked first, so a sentence that only shares a handle or a figure shares nothing.
+_FURNITURE_GRAM = 3
+_FURNITURE_SHARE = 0.6
+
+
+def _content_tokens(text) -> tuple:
+    """A sentence's CONTENT TOKENS, lower-cased, by the census's one tokenizer (`_COUNT_TOKEN_RX`): every
+    bracket masked (`_COUNT_BRACKET_RX`: handles, `[series: ...]`), every count masked (`_count_at`: a digit
+    count or a spelled one, the inverse of `rows.words_for_int`), every other figure / date / signed number
+    masked (a token that does not open with a letter), and every word GLUED to a figure ("93rd", "MY2026")
+    masked with it. What is left is the sentence's words.
+
+    A BRACKET THE SENTENCE SPLIT CUT IN TWO is still a bracket: the splitter breaks on ";" and the block's
+    `[series: CBOT rice; CBOT corn]` spans two sentences, so after the whole brackets are masked a close with no
+    open masks everything before it and an open with no close everything after it (the bracket's own grammar
+    across the cut -- never a word test). A bracket inside a bracket is masked from the inside out."""
+    s, prev = str(text or ""), None
+    while s != prev:
+        prev, s = s, _COUNT_BRACKET_RX.sub(" ", s)
+    if "]" in s:
+        s = " " + s[s.rindex("]") + 1:]
+    if "[" in s:
+        s = s[:s.index("[")] + " "
+    ms = list(_COUNT_TOKEN_RX.finditer(s))
+    toks = [m.group(0) for m in ms]
+    table = _spelled_counts()
+    out, i = [], 0
+    while i < len(toks):
+        got = _count_at(toks, i, table)
+        if got is not None:
+            i = got[1]
+            continue
+        glued = i > 0 and ms[i].start() == ms[i - 1].end() and not toks[i - 1][:1].isalpha()
+        if toks[i][:1].isalpha() and not glued:
+            out.append(toks[i].lower())
+        i += 1
+    return tuple(out)
+
+
+def _grams(toks: tuple) -> frozenset:
+    k = _FURNITURE_GRAM
+    return frozenset(tuple(toks[i:i + k]) for i in range(len(toks) - k + 1))
+
+
+def _furniture_read(rec: dict, body, body_src) -> dict:
+    """THE FURNITURE COUNT (U-12, CONTRACT Z23): of the block's sentences (`state_board.block_sentences`,
+    lane R's Z9 -- `[{"cls", "text"}]`, each optionally `"sha"` with its text cut), how many appear on the
+    page near-verbatim (`_FURNITURE_SHARE`).
+
+    THE POPULATION IS THE BLOCK'S OWN SENTENCES, read as FORMS (`_content_tokens`: handles, figures, dates and
+    counts masked). Two block-derived partitions, both off the SAME similarity and neither a word list:
+      * a form of fewer than `_FURNITURE_GRAM` content words cannot be tested (`untestable`);
+      * THE BLOCK'S ROW GRAMMAR: a form the block itself prints more than once, or that another of its own
+        sentences carries near-verbatim -- the clause every row prints beside its own figure ("95th
+        percentile of its own record", "rising in each of the last eight months"). A page that says a
+        figure in those words is saying a served figure WITH its words (the figures-and-words law), and the
+        page cannot say which row's clause it echoed, so row grammar is counted apart (`row_grammar`,
+        `row_grammar_found`) and never as furniture. MEASURED on the forty board pages of the fifty (the
+        blocks rebuilt at HEAD): 163 of the 171 forms found near-verbatim were row grammar; the 8 left are
+        each a one-off sentence the writer carried over (the price-record sentence x3, "every chain carried
+        here points lower ...", the count line's unnamed-market clause, a chain head, a chain hop, a
+        consequence clause).
+    THE PAGE is the body as served with its `## Sources` footer cut (the footer re-renders ledger labels, not
+    the writer's page) -- so a seam's appended board sentence counts, because the reader reads it. The
+    reading is the one-off forms found, of the one-off forms tested; the breakdown carries the raw sentence
+    count, the forms, the untestable and row-grammar forms, and the found forms by the block's own class."""
+    sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    bs = sb.get("block_sentences")
+    if not isinstance(bs, list):
+        return _absent("state_board.block_sentences absent (the block's sentences are not on the record)")
+    entries = [(str(e.get("cls") or ""), e["text"], "sha" in e)
+               for e in bs if isinstance(e, dict) and isinstance(e.get("text"), str) and e["text"].strip()]
+    if not entries:
+        return _absent("no block sentence on the record", d=0)
+    if not isinstance(body, str) or not body.strip():
+        return _absent("no page text on the record")
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415 -- the ONE sentence splitter
+    page = _prose({"answer": body})                  # the served body, its Sources footer cut (HEAD's rule)
+    psents = [(s, _grams(_content_tokens(s))) for s in _vf.sentences(page)]
+    forms: dict = {}
+    for cls, text, cut in entries:
+        toks = _content_tokens(text)
+        if cut and text.rstrip()[-1:].isalnum():
+            toks = toks[:-1]                         # a text cut mid-word (Z9's sha form): its last word is partial
+        forms.setdefault(toks, [cls, text, 0])[2] += 1
+    grams = {f: _grams(f) for f in forms}
+
+    def _share(g, pool) -> tuple:
+        return max(((len(g & pg) / len(g), s) for s, pg in pool), default=(0.0, ""), key=lambda t: t[0])
+
+    found, untestable, row_grammar, rg_found, by_class = [], 0, 0, 0, {}
+    for f, (cls, text, n) in forms.items():
+        g = grams[f]
+        if not g:
+            untestable += 1
+            continue
+        share, where = _share(g, psents)
+        if n > 1 or _share(g, [(h, grams[h]) for h in forms if h != f and grams[h]])[0] >= _FURNITURE_SHARE:
+            row_grammar += 1
+            rg_found += 1 if share >= _FURNITURE_SHARE else 0
+            continue
+        if share >= _FURNITURE_SHARE:
+            found.append({"cls": cls, "share": round(share, 2), "block": " ".join(text.split())[:160],
+                          "page": " ".join(str(where).split())[:200]})
+            by_class[cls or "unclassed"] = by_class.get(cls or "unclassed", 0) + 1
+    tested = len(forms) - untestable - row_grammar
+    if not tested:
+        return _absent("no one-off block sentence carries enough words to test", d=0)
+    return {"v": len(found), "d": tested, "src": f"{body_src} (Sources footer cut) against "
+                                                  f"state_board.block_sentences", "why": None,
+            "x": {"sentences": len(entries), "forms": len(forms), "untestable": untestable,
+                  "row_grammar": row_grammar, "row_grammar_found": rg_found, "by_class": by_class},
+            "_found": found}
+
+
+def _mandate_census_read(rec: dict, key: str) -> dict:
+    """ONE field of the board mandate's own census (CONTRACT Z1: `writer_seam.mandate_census` =
+    `narration.mandate_census(...)` -- words / sentences / asks / facts_required / rules / exactly_as /
+    by_part, over the mandate parts EMITTED on this turn), read as-is. `asks` carries its ceiling (facts
+    required + rules) as its denominator; `words` carries the rest of the census as its breakdown. ABSENT
+    where the stamp is not on the record (a board-off turn emits no board mandate)."""
+    mc = _writer_seam(rec).get("mandate_census")
+    if not isinstance(mc, dict):
+        return _absent("writer_seam.mandate_census absent (no board mandate census on the page)")
+    v = mc.get(key)
+    if not _is_count(v):
+        return _absent(f"writer_seam.mandate_census.{key} absent")
+    d = None
+    if key == "asks" and _is_count(mc.get("facts_required")) and _is_count(mc.get("rules")):
+        d = int(mc["facts_required"]) + int(mc["rules"])
+    got = {"v": int(v), "d": d, "src": "writer_seam.mandate_census (narration.mandate_census)", "why": None}
+    if key == "words":
+        bp = mc.get("by_part") if isinstance(mc.get("by_part"), dict) else {}
+        got["x"] = {**{k: (int(mc[k]) if _is_count(mc.get(k)) else None)
+                       for k in ("sentences", "facts_required", "rules")},
+                    "by_part": {str(k): int(w) for k, w in bp.items() if _is_count(w)}}
+    return got
+
+
+def _count_kinds(sb) -> dict:
+    """R-I2a: `{noun_key: {value: {kind, ...}}}` over C-I6's `served_counts` entries that carry lane R's
+    `kind` (the block's count kind: `count` / `fan_count`), keyed EXACTLY as `_count_pool` keys the same
+    entry (the head noun, and the whole printed phrase where it has two words or more). `{}` where no entry
+    carries a kind -- HEAD's trace, on which the count check reads HEAD's way byte for byte."""
+    out: dict = {}
+    sb = sb if isinstance(sb, dict) else {}
+    for x in (sb.get("served_counts") if isinstance(sb.get("served_counts"), list) else ()):
+        if not (isinstance(x, dict) and _is_count(x.get("value")) and str(x.get("kind") or "")):
+            continue
+        v, k = int(x["value"]), str(x["kind"])
+        words = _KEY_WORD_RX.findall(str(x.get("noun") or ""))
+        if words:
+            out.setdefault(_fold_noun(words[-1]), {}).setdefault(v, set()).add(k)
+        phrase = tuple(_fold_noun(t) for t in _COUNT_TOKEN_RX.findall(str(x.get("noun") or "")) if t[:1].isalpha())
+        if len(phrase) >= 2:
+            out.setdefault(phrase, {}).setdefault(v, set()).add(k)
+    return out
 
 
 #: THE CENSUS's ROSTER: (name, kind, population). `kind` "bool" reports how many read True; "count" the sum.
@@ -5516,9 +5857,35 @@ _INSTRUMENTS: tuple = (
      "(country_col + axis_national), whose rows are ONE buyer's -- of such reads that returned rows"),
     ("held_rows_in_claims", "count",
      "rows held as last revised (period_behind.why last_revised) cited in the TL;DR; the stamped population "
-     "(state_board.retention.stamped) is the denominator"),
+     "(state_board.retention.stamped) is the denominator"
+     # FIX SITTING 3 (Z21): the TL;DR half, where its key lands -- appended to the same population line
+     ", or -- where state_board.held_rows is on the record -- the held rows carrying their own level handle, "
+     "cited by it in the TL;DR"),
     ("window_draw", "count",
      "items the window-bounded draw appended (bridge_query.window_draw.added), of the stale nodes it drew for"),
+    # -- FIX SITTING 3 (lane I, CONTRACT Z23), APPENDED: the U-7 and U-12 instrument halves. Each ABSENT until
+    # its producer key is on the record (lane R's state_board.ask_netting / block_sentences, lane A's
+    # writer_seam.mandate_census), each report-only and vacuity-censused like every row above.
+    ("netting_present", "count",
+     "netting parts the ask head printed (state_board.ask_netting: the loudest reading against the lean, the "
+     "open event, the tape's move) that the TL;DR cites by their own handle -- a part of several readings "
+     "only when every one is cited -- of the parts printed, on board pages carrying the key (the trace names "
+     "each part by handle only, so a part named without its handle is not credited)"),
+    ("furniture_count", "count",
+     "the block's sentences (state_board.block_sentences, one form per sentence whose figures, handles and "
+     f"dates alone differ) found on the served page near-verbatim -- at least {_FURNITURE_SHARE} of the "
+     f"sentence's runs of {_FURNITURE_GRAM} content words inside one page sentence, handles, figures, dates "
+     "and counts masked, the census's own tokenizer -- of the block's ONE-OFF forms long enough to test (a form "
+     "the block prints twice, or carries inside another of its own sentences, is its row grammar -- a "
+     "figure's own words -- counted apart and never as furniture)"),
+    ("mandate_census.words", "count",
+     "words of the board mandate parts emitted on the turn (writer_seam.mandate_census.words, "
+     "narration.mandate_census), summed over the pages"),
+    ("mandate_census.asks", "count",
+     "the mandate's asks -- its imperatives, one per required fact or kept rule "
+     "(writer_seam.mandate_census.asks) -- of the facts required plus the rules emitted"),
+    ("mandate_census.exactly_as", "count",
+     "\"exactly as\" in the board mandate parts emitted on the turn (writer_seam.mandate_census.exactly_as)"),
 )
 
 
@@ -5542,7 +5909,10 @@ def _instrument_row(rec: dict, r: dict | None = None) -> dict:
     leaks = rec.get("register_leaks")
     sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
     pool = _count_pool(sb)
-    cc = _count_check(prose, pool)
+    # FIX SITTING 3 (R-I2a): the count's KIND where the block's served counts carry one (else HEAD's check)
+    kinds = _count_kinds(sb)
+    cc = _count_check(prose, pool, kinds=kinds or None,
+                      counters=(_count_pool({c: sb[c] for c in _COUNT_CONTAINERS if c in sb}) if kinds else None))
     desk = desk_v1 = None
     if body is not None:
         try:
@@ -5579,7 +5949,10 @@ def _instrument_row(rec: dict, r: dict | None = None) -> dict:
                              "why": (None if cc["checked"] else
                                      "no trace counter" if not pool else
                                      "no prose" if prose is None else
-                                     "no count beside a noun the trace mints")},
+                                     "no count beside a noun the trace mints"),
+                             **({"x": {"kind_bound_passes": len(cc["kind_bound"]),
+                                       "passed_on": dict(cc["passed_on"])}}
+                                if ("kind_bound" in cc and cc["checked"]) else {})},
         # -- FIX SITTING 2 (CONTRACT Y15), in roster order --
         "desk_register_hits.v1": {"v": desk_v1, "d": None, "src": body_src if desk_v1 is not None else None,
                                   "why": (None if desk_v1 is not None else
@@ -5591,9 +5964,16 @@ def _instrument_row(rec: dict, r: dict | None = None) -> dict:
         "prose_ceiling": _prose_ceiling_read(rec),
         "duplicate_handles": _duplicate_handles_read(rec),
         "esr_national_rows": _esr_national_read(rec),
-        "held_rows_in_claims": _held_rows_read(rec),
+        "held_rows_in_claims": _held_rows_read(rec, r),
         "window_draw": _window_draw_read(rec),
+        # -- FIX SITTING 3 (CONTRACT Z23), in roster order --
+        "netting_present": _netting_read(rec, r, prose),
+        "furniture_count": _furniture_read(rec, body, body_src),
+        "mandate_census.words": _mandate_census_read(rec, "words"),
+        "mandate_census.asks": _mandate_census_read(rec, "asks"),
+        "mandate_census.exactly_as": _mandate_census_read(rec, "exactly_as"),
         "_mismatches": cc["mismatches"],
+        "_kind_bound": cc.get("kind_bound") or [],
         "_mandate": isinstance(rec.get("desk_register"), dict),
     }
 
@@ -5703,7 +6083,28 @@ def instrument_census(per: list | None = None, rows: list | None = None) -> dict
                      for i, rd in enumerate(reads)],
             # FIX SITTING 2 (Y15), APPENDED: the quoted set, and each new seam's breakdown
             "quoted": [k for k, v in census.items() if v["quoted"]],
-            "details": _census_details(reads)}
+            "details": _census_details(reads),
+            # FIX SITTING 3 (Z23 / R-I2a), APPENDED and OMITTED WHEN EMPTY: the netting parts page by page,
+            # every block sentence found on its page (with the page sentence it was found in), and every
+            # count that passed on one kind's count alone under a noun the block registers for two kinds
+            **_census_lists(per, reads)}
+
+
+def _census_lists(per: list, reads: list) -> dict:
+    """The FIX-SITTING-3 deck lists (each omitted when empty), so a reader sees WHAT each new row counted:
+    `netting_pages` -- per board page carrying `ask_netting` and a TL;DR, the parts printed and the parts the
+    TL;DR netted; `furniture_found` -- each block sentence found near-verbatim, its class, its share, and the
+    page sentence it was found in; `count_kind_bound` -- each count the floor passed on one kind alone."""
+    ids = [str(p.get("id")) for p in per]
+    out: dict = {}
+    net = [{"id": ids[i], **rd["netting_present"]["_page"]}
+           for i, rd in enumerate(reads) if isinstance(rd["netting_present"].get("_page"), dict)]
+    fur = [{"id": ids[i], **f} for i, rd in enumerate(reads) for f in (rd["furniture_count"].get("_found") or ())]
+    kb = [{"id": ids[i], **m} for i, rd in enumerate(reads) for m in (rd.get("_kind_bound") or ())]
+    for k, v in (("netting_pages", net), ("furniture_found", fur), ("count_kind_bound", kb)):
+        if v:
+            out[k] = v
+    return out
 
 
 def _census_details(reads: list) -> dict:
@@ -5863,6 +6264,24 @@ def instrument_report(census: dict) -> list[str]:
                  f"{m['trace_values']} under that noun -- \"{m['quote']}\"")
     if len(cm) > 10:
         L.append(f"  - ... and {len(cm) - 10} more count mismatch(es) in the artifact's `instruments` key")
+    # FIX SITTING 3 (Z23 / R-I2a): what the new rows counted, each list printed only where it has entries
+    for m in (census.get("count_kind_bound") or [])[:10]:
+        L.append(f"  - count passed on one kind alone `{m['id']}`: printed {m['printed']} {m['noun']}(s), backed "
+                 f"only by the block's `{m['kind']}` count under a noun it registers as {m['noun_kinds']} -- "
+                 f"\"{m['quote']}\"")
+    for m in (census.get("netting_pages") or [])[:10]:
+        L.append(f"  - netting `{m['id']}`: the TL;DR netted {len(m['netted'])} of the {len(m['printed'])} "
+                 f"part(s) the ask head printed ({', '.join(m['printed'])}); netted: "
+                 + (", ".join(m["netted"]) if m["netted"] else "none"))
+    ff = census.get("furniture_found") or []
+    for m in ff[:10]:
+        L.append(f"  - furniture `{m['id']}` ({m['cls'] or 'unclassed'}, {m['share']}): block \"{m['block']}\" "
+                 f"-- found in \"{m['page']}\"")
+    for k, n in (("netting page(s)", len(census.get("netting_pages") or []) - 10),
+                 ("furniture sentence(s)", len(ff) - 10),
+                 ("one-kind count pass(es)", len(census.get("count_kind_bound") or []) - 10)):
+        if n > 0:
+            L.append(f"  - ... and {n} more {k} in the artifact's `instruments` key")
     return L
 
 

@@ -329,7 +329,8 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                 record_through: str = "", n_start: int = 1, e_start: int = 1,
                 watch_nonobvious: bool = False, state_chain: bool = False,
                 evidence_ordinals: Optional[dict] = None, evidence_address=None, ask_rows=None,
-                extra_kd=None, page_markets=None, recency_layers: Optional[dict] = None) -> dict:
+                extra_kd=None, page_markets=None, recency_layers: Optional[dict] = None,
+                numbers_ledger=None) -> dict:
     """Run STAGE 2, then the analogs, the watch rows and the RENDER. Returns the seam payload:
 
     ``{"block": str, "request": dict, "trace": dict, "counters": dict, "recency": dict}``
@@ -418,6 +419,12 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
             # stage 1, and the ledger's tape columns are additive. Measured as byte identity through
             # this function with both flags popped, block / request / trace / counters.
             _attach_tape(bd, qfn=qfn, width=width)
+            # 09-27 SITTING 3 (CONTRACT Z12, U-11 -- the seam's call site): UNDER GRAPHRAG_STATE_CHAIN the chain
+            # outcome prices each past time on the contract the shipped roll rule named front AT THAT TIME
+            # (``feeders.front_moves``, one bounded read per distinct front contract, on the board's own executor),
+            # never on the anchor's one present front contract. Chain off, or a walk / feeder without the producer:
+            # nothing is passed and the walk reads HEAD's tape, byte for byte.
+            _front_kw = _front_fn_kw(bd, qfn=qfn) if state_chain else {}
             W.stage2(bd, graph, state_fn=state_fn or _state_fn(bd.asof, qfn=qfn,
                                                                turn_kind=bd.turn_kind),
                      key_fn=key_fn, receipts=_rcpt, width=width, legb_on=legb_on,
@@ -436,7 +443,7 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                      # `evidence_borrows` for exactly that reason. The BENCHMARK is the read: it calls
                      # a mirror from outside both wave rectangles, `_bench_read` counts it and
                      # `reads_used` sums it. So the seat reservation follows the benchmark alone.
-                     analog_reads=bool(benchmark_fn is not None))
+                     analog_reads=bool(benchmark_fn is not None), **_front_kw)
             # THE LIKE-STATE STANZA IS THE **THEN** OF THE TOP CHAIN, AND THAT IS ONE ARGUMENT
             # (DESIGN C.2, round-2 item R-5). `analogs.select_analogs` already accepts `first_dim` and
             # `analogs._dims_first` already moves that dimension to the front of the vector the
@@ -524,7 +531,10 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                                  evidence_address=evidence_address,
                                  ask_rows=(list(ask_rows) if ask_rows else None),
                                  page_markets=(tuple(page_markets) if page_markets is not None else None),
-                                 anchor_label=", ".join(R.board_label(s) for s in bd.anchor_slugs))
+                                 anchor_label=", ".join(R.board_label(s) for s in bd.anchor_slugs),
+                                 # 09-27 SITTING 3 (CONTRACT Z16, S2 M-3): the turn's numbers ledger (answer.py
+                                 # builds it on a board turn; ``None`` -> HEAD's numbering), passed only where given
+                                 **({"numbers_ledger": numbers_ledger} if numbers_ledger is not None else {}))
             _render_ms = (time.perf_counter() - _tr) * 1000.0
             # THE RENDER'S DECLINE WORD MEANS "A LINE WAS CORRECTED", NOT "NO BLOCK" (S6 review). The
             # register fence is PER LINE: a trip replaces the offending line with its own SB-X and the
@@ -541,6 +551,10 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                       "row_handles": {k: dict(v) for k, v in (blk.row_handles or {}).items()}}
             # 09-26 SITTING 2 (C-I4 / C-I6): read off the block that RENDERED, by the render's own producers
             _trace_extra = {"watch_rows": R.watch_rows_of(blk), "served_counts": R.served_counts(blk)}
+            # 09-27 SITTING 3 (CONTRACT Z4 / Z9 / Z21 / Z16): the netting facts the ask head printed, the block's own
+            # sentences with their class, the rendered rows held only as last revised, and the numbers ledger's
+            # stamp -- each off the block that rendered, each omitted when empty (B11: they ride ``state_board``)
+            _trace_extra.update(_sitting3_trace(R, blk, bd, numbers_ledger))
         else:
             ana, wr, rec, text, calls = [], [], {}, "", []
             _extra = {}
@@ -919,6 +933,12 @@ def _attach_tape(bd, *, qfn=None, width: int = 2) -> None:
                 tape[slug] = tp
                 reads += int(getattr(tp, "reads", 0) or 0)
     if tape:
+        # 09-27 SITTING 3 (CONTRACT Z13, U-8 -- the seam's call site): WHERE THE QUESTION'S PAIR SETTLES IN TWO
+        # CURRENCIES, each non-USD leg's exchange-rate row (``feeders.fx_rows``: one bounded read per currency, the
+        # newest rate on or before that leg's own settle session and the as-of) rides its tape as ``TapeState.fx``,
+        # so the pair spread's calculator converts or declines by naming the missing rate. Nothing is read for a pair
+        # in one currency, a board with no pair, or a feeder without the producer (HEAD's tape, byte for byte).
+        _attach_fx(bd, tape, qfn=executor)
         # `reads_each=0` and then the MEASURED total, because D19's "one mirror read per anchor board"
         # is the SEAT and `tape_state`'s own `reads` is the SPEND -- a declined tape spends none, and a
         # ledger that recorded the seat as the spend would over-count the board's own budget term.
@@ -926,6 +946,106 @@ def _attach_tape(bd, *, qfn=None, width: int = 2) -> None:
         bd.ledger.tape_reads += int(reads)
     bd.stamp("tape", "fired" if tape else "declined",
              reason="" if tape else "no_tape_slug", reads=int(reads))
+
+
+def _front_fn_kw(bd, *, qfn=None) -> dict:
+    """``{"front_fn": partial(feeders.front_moves, asof=<the board's as-of>, qfn=<the board's executor>)}`` where the
+    feeder has the producer and the walk's ``stage2`` takes the keyword (CONTRACT Z12, read defensively: the
+    ``orchestrator._numbers_takes_usage_sink`` idiom); ``{}`` otherwise, which is HEAD's call."""
+    try:
+        import functools
+        import inspect
+
+        from leviathan.graphrag.state import feeders as F
+        from leviathan.graphrag.state import walk as W
+        fm = getattr(F, "front_moves", None)
+        if not callable(fm) or "front_fn" not in inspect.signature(W.stage2).parameters:
+            return {}
+        executor = qfn if qfn is not None else F.board_query_fn()
+        return {"front_fn": functools.partial(fm, asof=bd.asof, qfn=executor)}
+    except Exception:                                   # noqa: BLE001 -- no producer, HEAD's chain outcome
+        return {}
+
+
+def _sitting3_trace(R, blk, bd, numbers_ledger=None) -> dict:
+    """THE FOUR 09-27 SITTING 3 TRACE PAYLOADS, off the block that rendered (the ``served_counts`` idiom), each
+    omitted when empty and each read defensively so a render without the producer adds nothing:
+      * ``ask_netting`` (Z4) -- the netting parts the ASKED SIDES clause printed: the first market's in the contract's
+        shape ``{"opposing": [handles], "event": handle, "tape": handle}``, every market's under ``by_market`` where
+        more than one printed;
+      * ``block_sentences`` (Z9) -- ``render.block_sentences(blk)``, every rendered line's sentences with its class;
+      * ``held_rows`` (Z21) -- ``render.held_rows_of(blk, bd)``, the rendered rows held only as last revised;
+      * ``numbers_ledger`` (Z16, Y22's spelling) -- ``ledger.stamp()``, only where the ledger handed a handle back."""
+    out: dict = {}
+    try:
+        per = {k: v for k, v in (getattr(blk, "ask_netting", None) or {}).items() if v}
+        if per:
+            first = next(iter(per.values()))
+            shape = {}
+            if first.get("opposing"):
+                shape["opposing"] = [int(x["handle"]) for x in first["opposing"] if x.get("handle")]
+            for k in ("event", "tape"):
+                if isinstance(first.get(k), dict) and first[k].get("handle"):
+                    shape[k] = int(first[k]["handle"])
+            if isinstance(first.get("event"), dict) and first["event"].get("e_handle"):
+                shape["event_e"] = int(first["event"]["e_handle"])
+            if first.get("skipped"):
+                shape["skipped"] = list(first["skipped"])
+            if len(per) > 1:
+                shape["by_market"] = {k: dict(v) for k, v in per.items()}
+            if shape:
+                out["ask_netting"] = shape
+    except Exception:                                   # noqa: BLE001 -- telemetry never costs a turn
+        pass
+    for key, fn_name in (("block_sentences", "block_sentences"), ("held_rows", "held_rows_of")):
+        try:
+            fn = getattr(R, fn_name, None)
+            v = (fn(blk, bd) if fn_name == "held_rows_of" else fn(blk)) if callable(fn) else None
+            if v:
+                out[key] = v
+        except Exception:                               # noqa: BLE001
+            pass
+    try:
+        if numbers_ledger is not None:
+            st = dict(numbers_ledger.stamp() or {})
+            if int(st.get("reused") or 0):
+                out["numbers_ledger"] = st
+    except Exception:                                   # noqa: BLE001
+        pass
+    return out
+
+
+def _attach_fx(bd, tape: dict, *, qfn=None) -> None:
+    """THE PAIR'S EXCHANGE-RATE ROWS ON ITS TAPES (09-27 sitting 3, CONTRACT Z13 -- U-8's seam half). The question's
+    first two named markets carrying a tape (``render.named_markets``, the pair spread's own legs) whose tapes settle
+    in DIFFERENT currencies: each non-USD leg takes ``feeders.fx_rows([its currency], asof, on_or_before=<the earlier
+    of the two legs' own settle sessions>)``'s row as ``TapeState.fx``. Never raises; silent (and read-free) everywhere
+    else."""
+    try:
+        from leviathan.graphrag.state import feeders as F
+        from leviathan.graphrag.state import render as R
+        fxr = getattr(F, "fx_rows", None)
+        if not callable(fxr):
+            return
+        pair = [s_ for s_ in R.named_markets(bd) if s_ in (tape or {})][:2]
+        if len(pair) != 2:
+            return
+        ccy = {s_: str(getattr(tape[s_], "currency", "") or "").strip().upper() for s_ in pair}
+        if not all(ccy.values()) or ccy[pair[0]] == ccy[pair[1]]:
+            return
+        # the spread's shared session is on or before BOTH legs' own newest settle: the rate is read on or before the
+        # earlier of the two, so it can never postdate the session the calculator pairs the legs on
+        _dates = [str(getattr(tape[s_], "level_date", "") or "")[:10] for s_ in pair]
+        _bound = min([d for d in _dates if d] or [str(bd.asof or "")[:10]])
+        for s_ in pair:
+            c = ccy[s_]
+            if c == "USD" or not hasattr(tape[s_], "fx"):
+                continue
+            got = fxr([c], bd.asof, qfn=qfn, on_or_before=_bound) or {}
+            if isinstance(got.get(c), dict):
+                tape[s_].fx = dict(got[c])
+    except Exception:                                   # noqa: BLE001 -- an exchange rate never costs a tape
+        return
 
 
 def _tape_edge(bd) -> str:

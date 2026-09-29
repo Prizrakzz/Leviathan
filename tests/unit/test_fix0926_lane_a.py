@@ -117,7 +117,11 @@ def test_A1_indias_exports_named_by_the_routing_cards_supply_noun_is_the_rows_la
     names the row. The run becomes the card's declared label; the writer's possessive and verb stay."""
     st = {"tldr": RICE_N63, "mechanism": ""}
     cen = an._name_binding_lint(st, _rice_calls(), board=_rice_board())
-    assert "while India's exports sits at an all-time-wide 25 MMT [N63]" in st["tldr"], st
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-10 (c) -- declared DM1): the correction enters through the ONE
+    # splice producer (`rows.splice`, CONTRACT Z8), so the writer's verb keeps agreeing with the slot's head --
+    # "India's exports sits" was the measured defect; the claim kept: the run becomes the row's label, the
+    # writer's possessive and verb stay.
+    assert "while India's exports series sits at an all-time-wide 25 MMT [N63]" in st["tldr"], st
     assert cen.get("noun_corrected") == 1, cen
 
 
@@ -351,7 +355,9 @@ def test_A4_the_clause_ships_only_with_the_blocks_handles_and_only_on_a_board_tu
     # followed at the tail by exactly the sitting-2 appends `ask_sides` / `ask_sides_balanced`, both inert at
     # their defaults. The claim kept: this clause's kwarg is a TAIL append whose default renders HEAD's bytes.
     _p = list(inspect.signature(an._system).parameters)
-    assert _p[_p.index("positioning_asymmetry") + 1:] == ["ask_sides", "ask_sides_balanced"]
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-7 / CONTRACT Z4 -- declared): one more tail append, `ask_netting`,
+    # inert at its default; the claim kept: this clause's kwarg is a TAIL append whose default renders HEAD's bytes.
+    assert _p[_p.index("positioning_asymmetry") + 1:] == ["ask_sides", "ask_sides_balanced", "ask_netting"]
 
 
 def test_A4_the_gate_reads_the_lead_R_prints_and_nothing_else(monkeypatch):
@@ -382,14 +388,19 @@ _ORDER = "Make a market or a reading the subject of every sentence here"
 
 
 def test_A5_the_chain_movement_names_its_subject_once_and_the_flag_off_mandate_is_heads():
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (a)/(d) -- declared DM4): the PHRASING order ("Make a market or a
+    # reading the subject of every sentence here ... never {record} itself") is DROPPED -- the page-talk it fenced
+    # is the desk register's token ban (register.py, OI-2: "this page", "cleared the bar", "nominated") and the
+    # record's reader-facing name (N-1); the FACT it carried survives as `chain_links` ("naming it by what it
+    # links -- where it starts and the market it reaches"). The claim kept: the chain movement names each chain by
+    # what it links, and the flag-off mandate is HEAD's object.
     for kw in ({"chain": True}, {"chain": True, "nonobvious": True}, {"chain": True, "desk": True}):
-        assert N.state_board_mandate(**kw).count(_ORDER) == 1, kw
-    # 09-26 S2 RE-BANK (lane N, N-1): the desk cell's name for the block is the reader's object, read off the
-    # ONE constant answer.py also imports -- "never this page itself" taught "this page" (B39)
-    assert "never %s itself" % N.MANDATE_BLOCK_READER_NAME in N.state_board_mandate(chain=True, desk=True)
+        m = N.state_board_mandate(**kw)
+        assert m.count(_ORDER) == 0, kw
+        assert m.count("naming it by what it links -- where it starts and the market it reaches") == 1, kw
     for kw in ({}, {"nonobvious": True}, {"desk": True}):
         assert _ORDER not in N.state_board_mandate(**kw), kw
     assert N.state_board_mandate() is N.SYSTEM_STATE_BOARD_MANDATE
-    # the count line keeps its one plain clause (A5-c)
-    assert "give it one plain clause" in N.MANDATE_CHAIN_MOVEMENT
+    # the count line keeps its ONE clause, now asked for as a FACT (the further count and the markets it names)
+    assert "in one clause of your own" in N.MANDATE_CHAIN_MOVEMENT
     assert N.check_literals() == []

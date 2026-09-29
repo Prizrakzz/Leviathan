@@ -2119,12 +2119,22 @@ def _direction_edits_audited(sentence: str, ctx, log=None) -> list:
     (a correction the verifier's own apply pass discards -- inside a sentence it deleted -- is never counted)."""
     try:
         runs, fans = getattr(ctx, "dirs", None) or ({}, ())
-        if not (runs or fans) or not sentence:
+        # 09-29 SITTING 3 (U-4 / U-3 / U-9): the threshold, pair-standing and episode-verdict facts ride the SAME
+        # apply seam, each read off its own producer's registration; every pool empty -> HEAD's return.
+        thr, pairs, verd = (getattr(ctx, "thr", ()) or (), getattr(ctx, "pairs", ()) or (),
+                            getattr(ctx, "verd", None) or {})
+        if not (runs or fans or thr or pairs or verd) or not sentence:
             return []
         masked = _mask_handles(sentence)
         out = list(_fan_direction_edits(sentence, masked, fans, log)) if fans else []
         if runs:
             for e in _run_direction_edits(sentence, masked, ctx, runs, log):
+                if not any(x < e[1] and e[0] < y for x, y, _v, _e in out):
+                    out.append(e)
+        for arm, on in ((_threshold_edits, thr), (_pair_edits, pairs), (_verdict_edits, verd)):
+            if not on:
+                continue
+            for e in arm(sentence, ctx, log):
                 if not any(x < e[1] and e[0] < y for x, y, _v, _e in out):
                     out.append(e)
         return sorted(out, key=lambda e: (e[0], e[1]))
@@ -2142,7 +2152,8 @@ def _direction_edits(sentence: str, ctx, log=None) -> list:
     out = []
     for a, b, v, entry in _direction_edits_audited(sentence, ctx, log):
         out.append((a, b, v))
-        _dir_log(log, "corrected")
+        # 09-29 (sitting 3): a run / fan correction is HEAD's ``corrected``; the new arms count under their own
+        _dir_log(log, _EDIT_COUNT_KEYS.get(str(entry.get("rule") or ""), "corrected"))
         _dir_audit(log, entry)
     return out
 
@@ -2177,6 +2188,508 @@ def _apply_direction_edits(text: str, ctx, log=None) -> str:
     for a, b, v in sorted(ops, reverse=True):
         text = text[:a] + v + text[b:]
     return text
+
+
+# ══ 09-29 FIX SITTING 3, LANE V (U-4 / U-3 / U-9 check halves, CONTRACT Z5 / Z6 / Z7) ═════════════════════════
+# THE SAME DISCIPLINE AS V-1, EXTENDED TO THREE MORE FACTS THE BLOCK SERVES WITH A FIGURE. Each arm reads ONLY
+# what a producer registered (lane R's scalars, lane T's call stamp) -- the words included -- and each CORRECTS a
+# sentence that contradicts the served fact and leaves every other sentence as written. No arm strikes, none adds
+# a `by_rule` entry, none carries a word of its own: the vocabularies are the book's, read off the registration.
+#
+# U-4 THRESHOLD (Z6). THE MEASURED DEFECT (arm A 09-26, soyoil/palm and palm/rape, S3-3): "The palm-belt dry spell
+#   [N24]: 1.25 z, August 2026, three months rising and past the severe line, which sits at two sigma." The row IS
+#   past its severe line -- the desk convention `drought_z: z_bands [1.0, 2.0]` judges the board's OWN z over its
+#   trailing ten years (+2.67 sigma, the block's [N25]) -- but the only figure the sentence binds the line to is
+#   the LEVEL (1.25, itself a z of another window), so the page reads "1.25 is past a line at two". The words were
+#   right; the figure they were bound to was not the figure the line judges. THE FIX: a threshold clause -- a
+#   phrase of the fact's own `relation_words` followed, inside one clause segment, by the fact's own `label` --
+#   in a sentence citing that row is BOUND to the row's registered threshold fact, and
+#     (i)  CITE     the written relation agrees and the sentence cites the row but not the JUDGED figure's handle:
+#                   that handle's own citation is inserted beside the threshold words (THE ONE INSERTION the law
+#                   allows: a board-printed figure's own citation). The words stay.
+#     (ii) CORRECT  the written relation contradicts the served one AND the judged handle is written ADJACENT to
+#                   the clause (its handle group directly before the relation phrase, across blanks or one clause
+#                   break, or directly after the clause): the relation phrase is corrected to the same-vocabulary
+#                   phrase of the served relation (V-1's positional vocabulary). A contradicting clause NOT bound
+#                   that tightly is left as written and counted `threshold_unanchored` -- measured on the fifty,
+#                   the only "inside the <label> line" clauses are FALSIFIERS ("wrong if the next print turns back
+#                   inside the strong line"), a conditional about a print that has not happened, never a claim
+#                   about the served reading, and nothing structural tells a conditional from a claim except
+#                   where the clause is bound to the handle it is predicated of.
+# U-3 PAIR STANDING (Z5). A standing phrase of the pair's own `standing_words`, written between the two legs (the
+#   last leg named before it and the first leg named after it with no figure or handle between, in one clause
+#   segment), in a segment that carries the SPREAD's own handle -- or one handle group covering both legs' rows
+#   where the other leg is the phrase's direct object -- that states the opposite standing to the calculator's
+#   own sign -> the phrase corrected. Leg names are the legs' own board labels, a leg
+#   named only by the words it does not share with the other leg's label (the V-1 fan's distinct-words rule), and
+#   a run of words naming both is no mention at all. Unbound phrases are counted `pair_standing_unanchored`, never
+#   touched; a segment carrying a declared edge's own words is an inference and is withheld,
+#   `pair_standing_in_inference`.
+# U-9 EPISODE VERDICT (Z7). A consequence cell's leg calls carry `episode_verdict` (the analyst key only, lane T).
+#   A verdict clause -- a clause segment with no figure and no handle that carries a run of the words ONE verdict's
+#   own line uses and the other's does not -- bound to the cells of its nearest cell-bearing handle groups in the
+#   reader's sentence (the one before it and the one after it; every cell of both must read ONE served verdict,
+#   else it is left and counted `verdict_ambiguous`), that names the opposite of the served verdict (aligned <->
+#   at_odds only; `undetermined` corrects nothing), is replaced by the served verdict's own words (the line's own
+#   clause), capitalised where it opened the sentence.
+# REJECTED (lexical): a regex for "past the ... line"; a magnitude comparison of any number near the words; a
+#   synonym table for "dear" / "cheap" / "held"; striking or cutting the sentence; any word typed in this module.
+_VW_RX = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)*")
+_MARKUP = " \t*_"
+
+
+def _phrase_rx(phrase: str):
+    """A phrase's OWN words, joined hyphen- and case-insensitively, as whole words (the N-L1 name join); None for a
+    phrase with no word."""
+    ws = _VW_RX.findall(str(phrase or "").lower())
+    if not ws:
+        return None
+    return re.compile(r"(?<![A-Za-z0-9])" + r"[\s\-]+".join(re.escape(w) for w in ws) + r"(?![A-Za-z0-9])", re.I)
+
+
+def _segment_spans(masked: str) -> list:
+    """The clause segments of one reader's sentence as (start, end), split on the estate's own clause break."""
+    out, at = [], 0
+    for m in _SEGMENT_BREAK.finditer(masked or ""):
+        out.append((at, m.start()))
+        at = m.end()
+    out.append((at, len(masked or "")))
+    return out
+
+
+def _cite_groups(sentence: str, calls: list) -> list:
+    """Every handle group of the sentence as (start, end, rows, handles): the `_row_id`s and the in-range [N]
+    indices its members cite."""
+    out = []
+    for grp in _handle_groups(sentence):
+        rows, hs = set(), set()
+        for m in grp:
+            for k, j in _handle_members(m.group(0)):
+                if k == "N" and 1 <= j <= len(calls or ()):
+                    hs.add(j)
+                    rid = str((calls[j - 1] or {}).get("_row_id") or "")
+                    if rid:
+                        rows.add(rid)
+        out.append((grp[0].start(), grp[-1].end(), frozenset(rows), frozenset(hs)))
+    return out
+
+
+def _only_glue(text: str, *, breaks: int = 0) -> bool:
+    """Is ``text`` blanks and markup only -- with at most ``breaks`` clause breaks (``_SEGMENT_BREAK``) in it?"""
+    rest = text or ""
+    n = len(list(_SEGMENT_BREAK.finditer(rest)))
+    if n > breaks:
+        return False
+    return not _SEGMENT_BREAK.sub("", rest).strip(_MARKUP)
+
+
+def _threshold_pool(served_scalars) -> tuple:
+    """The THRESHOLD FACTS the block printed (CONTRACT Z6): every ``card_threshold`` scalar that carries the row it
+    is bound to (lane R's ``threshold_row_id`` -- the key both line classes carry, SB-V keeping HEAD's ``row_id``
+    None so the pool's own backing of its line does not move -- else ``row_id``), its ``label``, its served
+    ``relation`` and a ``relation_words`` vocabulary declaring it (the book's ``threshold_words``, registered with
+    the scalar), as dicts. A scalar without them (HEAD's SB-V line threshold) is no fact here. () for None."""
+    out, seen = [], set()
+    for sc in served_scalars or ():
+        if not isinstance(sc, dict) or str(sc.get("kind") or "") != "card_threshold":
+            continue
+        rid = str(sc.get("threshold_row_id") or sc.get("row_id") or "")
+        label = " ".join(str(sc.get("label") or "").split())
+        rel = str(sc.get("relation") or "")
+        vocab = _dir_vocab(sc.get("relation_words"))
+        rx = _phrase_rx(label)
+        if not (rid and label and rel in vocab and rx is not None):
+            continue
+        try:
+            jh = int(sc.get("judged_handle")) if sc.get("judged_handle") not in (None, "") else None
+        except (TypeError, ValueError):
+            jh = None
+        key = (rid, label.lower(), rel, jh)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"row_id": rid, "label": label, "label_rx": rx, "relation": rel, "vocab": vocab,
+                    "judged_handle": jh, "judged": str(sc.get("judged") or "")})
+    return tuple(out)
+
+
+def _threshold_insert_at(sentence: str, masked: str, lb: int, s1: int) -> int:
+    """Where the judged figure's citation goes: after the word that directly follows the label when that word
+    closes the clause ("past the severe line[ N25], which ..."), else directly after the label -- never beside
+    another figure, never inside markup; where a handle group already follows that point (the writer's own
+    citation of the clause), after that group, so the two sit together and nothing is written between a clause
+    and its own handle."""
+    m = _VW_RX.match(masked, lb + len(masked[lb:]) - len(masked[lb:].lstrip(_MARKUP)))
+    at = lb
+    if m and m.start() < s1 and not masked[m.end():s1].strip(_MARKUP + ".!?"):
+        at = m.end()
+    while at < len(sentence) and sentence[at] in "*_":
+        at += 1
+    for grp in _handle_groups(sentence):
+        if grp[0].start() >= at and not sentence[at:grp[0].start()].strip(_MARKUP):
+            at = grp[-1].end()
+            break
+    return at
+
+
+def _threshold_edits(sentence: str, ctx, log=None) -> list:
+    """(start, end, replacement, audit) for the U-4 arm (block note above). Offsets into ``sentence``."""
+    facts = getattr(ctx, "thr", ()) or ()
+    calls = getattr(ctx, "calls", None) or []
+    if not facts or not sentence:
+        return []
+    masked = _mask_handles(sentence)
+    cites = _cite_groups(sentence, calls)
+    sent_rows = set().union(*(c[2] for c in cites)) if cites else set()
+    sent_hs = set().union(*(c[3] for c in cites)) if cites else set()
+    occ = []
+    for f in facts:
+        for m in f["label_rx"].finditer(masked):
+            occ.append((m.start(), m.end(), f["label"].lower()))
+    occ = sorted(set(o for o in occ if not any(x <= o[0] and o[1] <= y and (x, y) != (o[0], o[1])
+                                              for x, y, _l in occ)))
+    out, inserted = [], set()
+    for s0, s1 in _segment_spans(masked):
+        for la, lb, lab in occ:
+            if not (s0 <= la and lb <= s1):
+                continue
+            cands = [f for f in facts if f["label"].lower() == lab]
+            best = None                                   # (phrase start, phrase end, relation, index, fact)
+            for f in cands:
+                for rel, phrases in f["vocab"].items():
+                    for i, p in enumerate(phrases):
+                        prx = _phrase_rx(p)
+                        if prx is None:
+                            continue
+                        for pm in prx.finditer(masked, s0, la):
+                            gap = sentence[pm.end():la]
+                            if re.search(r"\d", masked[pm.end():la]) or _HANDLE.search(gap):
+                                continue                  # a figure or a handle between: not one clause
+                            if best is None or pm.start() > best[0] or (pm.start() == best[0]
+                                                                      and pm.end() > best[1]):
+                                best = (pm.start(), pm.end(), rel, i, f)
+            if best is None:
+                continue
+            pa, pb, w_rel, w_i, _f0 = best
+            bound = [f for f in cands if f["row_id"] in sent_rows]
+            rows = {f["row_id"] for f in bound}
+            if len(rows) > 1:
+                near = [c for c in cites if c[1] <= pa and c[2] & rows]
+                pick = (near[-1][2] & rows) if near else set()
+                rows = pick if len(pick) == 1 else set()
+            if len(rows) != 1:
+                _dir_log(log, "threshold_unanchored")
+                continue
+            f = next(x for x in bound if x["row_id"] in rows)
+            jh = f["judged_handle"]
+            jh_ok = bool(jh and 1 <= jh <= len(calls)
+                         and str((calls[jh - 1] or {}).get("_row_id") or "") == f["row_id"])
+            if not jh_ok:
+                _dir_log(log, "threshold_unanchored")
+                continue
+            if w_rel == f["relation"]:
+                if jh in sent_hs or (f["row_id"], jh) in inserted:
+                    _dir_log(log, "threshold_agreed")     # agrees, and the judged figure is cited: as written
+                    continue
+                at = _threshold_insert_at(sentence, masked, lb, s1)
+                inserted.add((f["row_id"], jh))
+                out.append((at, at, " [N%d]" % jh, {"before": "", "after": "[N%d]" % jh, "handle": jh,
+                                                    "row_id": f["row_id"], "label": f["label"],
+                                                    "rule": "threshold_cited"}))
+                continue
+            clause_end = _threshold_insert_at(sentence, masked, lb, s1)
+            adjacent = any(jh in c[3] and ((c[1] <= pa and _only_glue(sentence[c[1]:pa], breaks=1))
+                                           or (c[0] >= clause_end and _only_glue(sentence[clause_end:c[0]])))
+                           for c in cites)
+            own = f["vocab"].get(f["relation"]) or ()
+            if not adjacent or w_i >= len(own):
+                _dir_log(log, "threshold_unanchored")
+                continue
+            repl = own[w_i]
+            if sentence[pa:pa + 1].isupper():
+                repl = repl[:1].upper() + repl[1:]
+            out.append((pa, pb, repl, {"before": sentence[pa:pb], "after": repl, "handle": jh,
+                                       "row_id": f["row_id"], "label": f["label"], "rule": "threshold_corrected"}))
+    return out
+
+
+def _pair_pool(served_scalars) -> tuple:
+    """The PAIR RELATION facts the block printed (CONTRACT Z5): every ``pair_relation`` scalar with its spread
+    handle, its two legs, its served ``standing`` and a ``standing_words`` vocabulary declaring it. Each leg's
+    mention words are its own board label's words (``render.board_label``, read defensively) minus the words the
+    other leg's label shares; a declared edge's own words ride along when the scalar carries them. ()."""
+    out = []
+    for sc in served_scalars or ():
+        if not isinstance(sc, dict) or str(sc.get("kind") or "") != "pair_relation":
+            continue
+        legs = tuple(str(x or "") for x in (sc.get("legs") or ()))
+        standing = str(sc.get("standing") or "")
+        vocab = _dir_vocab(sc.get("standing_words"))
+        try:
+            hd = int(sc.get("handle")) if sc.get("handle") not in (None, "") else None
+        except (TypeError, ValueError):
+            hd = None
+        if len(legs) != 2 or not all(legs) or legs[0] == legs[1] or standing not in vocab:
+            continue
+        words = []
+        for slug in legs:
+            lab = ""
+            try:
+                from leviathan.graphrag.state import render as _rnd
+                lab = str(_rnd.board_label(slug) or "")
+            except Exception:  # noqa: BLE001 -- no label, no mention: the pair binds nothing
+                lab = ""
+            words.append(set(w.lower() for w in _VW_RX.findall(lab)))
+        dist = (words[0] - words[1], words[1] - words[0])
+        if not (dist[0] and dist[1]):
+            continue
+        # EACH DECLARED EDGE's own relation, in the words the relation line prints it (the graph's relation id
+        # in reader spacing, lane R's `sb_pair_relation`) -- a segment carrying one reasons THROUGH the edge
+        edge_rx = []
+        for e in (sc.get("edges") or ()):
+            if not isinstance(e, dict):
+                continue
+            for p in tuple(e.get("words") or ()) + (str(e.get("relation") or "").replace("_", " "),):
+                rx = _phrase_rx(p)
+                if rx is not None:
+                    edge_rx.append(rx)
+        out.append({"legs": legs, "handle": hd, "standing": standing, "vocab": vocab,
+                    "words": (words[0], words[1]), "dist": dist, "edge_rx": tuple(edge_rx)})
+    return tuple(out)
+
+
+_STANDING_INVERSE = {"under": "over", "over": "under", "level": "level"}
+
+
+def _leg_mentions(masked: str, lo: int, hi: int, fact: dict) -> list:
+    """The unambiguous leg mentions inside ``masked[lo:hi]`` as (start, end, leg index): a maximal run of words of
+    the two legs' labels that carries a DISTINCT word of exactly one leg."""
+    words_all = fact["words"][0] | fact["words"][1]
+    out, run = [], []
+    for m in list(_VW_RX.finditer(masked, lo, hi)) + [None]:
+        w = m.group(0).lower() if m is not None else None
+        joined = bool(run) and m is not None and not masked[run[-1].end():m.start()].strip(" \t-")
+        if m is not None and w in words_all and (not run or joined):
+            run.append(m)
+            continue
+        if run:
+            ws = {x.group(0).lower() for x in run}
+            hits = [i for i in (0, 1) if ws & fact["dist"][i]]
+            if len(hits) == 1:
+                out.append((run[0].start(), run[-1].end(), hits[0]))
+        run = [m] if (m is not None and w in words_all) else []
+    return out
+
+
+def _pair_edits(sentence: str, ctx, log=None) -> list:
+    """(start, end, replacement, audit) for the U-3 arm (block note above)."""
+    facts = getattr(ctx, "pairs", ()) or ()
+    calls = getattr(ctx, "calls", None) or []
+    if not facts or not sentence:
+        return []
+    masked = _mask_handles(sentence)
+    cites = _cite_groups(sentence, calls)
+    out = []
+    for f in facts:
+        a_slug, b_slug = f["legs"]
+
+        def _covers_legs(c) -> bool:
+            heads = {r.split("|", 1)[0] for r in c[2]}
+            return a_slug in heads and b_slug in heads
+
+        for s0, s1 in _segment_spans(masked):
+            ments = _leg_mentions(masked, s0, s1, f)
+            if len(ments) < 2:
+                continue
+            for std, phrases in f["vocab"].items():
+                for i, p in enumerate(phrases):
+                    prx = _phrase_rx(p)
+                    if prx is None:
+                        continue
+                    for pm in prx.finditer(masked, s0, s1):
+                        before = [x for x in ments if x[1] <= pm.start()]
+                        after = [x for x in ments if x[0] >= pm.end()]
+                        if not before or not after or before[-1][2] == after[0][2]:
+                            continue
+                        gap = masked[pm.end():after[0][0]]
+                        if re.search(r"\d", gap) or _HANDLE.search(sentence[pm.end():after[0][0]]):
+                            continue                      # the phrase takes no leg as its object here
+                        x_leg = before[-1][2]
+                        seg_cites = [c for c in cites if s0 <= c[0] and c[1] <= s1]
+                        # BOUND by the spread's own handle in the segment; by one group covering both legs' rows
+                        # only where the other leg is the phrase's DIRECT object (blanks and markup between)
+                        tight = not gap.strip(_MARKUP)
+                        if not any((f["handle"] and f["handle"] in c[3]) or (tight and _covers_legs(c))
+                                   for c in seg_cites):
+                            _dir_log(log, "pair_standing_unanchored")
+                            continue
+                        if any(rx.search(masked, s0, s1) for rx in f["edge_rx"]):
+                            _dir_log(log, "pair_standing_in_inference")
+                            continue
+                        served = f["standing"] if x_leg == 0 else _STANDING_INVERSE.get(f["standing"], "")
+                        if std == served:
+                            _dir_log(log, "pair_standing_agreed")
+                            continue
+                        own = f["vocab"].get(served) or ()
+                        if i >= len(own):
+                            continue
+                        repl = own[i]
+                        if sentence[pm.start():pm.start() + 1].isupper():
+                            repl = repl[:1].upper() + repl[1:]
+                        if any(x < pm.end() and pm.start() < y for x, y, _v, _e in out):
+                            continue
+                        out.append((pm.start(), pm.end(), repl,
+                                    {"before": sentence[pm.start():pm.end()], "after": repl,
+                                     "handle": int(f["handle"] or 0), "legs": list(f["legs"]),
+                                     "rule": "pair_standing"}))
+    return out
+
+
+def _verdict_cells(calls: list) -> dict:
+    """{[N] index: cell} for every call carrying lane T's ``episode_verdict`` stamp (CONTRACT Z7; a dict, or a
+    list of them where one call is a leg of two cells) whose verdict words declare both verdicts. A cell is
+    ``(key, verdict, ((verdict, mid), (verdict, mid)))`` -- hashable, so one cell stamped on two calls is one."""
+    out: dict = {}
+    for j, c in enumerate(calls or (), 1):
+        ev = (c or {}).get("episode_verdict") if isinstance(c, dict) else None
+        evs = ev if isinstance(ev, list) else ([ev] if isinstance(ev, dict) else [])
+        cells = []
+        for e in evs:
+            if not isinstance(e, dict):
+                continue
+            hs = [str(h) for h in (e.get("handles") or ())]
+            if len(hs) == 2 and hs[0] == "N%d" % j and hs[1] != hs[0]:
+                continue       # the PARENT's copy: a leg shared by several cells binds none (lane T: every cell is
+                #                complete on its CHILD's call, whose `handles` names both legs as printed)
+            vw = e.get("verdict_words") or {}
+            if not (isinstance(vw, dict) and str(vw.get("aligned") or "").strip()
+                    and str(vw.get("at_odds") or "").strip()):
+                continue
+            key = (tuple(sorted(str(x) for x in (e.get("legs") or ()))), str(e.get("relation") or ""))
+            cells.append((key, str(e.get("verdict") or ""),
+                          (("aligned", " ".join(str(vw["aligned"]).split())),
+                           ("at_odds", " ".join(str(vw["at_odds"]).split())))))
+        if cells:
+            out[j] = tuple(cells)
+    return out
+
+
+def _verdict_runs(text: str, lo: int, hi: int, mids: dict) -> list:
+    """The verdicts a clause names: maximal runs of words ONE verdict's own line uses and the other's does not,
+    each at least as long as the shorter of two words and that line's own longest such run. [(verdict, start,
+    end)]."""
+    toks = {k: [w.lower() for w in _VW_RX.findall(v)] for k, v in mids.items()}
+    dist = {k: set(toks[k]) - set(toks[o]) for k, o in (("aligned", "at_odds"), ("at_odds", "aligned"))}
+    need = {}
+    for k in dist:
+        best = cur = 0
+        for w in toks[k]:
+            cur = cur + 1 if w in dist[k] else 0
+            best = max(best, cur)
+        need[k] = min(2, best) if best else 0
+    out = []
+    for k in dist:
+        if not need[k]:
+            continue
+        run = []
+        for m in list(_VW_RX.finditer(text, lo, hi)) + [None]:
+            if m is not None and m.group(0).lower() in dist[k] and (
+                    not run or not text[run[-1].end():m.start()].strip(" \t")):
+                run.append(m)
+                continue
+            if len(run) >= need[k]:
+                out.append((k, run[0].start(), run[-1].end()))
+            run = [m] if (m is not None and m.group(0).lower() in dist[k]) else []
+    return out
+
+
+def _verdict_edits(sentence: str, ctx, log=None) -> list:
+    """(start, end, replacement, audit) for the U-9 arm (block note above)."""
+    cells_by = getattr(ctx, "verd", None) or {}
+    if not cells_by or not sentence:
+        return []
+    masked = _mask_handles(sentence)
+    groups = _cite_groups(sentence, getattr(ctx, "calls", None) or [])
+    out = []
+    for s0, s1 in _segment_spans(masked):
+        seg = masked[s0:s1]
+        if re.search(r"\d", seg) or _HANDLE.search(sentence[s0:s1]):
+            continue                                      # a verdict clause is words only
+        # THE CELL THE CLAUSE READS: the nearest cell-bearing handle group BEFORE it and the nearest AFTER it in
+        # the reader's sentence -- a verdict clause may follow its moves ("[N247]; the read: ...") or precede its
+        # handle ("... sat at odds with what the boards did, with soybean oil up +9.61 % [N68]"), so every cell of
+        # both neighbours must read the same verdict or the clause is left as written (measured: a clause bound
+        # to its PRECEDING group alone was "corrected" against the wrong cell on the 09-23 2024 page).
+        near = [c for c in groups if c[1] <= s0 and any(j in cells_by for j in c[3])][-1:]
+        near += [c for c in groups if c[0] >= s1 and any(j in cells_by for j in c[3])][:1]
+        if not near:
+            continue
+        cells = {cell for c in near for j in c[3] for cell in cells_by.get(j, ())}
+        if not cells or len({cell[2] for cell in cells}) != 1:
+            continue
+        mids = dict(next(iter(cells))[2])
+        named = {k for k, _a, _b in _verdict_runs(masked, s0, s1, mids)}
+        if len(named) != 1:
+            continue                                      # no verdict named here, or both: as written
+        if len({cell[1] for cell in cells}) != 1:
+            _dir_log(log, "verdict_ambiguous")            # a leg of cells the record reads differently
+            continue
+        served = next(iter(cells))[1]
+        if served not in ("aligned", "at_odds"):
+            continue                                      # undetermined corrects nothing (V9-a)
+        written = next(iter(named))
+        if written == served:
+            _dir_log(log, "verdict_agreed")
+            continue
+        a = s0 + len(seg) - len(seg.lstrip(_MARKUP))
+        b = s0 + len(seg.rstrip(_MARKUP + ".!?"))
+        if b <= a:
+            continue
+        repl = mids[served]
+        if sentence[a:a + 1].isupper():
+            repl = repl[:1].upper() + repl[1:]
+        out.append((a, b, repl, {"before": sentence[a:b], "after": repl, "rule": "verdict",
+                                 "verdict": served}))
+    return out
+
+
+#: THE COUNTER each applied correction rule is counted under (the V-1 arms keep HEAD's ``corrected``).
+_EDIT_COUNT_KEYS = {"threshold_cited": "threshold_cited", "threshold_corrected": "threshold_corrected",
+                    "pair_standing": "pair_standing_corrected", "verdict": "verdict_corrected"}
+#: The LEFT-AS-WRITTEN counts an arm logs (read by the PASS-3 applier and reported, each only when non-zero).
+_EDIT_LEFT_KEYS = ("unanchored", "fan_ambiguous", "threshold_unanchored", "pair_standing_unanchored",
+                   "pair_standing_in_inference", "verdict_ambiguous")
+
+
+def _strike_rejoin(text: str, a: int, b: int) -> tuple:
+    """U-10 (a), CONTRACT Z8 -- ``((start, end, replacement), separator_went)`` for a struck HANDLE span, re-joined
+    through lane R's ONE splice producer (``rows.splice(text, a, b)``: where both sides of the span are separators
+    of one kind, one goes with it, so "[E1], [E4], with" loses "[E4]" and reads "[E1], with"). The producer's
+    answer is taken only when it widens the span over separators and blanks alone and replaces it with nothing or
+    one separator; anything else -- or no producer on this tree -- is HEAD's span, byte for byte.
+    ``separator_went`` is True only where the widened span took one of the producer's own declared separators
+    (``rows.SPLICE_SEPARATORS``): a blank the cleanup closes anyway is the same served byte either way."""
+    head = ((a, b, ""), False)
+    try:
+        from leviathan.graphrag.state import rows as _rows
+        fn = getattr(_rows, "splice", None)
+        seps = str(getattr(_rows, "SPLICE_SEPARATORS", "") or "")
+        if not callable(fn):
+            return head
+        res = fn(text, a, b)
+        a2, b2, v2 = int(res[0]), int(res[1]), str(res[2] or "")
+    except Exception:  # noqa: BLE001 -- a splice failure is HEAD's strike
+        return head
+    if not (0 <= a2 <= a and b <= b2 <= len(text)):
+        return head
+    extra = text[a2:a] + text[b:b2]
+    # THE WIDENED SPAN MAY TAKE ONLY BLANKS OF ITS OWN LINE AND THE PRODUCER'S DECLARED SEPARATORS, and put back at
+    # most one separator: never a line break (MEASURED on the 1,129-answer corpus: a strike at a line's end widened
+    # over a line break and welded the next bullet onto the line above -- "competition [E4]" + a line break +
+    # "- **Argentine" served as "competition - **Argentine"), never a terminator, a word, a figure or a bracket.
+    if not seps or any(ch not in " " + chr(9) + seps for ch in extra) or (v2 and (len(v2) > 1 or v2 not in seps)):
+        return head
+    return (a2, b2, v2), any(ch in seps for ch in extra.replace(v2, "", 1))
 
 
 def _unit_tail_is(s: str, b: int, utoks: tuple, g=None) -> bool:
@@ -2330,13 +2843,34 @@ class _VCtx:
     charge-site predicate takes it as an optional keyword, so a caller that passes nothing (a deck, a
     grader's repro) gets the same vocabulary with no pool -- the board-off reading."""
 
-    __slots__ = ("calls", "pool", "_g", "_b", "pool_hits", "disp", "disp_defs", "_gd", "stamped", "memb", "dirs")
+    __slots__ = ("calls", "pool", "_g", "_b", "pool_hits", "disp", "disp_defs", "_gd", "stamped", "memb", "dirs",
+                 "thr", "pairs", "verd", "board")
 
     def __init__(self, number_calls, served_scalars=None):
         self.calls = number_calls or []
         self.pool = _pool_entries(served_scalars)
         # 09-26 V-1: the direction facts the block printed (`_direction_pool`) -- empty on every board-off turn
         self.dirs = _direction_pool(served_scalars)
+        # 09-29 SITTING 3: the threshold facts (U-4, Z6) and the pair relation facts (U-3, Z5) the block
+        # registered, and the consequence cells whose leg calls carry lane T's verdict stamp (U-9, Z7) -- all
+        # three empty on every board-off turn (no pool, no analyst-key stamp), so HEAD's reading.
+        self.thr = _threshold_pool(served_scalars)
+        self.pairs = _pair_pool(served_scalars)
+        # 09-29 SITTING 3 VERIFIER SEAM S3-V1 (the writer-freedom revert): THE U-9 VERDICT ARM IS UNWIRED -- no cell
+        # is read, so `_verdict_edits` never runs and a verdict clause is left as the writer wrote it (HEAD's page).
+        # MEASURED on the fifty (fix_sitting_3_0927/verify/V3/drives/out/v_b51_b53.out, and lane V's own
+        # FINAL_b51_b53.txt): the arm's ONLY fires were FALSE -- the 0923 deep-2024 page's "the crush link into meal
+        # held" and "both Zhengzhou substitution links held" (both cells ALIGNED, their handles uncited) were bound by
+        # proximity to the one cited AT-ODDS cell ([N68], meal -> oil) and REPLACED by the line's own at-odds words;
+        # `mv1_verdict_probe.py` reproduces it on a raw-draft sentence. A clause rewritten to a template for a reason
+        # other than a contradiction with ITS OWN served fact is the scripting the 09-27 law forbids. Lane T's
+        # `episode_verdict` stamp (the fact) stays served; the check is DOCKETED with its structural remedy (bind a
+        # verdict clause only to a cell whose legs the clause itself names, and correct the verdict run, never the
+        # clause). `_verdict_cells` / `_verdict_edits` stay defined for that rebuild and are read by nothing.
+        self.verd = {}
+        # U-10 (a): a turn whose block reached the prompt (the pool was PASSED, even empty) -- the one fact the
+        # strike's re-join keys on; None (every board-off turn) keeps HEAD's strike.
+        self.board = served_scalars is not None
         self._g: dict = {}
         self._b: dict = {}
         self.pool_hits: set = set()
@@ -7260,6 +7794,30 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # `eval.verifier_panel` keeps printing its (now always 0) repair count.
             spans = _coalesce([d for d in drops if d not in undrop])
             ops = [(a, b, "") for a, b in spans]
+            # 09-29 SITTING 3 (U-10 (a), CONTRACT Z8): on a turn whose block reached the prompt, a struck HANDLE
+            # span re-joins through lane R's one splice producer -- "[E1], [E4], with" loses "[E4]" and ONE of
+            # the two separators it sat between, never leaving ",,". The decision, the charge and every counter
+            # are unchanged: only the span a strike removes widens by the separator it orphaned. A whole-
+            # sentence drop, a coalesced run of handles, a board-off turn (None pool) and a tree without the
+            # producer all keep HEAD's span. Strike ops are remembered so their seams are minted as HEAD's are.
+            _strike_ops: set = set()
+            if ctx.board:
+                ops = []
+                for a, b in spans:
+                    _op, _sep = (_strike_rejoin(text, a, b) if _HANDLE.fullmatch(text[a:b])
+                                 else ((a, b, ""), False))
+                    # A WIDENED SPAN NEVER MEETS ANOTHER: it may not reach into any other span this pass deletes,
+                    # nor into a span already widened (MEASURED: "move [E3] [E4]." at a line end, struck twice,
+                    # each widened over the one blank between them, deleted the terminator). Such a strike keeps
+                    # HEAD's span.
+                    if _op[:2] != (a, b) and (
+                            any(x < _op[1] and _op[0] < y for x, y in spans if (x, y) != (a, b))
+                            or any(x < _op[1] and _op[0] < y for x, y, _v in ops)):
+                        _op, _sep = (a, b, ""), False
+                    if _sep:                          # counted only where a doubled separator went
+                        report["strike_rejoined"] = int(report.get("strike_rejoined", 0)) + 1
+                    ops.append(_op)
+                    _strike_ops.add(_op)
             # ROUND-2: the orphan ladder's substitutions ride the SAME apply pass, and a substitution
             # inside a span this pass is deleting is discarded rather than spliced into a hole -- the
             # ladder only ever edits KEPT sentences, so the guard is a structural impossibility made
@@ -7272,7 +7830,10 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # substitutions, so the strip seams below are minted from the text the field returns. Only when the
             # pool carries direction facts (a board turn whose block registered them); a sentence this pass
             # deletes takes its corrections with it and is not counted. Every other turn never enters here.
-            if ctx.dirs[0] or ctx.dirs[1]:
+            # 09-29 SITTING 3: the threshold (U-4), pair-standing (U-3) and episode-verdict (U-9) corrections ride
+            # the same seam, each counted under its own key (`_EDIT_COUNT_KEYS`); a run / fan correction keeps
+            # HEAD's `corrected`. Every pool empty (every board-off turn) -> this block is never entered.
+            if ctx.dirs[0] or ctx.dirs[1] or ctx.thr or ctx.pairs or ctx.verd:
                 for _ds0, _ds1 in _reader_sentence_spans(text):
                     if any(x <= _ds0 and _ds1 <= y for x, y in spans):
                         continue
@@ -7281,10 +7842,16 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                         a, b = _ds0 + a, _ds0 + b
                         if any(x < b and a < y for x, y, _v in ops):
                             continue
+                        # U-4 (i): a citation is inserted only into a sentence this pass leaves WHOLE -- where a
+                        # handle of it is struck, the figure that loses its handle could read as the inserted one's
+                        if _entry.get("rule") == "threshold_cited" and any(_ds0 <= x and y <= _ds1 for x, y in spans):
+                            _dlog["threshold_unanchored"] = int(_dlog.get("threshold_unanchored", 0)) + 1
+                            continue
                         ops.append((a, b, v))
-                        _dlog["corrected"] = int(_dlog.get("corrected", 0)) + 1
+                        _ck = _EDIT_COUNT_KEYS.get(str(_entry.get("rule") or ""), "corrected")
+                        _dlog[_ck] = int(_dlog.get(_ck, 0)) + 1
                         _dlog.setdefault("audit", []).append(dict({"field": field}, **_entry))
-                    for _dk in ("unanchored", "fan_ambiguous"):
+                    for _dk in _EDIT_LEFT_KEYS:
                         if _sl.get(_dk):
                             _dlog[_dk] = int(_dlog.get(_dk, 0)) + int(_sl[_dk])
             for a, b, v in sorted(ops, reverse=True):
@@ -7361,7 +7928,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             for a, b, v in sorted(ops):
                 _pos = a + _shift
                 _shift += len(v) - (b - a)
-                if v == "":
+                if v == "" or (a, b, v) in _strike_ops:  # 09-29 U-10 (a): a re-joined strike is a strike
                     _seam = {"field": field,
                              "key": _seam_key(_strip_cleanup(text[_pos:_pos + _SEAM_LOOKAHEAD])),
                              "src": "verify"}
@@ -7383,6 +7950,12 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             report["direction_unanchored"] = int(_dlog["unanchored"])
         if _dlog.get("fan_ambiguous"):
             report["fan_ambiguous"] = int(_dlog["fan_ambiguous"])
+        # 09-29 SITTING 3 (U-4 / U-3 / U-9): each arm's applied and left-as-written counts, ONLY when non-zero
+        for _rk in ("threshold_cited", "threshold_corrected", "threshold_unanchored", "pair_standing_corrected",
+                    "pair_standing_unanchored", "pair_standing_in_inference", "verdict_corrected",
+                    "verdict_ambiguous"):
+            if _dlog.get(_rk):
+                report[_rk] = int(_dlog[_rk])
         # 09-23 (C15): the added keys, each ONLY when it has something to say.
         if _readdressed:
             report["readdressed"] = _readdressed

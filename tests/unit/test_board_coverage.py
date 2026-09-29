@@ -688,11 +688,16 @@ def test_the_mandate_names_the_recency_rows_inside_its_evidence_movement():
     m = N.SYSTEM_STATE_BOARD_MANDATE
     i_ev, i_sp = m.index("(2) EVIDENCE"), m.index("(3) SPILLOVERS")
     body = m[i_ev:i_sp]
-    assert "RECENCY rows belong to this movement" in body
-    for phrase in ("newest knowledge date", "newest dated document", "board price tape"):
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (a) -- declared DM4): the movement asks for each layer's
+    # BOUNDS as facts ("how far each layer reaches"), no longer "give each layer its own plain sentence" (a LINE
+    # the writer copied as furniture), and the standing tail rule is FOLDED into the same clause ("each a fact
+    # about its own layer, never the date of the answer as a whole") -- one clause, one fact, both claims kept:
+    # the recency layers are owed inside movement (2), and none of them dates the answer as a whole.
+    assert "RECENCY lines belong to this movement" in body
+    for phrase in ("the newest date its figures were known", "newest dated document", "board price tape"):
         assert phrase in body, phrase
-    # the standing tail rule is NOT replaced -- both sentences ship
-    assert "State each RECENCY row as a fact about the layer it names" in m[i_sp:]
+    assert "each a fact about its own layer, never the date of the answer as a whole" in body
+    assert "give each layer its own plain sentence" not in m
 
 
 def test_the_mandate_is_register_clean_at_build():

@@ -103,9 +103,14 @@ def test_N1_the_measured_page_talk_is_gone_from_the_literals_that_taught_it():
     assert N.MANDATE_BLOCK_READER_NAME == "the market record"
     desk = lits["mandate[nonobvious+chain+desk]"]
     assert N.MANDATE_BLOCK_READER_NAME in desk and N.MANDATE_BLOCK_SELF_NAME not in desk
-    # the reader's objects, positively: what was weighed and left; the layers by name; the service's markets
-    assert "which readings you weighed and left" in desk
-    assert "the figures, the dated documents, the board price tape" in lits["desk+recency"]
+    # the reader's objects, positively: what was weighed and left; the layers by name; the service's markets.
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (a) -- declared DM4): the watch close asks for the FACT ("the
+    # readings you weighed and left and why"), and the layers are named by the board mandate's own EVIDENCE clause
+    # in the reader's words (the desk half keeps only the tape's exempt name) -- the claims kept: both are the
+    # reader's objects, never the page.
+    assert "the readings you weighed and left" in desk
+    assert ("the newest date its figures were known, the newest dated document behind this answer, the session "
+            "the board price tape runs through") in desk
     assert "markets this service covers" in lits["fan"]
 
 
@@ -139,9 +144,15 @@ def test_N1_the_rewritten_literals_are_desk_clean_and_register_clean_as_they_shi
 #: modules carries, BANKED at this build. A ceiling may only fall; a constant not listed must be desk-clean.
 #: The residual is named, never hidden: block-facing class markers ("BOARD ABSENCE"), scorer vocabularies
 #: (`_RECENCY_LAYER_WORDS`), ban lists, section keys, and the base mandate whose needles config_check owns.
+#: RE-BANKED 09-27 (fix sitting 3, lane A, U-12 -- declared): the board-turn literals are COMPOSED from the declared
+#: clause tuples, so their words now live in `MANDATE_FACTS` / `MANDATE_RULES` and the composed constants carry no
+#: string of their own. The ratchet's claim is kept and measured module-wide: narration's desk-register hits over
+#: every module-level constant fall 47 -> 12 (HEAD 27 + 12 + 2 + 3 + 1 + 2; tree 3 + 3 + 3 + 1 + 2) -- the residue is
+#: the block's own class markers ("BOARD JOIN", "BOARD ABSENCE"), config_check's CROSS-COMMODITY needle ("no
+#: stocks-to-use rows") and the register's own exemption words ("commodity board").
 _DESK_CEILING = {
-    ("narration", "_T_SYSTEM_STATE_BOARD_MANDATE"): 27, ("narration", "SYSTEM_DESK_REGISTER_MANDATE"): 12,
-    ("narration", "MANDATE_WATCH_HEAD_RX"): 2, ("narration", "SYSTEM_RECENCY_CLAUSE"): 3,
+    ("narration", "MANDATE_FACTS"): 3, ("narration", "MANDATE_RULES"): 3,
+    ("narration", "SYSTEM_RECENCY_CLAUSE"): 3,
     ("narration", "BANNED_RECENCY_PHRASE"): 1, ("narration", "CHAIN_MOVEMENT_BANNED_WORDS"): 2,
     ("render", "ROW_CLASSES"): 7, ("render", "BLOCK_ORDER"): 1, ("render", "RENDER_CAPS"): 3,
     ("render", "_RECENCY_LAYER_WORDS"): 3, ("render", "CHAIN_ONE_LINE_WORDS"): 1,
@@ -261,8 +272,10 @@ def test_N2_the_quorum_registers_its_counts_as_served_figures():
     blk = R.Block(start=1)
     blk.add(R.sb_convergence(_glut(), block=blk))
     counts = R.served_counts(blk)
-    assert {"noun": "conditions", "value": 2, "text": "two"} in counts
-    assert {"noun": "conditions", "value": 3, "text": "three"} in counts
+    # RE-BANKED 09-27 FIX SITTING 3, LANE R (LEFTOVERS I2-a; DECLARED in BUILD_R): each entry also carries the KIND it
+    # was registered under (a quorum's counts are `count`); the claim kept: the quorum's own counts are served figures.
+    assert {"noun": "conditions", "value": 2, "text": "two", "kind": "count"} in counts
+    assert {"noun": "conditions", "value": 3, "text": "three", "kind": "count"} in counts
 
 
 # ═══ N-4 ══════════════════════════════════════════════════════════════════════════════════════════════════════

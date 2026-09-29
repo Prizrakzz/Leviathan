@@ -284,6 +284,45 @@ PAIR_LEVEL_NO_SHARED_PERIOD_DECLINE = (
     "the two series print no period in common (the newest of {la} is {da}, the newest of {lb} is {db}), "
     "so there is no one period to take the spread at -- a difference across two periods would book the "
     "passage of time as a price gap, so no figure is computed")
+# FIX SITTING 3, LANE T (CONTRACT Z13, U-8 engine half): the CROSS-CURRENCY level's own refusal proses, the
+# same D-FR-14 constant discipline (registrable, lintable, never an ad-hoc f-string at the call site). They
+# replace -- on the BOARD path only, where the caller passes the exchange-rate rows (`fx_a` / `fx_b`) -- the
+# currency refusal's claim that "this platform does not hold" a rate: the exchange-rate card holds fourteen
+# crosses, so the honest refusal names the currency whose row was not served and why. Each is held by the
+# lane T deck to the bar STAT_DECLINE_TEMPLATES is held to (register / exec / valuation / flow clean under both
+# registers, sanitize-stable, ASCII, never the word for an exchange print).
+FX_SERIES_MISSING_DECLINE = (
+    "{which} is priced in {ccy}, and {why}, so the two legs cannot be put in one currency -- a difference "
+    "across two currencies would book an exchange rate as a price gap, so no figure is computed")
+FX_NONE_SERVED_DECLINE = (
+    "the two series are priced in different currencies ({a} against {b}) and no exchange rate was served beside "
+    "either of them, so the two legs cannot be put in one currency -- a difference across two "
+    "currencies would book an exchange rate as a price gap, so no figure is computed")
+FX_UNIT_DECLINE = (
+    "once each leg is put in {base} by its own exchange rate the two series are quoted in {a} and in {b}, which "
+    "the declared unit spellings do not show to be one quantity, and this lookup never converts or equates units "
+    "on its own -- a difference across them could subtract two different quantities as if they were one, so no "
+    "figure is computed")
+FX_TWO_BASES_DECLINE = (
+    "the two exchange rates served quote {qa} per {ba} and {qb} per {bb}, against two different currencies, "
+    "and this lookup never builds a cross rate out of two rates -- no figure is computed")
+FX_RATE_AFTER_SESSION_DECLINE = (
+    "the exchange rate served for {ccy} is dated {rate_date}, after the {date} session the spread is taken "
+    "on, so converting at it would price one day's figure at another day's rate -- no figure is computed")
+#: WHY an exchange-rate row cannot be applied, in reader words, keyed on the feeder's CLOSED status vocabulary
+#: (CONTRACT Z13 `feeders.fx_rows`: ok | no_fx_series | fx_stale | read_error) plus this module's own two
+#: states for a row that never arrived (`absent`) or arrived unusable (`unusable`: a rate that is not a positive
+#: finite number, or a unit that does not read "<currency> per <currency>" for THIS leg's currency). Filled
+#: into FX_SERIES_MISSING_DECLINE's `{why}`. APPEND-NEVER-SORT.
+FX_UNAVAILABLE_WHY: dict = {
+    "no_fx_series": "the exchange-rate card holds no rate for that currency",
+    "fx_stale": "the newest rate the exchange-rate card holds for it is more than one session older than the "
+                "day it was read for",
+    "read_error": "the exchange-rate read did not complete on this turn",
+    "absent": "no exchange rate was served beside it",
+    "unusable": "the exchange rate served beside it does not quote that currency as a positive rate against "
+                "another",
+}
 # RV-REGIONAL (2026-08-29): rolling_corr's three refusal proses, same D-FR-14 constant discipline.
 CORR_SHORT_WINDOW_DECLINE = (
     "a window of {w} observations is below the {floor} a correlation needs to say anything -- a "
@@ -330,6 +369,9 @@ CURRENCY_GUARD = "currency_mismatch"
 THIN_GUARD = "thin_history"
 DENOMINATOR_GUARD = "denominator"
 CORR_GUARD = "corr_undefined"       # RV-REGIONAL: rolling_corr's own refusals join the same family.
+FX_GUARD = "fx_unavailable"         # FIX SITTING 3 (Z13): a cross-currency level whose exchange-rate row cannot
+#                                     be applied -- absent, unusable, dated after the session, or two rates
+#                                     against two different base currencies. The unit arm keeps UNIT_GUARD.
 
 
 def _norm_unit(unit) -> str:
@@ -810,9 +852,174 @@ def pair_spread(series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequenc
             "units": unit_pair_label(unit_a, unit_b), "pct_change_allowed": pct_ok}
 
 
+def fx_quote_parts(rate_unit) -> Optional[tuple]:
+    """FIX SITTING 3 (CONTRACT Z13, U8-a): the exchange-rate card's OWN unit words "<quote> per <base> ..." ->
+    ``(quote, base)`` exactly as spelled ("EUR per USD (ECB via Frankfurter)" -> ("EUR", "USD")), or ``None``
+    where the words do not read that way (a percent-change column, a blank). THE DIRECTION IS READ, NEVER
+    ASSUMED: a rate quoted "<quote> per <base>" says one ``base`` buys ``rate`` of ``quote``, so a figure in
+    ``quote`` is ``value / rate`` in ``base``. The grammar is the card's declared unit phrase, word by word --
+    ``registry.fx_metric_for`` reads the SAME parts (one parser, two readers)."""
+    toks = [t.strip("(),;") for t in str(rate_unit or "").split()]
+    low = [t.casefold() for t in toks]
+    if "per" not in low:
+        return None
+    i = low.index("per")
+    if i == 0 or i + 1 >= len(toks):
+        return None
+    quote, base = toks[i - 1], toks[i + 1]
+    return (quote, base) if (quote and base and _norm_unit(quote) != _norm_unit(base)) else None
+
+
+def _price_unit_parts(unit, currency) -> Optional[str]:
+    """The QUANTITY a price unit is quoted per, where the unit reads "<currency>/<quantity>" in the leg's OWN
+    declared currency ("EUR/t" with currency EUR -> "t"); ``None`` otherwise (the unit does not state its price in
+    that currency, so an exchange rate cannot be applied to it). The estate's exchange-convention unit grammar
+    (futures_eod_contracts: "<ccy>/<quantity>"), split once at its first '/', compared by the module's ONE
+    normalisation -- never an alias."""
+    head, sep, tail = str(unit or "").partition("/")
+    if not sep or not tail.strip() or _norm_unit(head) != _norm_unit(currency):
+        return None
+    return tail.strip()
+
+
+_ISO_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _pair_level_spread_fx(series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequence,
+                          dates_b: Sequence, unit_b, *, currency_a, currency_b, label_a: str, label_b: str,
+                          fx_a, fx_b) -> dict:
+    """FIX SITTING 3, LANE T (CONTRACT Z13, U-8 engine half) -- the spread LEVEL of two price series quoted in
+    DIFFERENT currencies, each leg put in one base currency by its OWN exchange-rate row. Reached only from
+    ``pair_level_spread`` when the caller passed an exchange-rate row for a leg AND the two currencies differ
+    (both labelled); every other call takes HEAD's path byte for byte.
+
+    THE RULE, IN ORDER (each refusal a ``_decline`` with its guard tag, the conversion stated on the result):
+      1. the two-leg guard chain minus its currency step (``_pair_join``: empty, axis, duplicate date, same
+         series, both units known) -- currency is this function's business;
+      2. each leg's exchange-rate row is USABLE only when its status is ``ok``, its rate is a positive finite
+         number, its date is an ISO day and its unit words read "<this leg's currency> per <base>"
+         (``fx_quote_parts``: the direction read off the card, never assumed -- U8-a);
+      3. every usable row must quote against ONE base currency -- two rates against two bases are never joined
+         into a cross rate (U8-c); a leg already in that base needs no row; any other leg without a usable row
+         DECLINES by naming its currency and why (``FX_SERIES_MISSING_DECLINE``), and with no usable row on
+         either side the refusal names both currencies (``FX_NONE_SERVED_DECLINE``);
+      4. the converted leg's unit is "<base>/<the quantity its own unit is quoted per>" (``_price_unit_parts``);
+         the two legs' units must then be EQUAL under the module's one normalisation (strip + casefold) -- the
+         physical quantity is never converted (U8-f: currency only) and no alias is minted here (the module's
+         "never maps a unit" law); unequal -> ``FX_UNIT_DECLINE`` naming both. Its words claim only what is
+         known: that the declared spellings do not SHOW the two to be one quantity ("t" and "metric ton" are the
+         same tonne to a desk, but no declared spelling class says so, and a claim that they differ would be
+         false);
+      5. the legs must share a period (HEAD's own refusal), and a rate dated AFTER that shared session refuses
+         (``FX_RATE_AFTER_SESSION_DECLINE``) -- one day's figure is never priced at another day's rate;
+      6. value = a' - b' where x' = x / rate for a converted leg (the rate being "<quote> per <base>"), and
+         ``converted`` states, per converted leg, the currency it came from, the rate, the rate's date, the rate's
+         own unit words and the card metric. The served legs' own rows are never touched (U8-e).
+
+    DOCSTRING EXCEPTION (5) TO THE Sequence[float] / labels-never-ordered CONVENTION, named and not smuggled: the
+    rate-after-session belt compares two ISO-8601 day strings ("YYYY-MM-DD"), whose lexicographic order IS the
+    calendar order by the format's construction -- nothing is parsed into a date, and a session label that is
+    not an ISO day makes no ordering claim (the rate's own date is still stated on the result)."""
+    params = {"labels": f"{label_a} vs {label_b}", "units": unit_pair_label(unit_a, unit_b)}
+    vals_a, joined, refusal = _pair_join("pair_level_spread", series_a, dates_a, unit_a, series_b, dates_b,
+                                         unit_b, currency_a=None, currency_b=None,
+                                         label_a=label_a, label_b=label_b, params=params)
+    if refusal is not None:
+        return refusal
+    n0 = len(vals_a)
+    side = {"a": (str(currency_a).strip(), fx_a, label_a, unit_a),
+            "b": (str(currency_b).strip(), fx_b, label_b, unit_b)}
+    usable: dict = {}
+    why: dict = {}
+    for s, (ccy, fx, _lab, _u) in side.items():
+        if not isinstance(fx, dict) or not fx:
+            why[s] = "absent"
+            continue
+        status = str(fx.get("status") or "").strip()
+        if status != "ok":
+            why[s] = status if status in FX_UNAVAILABLE_WHY else "unusable"
+            continue
+        parts = fx_quote_parts(fx.get("unit"))
+        try:
+            rate = float(fx.get("rate"))
+        except (TypeError, ValueError):
+            rate = None
+        rdate = str(fx.get("date") or "").strip()[:10]
+        if (parts is None or rate is None or not math.isfinite(rate) or rate <= 0.0
+                or _norm_unit(parts[0]) != _norm_unit(ccy) or not _ISO_DAY.fullmatch(rdate)):
+            why[s] = "unusable"
+            continue
+        usable[s] = {"rate": rate, "base": parts[1], "date": rdate, "fx": fx}
+    bases = sorted({_norm_unit(u["base"]) for u in usable.values()})
+    if len(bases) > 1:
+        return _decline("pair_level_spread", n0, FX_TWO_BASES_DECLINE.format(
+            qa=side["a"][0], ba=usable["a"]["base"], qb=side["b"][0], bb=usable["b"]["base"]),
+            guard=FX_GUARD, **params)
+    if not usable:
+        tried = [s for s in ("a", "b") if isinstance(side[s][1], dict) and side[s][1]]
+        if not tried:
+            return _decline("pair_level_spread", n0,
+                            FX_NONE_SERVED_DECLINE.format(a=side["a"][0], b=side["b"][0]),
+                            guard=FX_GUARD, **params)
+        s = tried[0]
+        return _decline("pair_level_spread", n0, FX_SERIES_MISSING_DECLINE.format(
+            which=side[s][2], ccy=side[s][0], why=FX_UNAVAILABLE_WHY[why.get(s, "absent")]),
+            guard=FX_GUARD, **params)
+    base = next(iter(usable.values()))["base"]
+    for s in ("a", "b"):
+        if s not in usable and _norm_unit(side[s][0]) != _norm_unit(base):
+            return _decline("pair_level_spread", n0, FX_SERIES_MISSING_DECLINE.format(
+                which=side[s][2], ccy=side[s][0], why=FX_UNAVAILABLE_WHY[why.get(s, "absent")]),
+                guard=FX_GUARD, **params)
+    quoted: dict = {}
+    for s in ("a", "b"):
+        ccy, _fx, _lab, u = side[s]
+        if s in usable:
+            per = _price_unit_parts(u, ccy)
+            if per is None:
+                return _decline("pair_level_spread", n0, PAIR_LEVEL_UNIT_DECLINE.format(a=unit_a, b=unit_b),
+                                guard=UNIT_GUARD, **params)
+            quoted[s] = f"{base}/{per}"
+        else:
+            quoted[s] = str(u)
+    if not unit_compatible(quoted["a"], quoted["b"]):
+        def _words(s: str) -> str:
+            return f"{quoted[s]} from {side[s][3]}" if s in usable else quoted[s]
+        return _decline("pair_level_spread", n0,
+                        FX_UNIT_DECLINE.format(base=base, a=_words("a"), b=_words("b")),
+                        guard=UNIT_GUARD, **params)
+    n = len(joined)
+    if n < MIN_PAIR_LEVEL_N:
+        def _newest(dates: Sequence) -> str:
+            dl = [("" if d is None else str(d)).strip() for d in dates]
+            return (dl[-1] if dl else "") or "no dated observation"
+        return _decline("pair_level_spread", n,
+                        PAIR_LEVEL_NO_SHARED_PERIOD_DECLINE.format(la=label_a, da=_newest(dates_a),
+                                                                   lb=label_b, db=_newest(dates_b)),
+                        guard=THIN_GUARD, **params)
+    d, va, vb = joined[-1]
+    day = str(d)[:10]
+    if _ISO_DAY.fullmatch(day):
+        for s in ("a", "b"):
+            if s in usable and usable[s]["date"] > day:
+                return _decline("pair_level_spread", n, FX_RATE_AFTER_SESSION_DECLINE.format(
+                    ccy=side[s][0], rate_date=usable[s]["date"], date=day), guard=FX_GUARD, **params)
+    va_c = va / usable["a"]["rate"] if "a" in usable else va
+    vb_c = vb / usable["b"]["rate"] if "b" in usable else vb
+    unit = quoted["b"] if "b" not in usable else quoted["a"]
+    converted = {s: {"from": side[s][0], "rate": usable[s]["rate"], "rate_date": usable[s]["date"],
+                     "rate_unit": str(usable[s]["fx"].get("unit") or ""),
+                     "metric": usable[s]["fx"].get("metric")}
+                 for s in ("a", "b") if s in usable}
+    return {"stat": "pair_level_spread", "declined": False, "value": va_c - vb_c, "n": n,
+            "form": "difference", "unit": unit, "date": d, "a_value": va_c, "b_value": vb_c,
+            "units": unit_pair_label(unit_a, unit_b), "converted": converted}
+
+
 def pair_level_spread(series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequence,
                       dates_b: Sequence, unit_b, *, currency_a=None, currency_b=None,
-                      label_a: str = "the first series", label_b: str = "the second series") -> dict:
+                      label_a: str = "the first series", label_b: str = "the second series",
+                      fx_a: Optional[dict] = None, fx_b: Optional[dict] = None) -> dict:
     """THE 09-23 FIX ROUND, LANE T (D5) -- the SPREAD LEVEL of two price series at their NEWEST SHARED
     observation: ``value = a - b`` on the one period both legs printed, and nothing else.
 
@@ -829,7 +1036,21 @@ def pair_level_spread(series_a: Sequence, dates_a: Sequence, unit_a, series_b: S
     of two different quantities, and the ratio form ``pair_spread`` offers has no quotable level), and
     the legs must SHARE a period (a difference across two dates books the passage of time as a price
     gap). No floor is relaxed: ``MIN_PAIR_LEVEL_N`` is ``MIN_SHARE_N``, the family's "two parts of ONE
-    observation" floor. Every refusal is a ``_decline`` with its guard tag; nothing raises on a guard."""
+    observation" floor. Every refusal is a ``_decline`` with its guard tag; nothing raises on a guard.
+
+    FIX SITTING 3 (CONTRACT Z13, U-8): ``fx_a`` / ``fx_b`` are the two legs' exchange-rate rows (the board's
+    feeder reads them off the exchange-rate card, one per non-base currency; ``{"metric", "rate", "date",
+    "unit", "status"}``). BOTH ``None`` -> this function is HEAD's, byte for byte (the seat never passes them).
+    A row passed on a pair whose currencies AGREE (or where either is unlabelled) changes nothing either: the
+    FX path is taken ONLY where the currency guard would have refused, and there the refusal becomes the
+    conversion -- each leg put in the one base currency by its OWN rate, the conversion stated on the result
+    (``converted``) -- or a refusal that names the missing rate (``_pair_level_spread_fx``). NO ARITHMETIC IN
+    THE MODEL'S HEAD: the converted level is this calculator's row, never the writer's."""
+    if ((fx_a is not None or fx_b is not None) and str(currency_a or "").strip()
+            and str(currency_b or "").strip() and not unit_compatible(currency_a, currency_b)):
+        return _pair_level_spread_fx(series_a, dates_a, unit_a, series_b, dates_b, unit_b,
+                                     currency_a=currency_a, currency_b=currency_b,
+                                     label_a=label_a, label_b=label_b, fx_a=fx_a, fx_b=fx_b)
     params = {"labels": f"{label_a} vs {label_b}", "units": unit_pair_label(unit_a, unit_b)}
     vals_a, joined, refusal = _pair_join("pair_level_spread", series_a, dates_a, unit_a, series_b,
                                          dates_b, unit_b, currency_a=currency_a, currency_b=currency_b,

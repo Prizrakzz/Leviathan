@@ -3268,7 +3268,10 @@ def test_k9_4_the_flag_is_read_at_the_two_permitted_seams_and_never_inside_the_e
     # before it -- is unchanged; each later append is OPTIONAL here, so reverting any of them leaves
     # this green.
     _qt = list(inspect.signature(cq.quantify).parameters)
-    _after_k94 = [n for n in ("xc_sublegs_on_composer", "board") if n in _qt]
+    # FIX SITTING 3 RE-ANCHOR (2026-09-29, lane T, DECLARED), by exactly ONE more name and WITHOUT loosening
+    # the join: CONTRACT Z16 (sitting 2 M-3 / OI-3 b) appends `numbers_ledger` (default None -- the board turn's
+    # NumbersLedger, passed only on a board turn) at the tail, after `board`. Same optional-and-ordered rule.
+    _after_k94 = [n for n in ("xc_sublegs_on_composer", "board", "numbers_ledger") if n in _qt]
     assert _qt[len(_qt) - 1 - len(_after_k94)] == "vintage_role", _qt[-3:]
     assert _qt[len(_qt) - len(_after_k94):] == _after_k94, _qt[-3:]
     # THE DEPARTURE IS DECLARED IN SOURCE, NOT ONLY IN A REPORT. Design section 8 says K9-4 "rides

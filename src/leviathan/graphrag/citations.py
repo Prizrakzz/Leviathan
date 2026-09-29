@@ -2854,10 +2854,18 @@ def from_number(call: dict, i: int) -> Citation:
     # 09-26 SITTING 2 (PC-7): a FOLDED national row names its own period (the week it is the national total
     # of), and a declared pace row names its derivation and its own latest period -- never the fetch window
     _fold = _fold_scope_words(rH, _ctable or table, _cmetric or metric)
+    # 09-29 SITTING 3 (Z28, sitting 2 MINOR V-1): under the analyst stamp a folded row whose query was asked over a
+    # FETCH WINDOW prints its own week alone -- the window is the span the read searched, never a period the one
+    # national week is a value of ("... summed over every destination 2026-09-17 2025-09-26..2026-09-26" read as
+    # a year beside a week). A query period that is a period of its own (a marketing year) stays; off the stamp,
+    # HEAD's bytes.
+    _fold_own_week = bool(_fold and call.get("display") == "analyst" and ".." in str(q.get("period") or ""))
     if _fold and not _scope_withheld:
         _ftok, _fkind = _row_own_period(call, rH)
         _fper = _period_label(_ftok, _fkind) if _ftok else None
-        if _fper and _fper != per:
+        if _fper and _fold_own_week:
+            per = _fper
+        elif _fper and _fper != per:
             per = " ".join(x for x in (_fper, per) if x)      # its own week, then the query's own period
     if _pace is not None:
         _pw = _pace_words(call, rH, _pace)
@@ -2975,6 +2983,14 @@ def from_number(call: dict, i: int) -> Citation:
                     _fpw, _fpk, _frole = _figure_period(call, rH)
                     if _pace is not None:
                         _fpw, _fpk = "", ""                  # 09-26 SITTING 2 (PC-7): the phrase dates it
+                    # 09-29 SITTING 3 (Z28): a folded row read over a fetch window is a value of ITS OWN WEEK --
+                    # the figure token names that week ("shipped in the week, week to 17 September 2026"), never
+                    # the window the read searched as if it were the week
+                    if _fold_own_week and not _scope_withheld:
+                        _wtok, _wkind = _row_own_period(call, rH)
+                        _wpw = _period_words_for(_wkind, _wtok) if _wtok else ""
+                        if _wpw:
+                            _fpw, _fpk, _frole = _wpw, str(_wkind or ""), ""
                     # 09-25 CLOSE-OUT (lane CC, B-2): a cell's standing is an order statistic AT the headline's
                     # own period, so where the axis words carry the grain the figure names THAT period ("0.9 z,
                     # April 2011"), never the read's window -- the same `_row_own_period` the label prints

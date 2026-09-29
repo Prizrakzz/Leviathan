@@ -282,9 +282,15 @@ def test_the_contracted_absence_and_ceiling_keys_are_read_where_stamped():
 
 # -- 4. THE REGISTER: THE FROZEN v1 TABLE BESIDE THE EXTENDED ONE (I1-d) ---------------------------------------
 def test_the_register_line_prints_the_v1_subset_beside_the_extended_table_in_each_cell():
-    for cell, key, (ext, v1) in (("control", "mandate-dark", (53, 33)), ("treatment", "mandate-lit", (25, 21))):
+    # FIX SITTING 3 (lane I, DECLARED RE-BANK): the EXTENDED table grows by design (CONTRACT Z24 appends the recon's
+    # machinery words to register.DESK_REGISTER_TOKENS), so its count is read here off the ONE producer over the
+    # same bodies the census reads -- never a literal that a table growth turns red -- and it may only rise from
+    # the 53 / 25 measured at 511631c5 (append-never); the FROZEN v1 count stays pinned as the standing measure.
+    for cell, key, (ext0, v1) in (("control", "mandate-dark", (53, 33)), ("treatment", "mandate-lit", (25, 21))):
         cen = gev.instrument_census(_cell(cell))
         c = cen["register_cells"][key]
+        ext = sum(len(reg.desk_register_hits(gev._instrument_texts(r, None)[0][0])) for r in _cell(cell))
+        assert ext >= ext0
         assert (c["desk_register_hits"], c["desk_register_hits_v1"], c["desk_v1_n"]) == (ext, v1, 10)
         line = next(x for x in gev.instrument_report(cen) if x.startswith(f"- register, {key} cell"))
         assert "FROZEN v1 table" in line and f": {v1} on " in line

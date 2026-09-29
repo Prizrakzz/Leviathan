@@ -534,7 +534,19 @@ def book_words(name: str, key: str) -> str:
 #: ``%s``) and ``POSITIONING_ASYMMETRY_LEAD`` (the words that introduce the positioning card's own mechanism
 #: on a row at its record's end -- the ONE spelling lane A's gate searches the block for).
 _BOOK_ATTRS: dict = {"REGIME_LEDGER_WORDS": ("regime_words", "ledger"),
-                     "POSITIONING_ASYMMETRY_LEAD": ("positioning_words", "record_extreme_lead")}
+                     "POSITIONING_ASYMMETRY_LEAD": ("positioning_words", "record_extreme_lead"),
+                     # 09-27 SITTING 3 (CONTRACT Z9, U-12 block half): the words the block's header states once --
+                     # its lines are the facts the writer reads, never the text it prints
+                     "PANEL_HEAD": ("panel_words", "head")}
+
+
+def book_list(name: str, key: str) -> tuple:
+    """One LIST entry of one declared book (09-27 sitting 3: ``pair_standing_words`` / ``threshold_words``), each
+    member ASCII-folded -- or ``()``. A scalar entry reads as a one-member list; no book is no words."""
+    v = _book(name).get(str(key))
+    if isinstance(v, (list, tuple)):
+        return tuple(ascii_text(str(x)) for x in v if str(x or "").strip())
+    return (ascii_text(str(v)),) if isinstance(v, str) and v.strip() else ()
 
 
 def __getattr__(name: str):
@@ -1250,10 +1262,12 @@ ROW_CLASSES: dict = {
     "SB-E": re.compile(r"^- .+ is declared to move .+ with a lag the graph states as "),
     "SB-J": re.compile(r"^- conditional on the lag the graph states, counted from "),
     # SB-D likewise (K1): the event's receipt is addressed by the ONE ledger, or -- a record with no
-    # durable identity -- named as a document this page carries no address for.
-    "SB-D": re.compile(r"^- .+ dated " + _ISO + r" by (?:\[E\d+\]|a document with no address here|"
-                       r"a document this page carries no "
-                       r"address for) \(published " + _ISO + r"\): "),
+    # durable identity -- named as a document with no address here.
+    # 09-27 SITTING 3 (lane R, OI-2): the RETIRED spelling ("a document <the page> carries no address for") is no
+    # longer an alternation -- the render has printed "a document with no address here" since 09-25 (the one producer,
+    # ``sb_event``), and the dead alternation was the page-talk the register table now charges.
+    "SB-D": re.compile(r"^- .+ dated " + _ISO + r" by (?:\[E\d+\]|a document with no address here)"
+                       r" \(published " + _ISO + r"\): "),
     # SB-F CARRIES TWO SHAPES AND STAYS ONE CLASS (S7 item 2). The fan index line and the
     # CROSS-COMMODITY licence line are the same object to every consumer that matters -- both are the
     # spillover section, both are letters-plus-word-counts, neither mints a handle -- so the licence
@@ -1304,7 +1318,10 @@ ROW_CLASSES: dict = {
     # calculator's refusal in its own words) and the horizon row (the horizon-answering chain's past price
     # moves over its band, or that record's own decline). A FIGURE class: each figure is bound to its own
     # handle, and the head SELECTS -- at most the tier's ``ask_rows`` rows, the rest counted.
-    "SB-ASK": re.compile(r"^ASKED (?:ROW|SPREAD|HORIZON) "),
+    # 09-27 SITTING 3 (CONTRACT Z5, U-3): THE PAIR RELATION LINE rides this class as its second alternation (the
+    # SB-F / SB-P precedent) -- it is the head's own fact about the spread it follows, cites that spread's handle and
+    # mints nothing; a new key would red lint clause 10, keyed on ``set(ROW_CLASSES)`` in a file this lane does not own.
+    "SB-ASK": re.compile(r"^(?:ASKED (?:ROW|SPREAD|HORIZON)|PAIR RELATION) "),
 }
 
 #: The classes that may carry a charged digit. Every OTHER class is letters-plus-dates only, and
@@ -1565,6 +1582,10 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
 
     parts: list = []
     h = n
+    # 09-27 SITTING 3 (CONTRACT Z6, U-4): the handle this row minted for each statistic a desk line can judge --
+    # the level at ``n`` where a level printed, the z and the percentile where they did -- read by the threshold
+    # fact below, so the fact names the figure the line judges by its OWN address on this block.
+    _judged_handles: dict = {}
     if st.flag_state:
         fs = st.flag_state
         ev = fs.get("events_in_window")
@@ -1592,6 +1613,7 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
                              role=role, stat="level", **mk, **q))
         if st.level_shown is not None:
             _scalar(block, st.level_shown, unit=unit, kind="level", row_id=rid, handle=h, text=lvl)
+            _judged_handles["level"] = h
             # THE FIGURE TOKEN (K2): the precision producer's text, the card's own basis after the unit,
             # the period at the card's own precision (with its vintage role) and the store-period words
             # where lane C stamped them -- one string, so a writer that copies the figure copies what
@@ -1615,6 +1637,7 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
                                  z_series=f"{q['table']}.{q['metric']}", stat="sigma", **mk, **q))
             ztxt = f"{float(st.z['value']):+.1f}"
             _scalar(block, zv, unit="sigma", kind="sigma", row_id=rid, handle=h, text=ztxt)
+            _judged_handles["z"] = h
             _wn = period_noun(st.cadence, int(win or 2))
             _scalar(block, win, unit=_wn, kind="window_length", row_id=rid, text=words_for_int(win))
             parts.append(f"[N{h}] {ztxt} sigma on its trailing window of "
@@ -1633,6 +1656,7 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
             calls.append(sb_call(value=pv, unit="percentile", knowledge_date=st.knowledge_date,
                                  stat="percentile", **mk, **q))
             _scalar(block, pv, unit="percentile", kind="percentile", row_id=rid, handle=h, text=ptxt)
+            _judged_handles["percentile"] = h
             # 09-26 SITTING 2 (Y8): the population the rank was taken over, in the book's words
             parts.append(f"[N{h}] {ptxt} percentile {population_clause(st)}")
         else:
@@ -1681,6 +1705,12 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
                      f"{d} in each of the last {words_for_int(ln)} {period_noun(st.cadence, ln)}")
     if st.convention and st.convention.get("matched") and st.convention.get("label"):
         parts.append(f"past the line the desk convention calls {st.convention['label']}")
+        # 09-27 SITTING 3 (CONTRACT Z6, U-4 producer half): THE THRESHOLD IS A SERVED FACT BOUND TO THE ROW -- the
+        # line, its label, the statistic it JUDGES and that figure's own handle here, and the relation the feeder
+        # computed -- registered beside the clause (the printed words are HEAD's), so the verifier holds a writer's
+        # threshold words to the figure the line judges (soyoil/palm: "past the severe line, which sits at two
+        # sigma" bound to the LEVEL 1.25 [N24], while the line judges the board's own z, +2.67 sigma).
+        _threshold_fact(block, st, _judged_handles, rid=rid)
     if row.context_only:
         # D18's ONE rule, on the row that carries it: a positioning row is READ and RENDERED and is
         # never a fan source, a convergence member, an analog dimension or a projection anchor. The
@@ -1880,6 +1910,79 @@ def _norm_words(s: str) -> str:
     return t[4:] if t.startswith("the ") else t
 
 
+#: 09-27 SITTING 3 (CONTRACT Z6): the statistics a desk line can judge, in the contract's own spelling, and the
+#: unit each is printed in on its own row (the SB-1 row's own call units: a z in ``sigma``, a rank in
+#: ``percentile``, a pace in ``%``; a level in the row's own unit). Append-never-sort.
+THRESHOLD_JUDGED_UNITS: dict = {"z": "sigma", "percentile": "percentile", "pace": "%"}
+
+
+def judged_statistic(st) -> tuple:
+    """``(judged, reading)`` -- WHICH of the row's own printed statistics a desk convention graded (CONTRACT Z6).
+
+    READ, NEVER RE-DERIVED: ``feeders._convention_label`` -- the one producer -- returns the ``reading`` its band
+    rule graded (the raw level for ``abs_bands``, the computed z, the computed percentile, or its own derived pace),
+    and this finds that value among the figures the row itself carries (``level``, ``z``, ``percentile``) by
+    EQUALITY -- no kind -> statistic table stands in for the fact. A reading equal to none of them is the feeder's
+    own pace where the convention's declared kind is the pace kind (an unprinted statistic: no handle), else ``""``;
+    a reading equal to two of them names none (``""``), so a check reading this under-claims, never guesses."""
+    conv = dict(getattr(st, "convention", None) or {}) if st is not None else {}
+    try:
+        r = float(conv.get("reading"))
+    except (TypeError, ValueError):
+        return "", None
+    if r != r:
+        return "", None
+    hits = []
+    for name, v in (("level", getattr(st, "level", None)),
+                    ("z", (st.z or {}).get("value") if _ok(getattr(st, "z", None)) else None),
+                    ("percentile", (st.percentile or {}).get("value")
+                     if _ok(getattr(st, "percentile", None)) else None)):
+        try:
+            if v is not None and abs(float(v) - r) <= 1e-9 * max(1.0, abs(r)):
+                hits.append(name)
+        except (TypeError, ValueError):
+            continue
+    if len(hits) == 1:
+        return hits[0], r
+    if not hits and str(conv.get("kind") or "") == "pace_vs_prior_year":
+        return "pace", r
+    return "", r
+
+
+def _threshold_fact(block, st, judged_handles: dict, *, rid: str = "", relation: str = "",
+                    band=None, label: str = "", unit: str = "") -> None:
+    """REGISTER ONE DESK LINE AS A SERVED FACT BOUND TO ITS ROW (09-27 sitting 3, CONTRACT Z6) -- scalar kind
+    ``card_threshold`` (the existing kind), its value the line's magnitude, with the tail facts: the line on the
+    reading's own side, its label, the statistic it JUDGES (:func:`judged_statistic`) and that figure's handle on
+    this block, the relation (``past`` where the feeder's band rule matched, else the caller's), and the book's
+    ``threshold_words``. Registration only: no byte of any line moves. Silent without a block or a line."""
+    if block is None or st is None:
+        return
+    conv = dict(getattr(st, "convention", None) or {})
+    b = band if band is not None else conv.get("band")
+    try:
+        bv = float(b)
+    except (TypeError, ValueError):
+        return
+    judged, reading = judged_statistic(st)
+    line = bv
+    if judged in ("level", "z") and reading is not None and reading < 0 < bv:
+        line = -bv                                       # a magnitude line, on the side the reading sits
+    rel = relation or ("past" if conv.get("matched") else "inside")
+    words = {k: list(book_list("threshold_words", k)) for k in ("past", "inside")}
+    jh = judged_handles.get(judged) if judged else None
+    _unit = unit or (THRESHOLD_JUDGED_UNITS.get(judged) if judged != "level" else "") or str(
+        getattr(st, "narrate_unit", "") or getattr(st, "unit", "") or "")
+    _scalar(block, bv, unit=_unit, kind="card_threshold", row_id=rid or None,
+            text=str(label or conv.get("label") or ""),
+            facts={"label": str(label or conv.get("label") or ""), "line": line, "judged": judged,
+                   "judged_value": reading, "judged_handle": (int(jh) if jh else None), "relation": rel,
+                   "relation_words": ({k: v for k, v in words.items() if v} or None),
+                   # the row the fact is bound to, under ONE key on both classes (SB-V's scalar keeps HEAD's
+                   # ``row_id`` None, so the pool's row-bound backing of its line does not move)
+                   "threshold_row_id": rid})
+
+
 def sb_convention(n: int, row, *, distance, band, label: str, unit_words: str, direction: str,
                   asof: str, band_words: str = "", kind_words: str = "the level a convention names",
                   row_label: str = "", dates: str = "", block=None) -> tuple:
@@ -1903,7 +2006,25 @@ def sb_convention(n: int, row, *, distance, band, label: str, unit_words: str, d
     at = band_words or (f"{_fmt(band)} {unit_words}".strip())
     # THE LINE ITSELF IS A CARD THRESHOLD THE ROW PRINTS (C4, ``card_threshold``): a writer copying "the
     # moderate line at 1 degC" copies a declared desk line, not an unbacked figure.
-    _scalar(block, band, unit=unit_words or "", kind="card_threshold", text=at)
+    # 09-27 SITTING 3 (CONTRACT Z6, U-4): ...and it carries the threshold FACT -- the statistic the line judges
+    # (:func:`judged_statistic`) and that figure's own handle where its SB-1 row printed it, the line on the
+    # reading's side, and the relation. A watch distance is measured to the NEXT line the reading has NOT crossed
+    # (``watch.convention_distance`` skips every crossed line), so its relation is the producer's: ``inside``.
+    _jd, _jr = judged_statistic(st) if st is not None else ("", None)
+    _rh = dict((getattr(block, "row_handles", None) or {}).get(getattr(row, "key", None)) or {})         if block is not None else {}
+    _jh = _rh.get({"z": "sigma"}.get(_jd, _jd)) if _jd else None
+    try:
+        _bv = float(band)
+    except (TypeError, ValueError):
+        _bv = None
+    _line = (-_bv if (_bv is not None and _jd in ("level", "z") and _jr is not None and _jr < 0 < _bv) else _bv)
+    _scalar(block, band, unit=unit_words or "", kind="card_threshold", text=at,
+            facts={"label": str(label or ""), "line": _line, "judged": _jd, "judged_value": _jr,
+                   "judged_handle": (int(_jh) if _jh else None), "relation": "inside",
+                   "relation_words": ({k: list(book_list("threshold_words", k)) for k in ("past", "inside")
+                                       if book_list("threshold_words", k)} or None),
+                   "threshold_row_id": (getattr(row_identity_for(row), "row_id", "") if st is not None
+                                        else "")})
     who = row_label or f"{humanise(row.driver_id)} on {board_label(row.contract)}"
     tail = f" -- {dates}" if dates else ""
     line = (f"- [N{n}] WATCH {kind_words} {who}: {_fmt(distance)} {unit_words} {direction} the "
@@ -3844,6 +3965,12 @@ def sb_convergence(row: dict, *, series_of: Optional[dict] = None,
         # NEW-3's words, which were already true.
         if against or unsided:
             why = "none of them reads in the tail the pattern names)"
+        elif any(book_words("quorum_words", str(v)) for k, v in dict(row.get("unread_reason") or {}).items()
+                 if k in set(str(x) for x in count["unread"])):
+            # 09-27 SITTING 3 (Z10): a member the walk READ whose condition it did not (a policy member with no
+            # dated action in force, a figure held only as last revised) HAS a series read here, so HEAD's "none of
+            # those drivers has a series read here" would be false of it -- the book's words say what is true
+            why = book_words("quorum_words", "none_counted") + ")"
         else:
             why = ("none of those drivers has a series read here"
                    + (" in the phase the pattern names)" if count["n_phase_opposed"] else ")"))
@@ -3882,10 +4009,27 @@ def sb_convergence(row: dict, *, series_of: Optional[dict] = None,
     # The unread population is ``pattern_count``'s own (the walk's ``matched_unmeasured``), so the WATCH line,
     # which reads the same producer, states the same count. The clause words are the book's (``quorum_words``).
     unread_clause = ""
+    # 09-27 SITTING 3 (CONTRACT Z10, U-2 + S2 M-4 -- the words half): WHERE THE WALK NAMES WHY a condition is unread
+    # (``unread_reason``: a policy condition read by its dated action with none in the pattern's direction on the
+    # record at the as-of, or a figure held only as last revised -- lane W's ``QUORUM_UNREAD_REASONS``), that
+    # condition is named in its OWN clause with the book's words for its reason (``quorum_words.<reason>``), by the
+    # series it read where it read one; every other unread condition keeps HEAD's clause. Named, never counted --
+    # and a reason the book declares no words for keeps HEAD's words (never a guessed one).
+    _why = {str(k): str(v) for k, v in dict(row.get("unread_reason") or {}).items()}
+    _plain = [d for d in count["unread"] if not (_why.get(str(d)) and book_words("quorum_words", _why[str(d)]))]
+    _by_reason: dict = {}
+    for d in count["unread"]:
+        if d not in _plain:
+            _by_reason.setdefault(_why[str(d)], []).append(_nm.get(str(d)) or humanise(d))
+    unread = [humanise(d) for d in _plain]
     if unread:
         unread_clause = (f"; {words_for_int(len(unread))} {'more ' if n_measured else ''}"
                          f"{'is' if len(unread) == 1 else 'are'} {book_words('quorum_words', 'unread')} "
                          f"({_and_list(unread)})")
+    for _r, _names in _by_reason.items():
+        unread_clause += (f"; {words_for_int(len(_names))} {'more ' if (n_measured or unread) else ''}"
+                          f"{'is' if len(_names) == 1 else 'are'} {book_words('quorum_words', _r)} "
+                          f"({_and_list(_names)})")
     # THE COUNT AND THE NUMBER THE PATTERN ASKS FOR, IN COUNT WORDS AND WITH NO VERDICT WORD (N-2 / N2-b). The
     # verdict was already refused here (doctrine M-2: firing is `firing.fire_contract`'s over declared bands) and
     # the line still closed on a comparison -- "so the count here is at or past that number" -- which the writer
@@ -5981,13 +6125,32 @@ def tape_pair_spread(bd) -> Optional[dict]:
     vb, db = _arr(tb)
     try:
         from leviathan.graphrag.numbers import stats as _st
+        # 09-27 SITTING 3 (CONTRACT Z13, U-8 -- the call site): the two tapes' own exchange-rate rows (``TapeState.fx``,
+        # filled by the seam from ``feeders.fx_rows`` only where the pair's legs settle in different currencies) are
+        # handed to the calculator, which converts or declines by naming the missing rate. A tape carrying no row,
+        # or a calculator without the keywords, is HEAD's call byte for byte -- nothing is converted here.
+        _fx = {}
+        _fa = dict(getattr(ta, "fx", None) or {}) or None
+        _fb = dict(getattr(tb, "fx", None) or {}) or None
+        if (_fa or _fb) and _takes_kw(_st.pair_level_spread, "fx_a") and _takes_kw(_st.pair_level_spread, "fx_b"):
+            _fx = {"fx_a": _fa, "fx_b": _fb}
         res = _st.pair_level_spread(va, da, getattr(ta, "unit", None), vb, db, getattr(tb, "unit", None),
                                     currency_a=(getattr(ta, "currency", None) or None),
                                     currency_b=(getattr(tb, "currency", None) or None),
-                                    label_a=board_label(a_slug), label_b=board_label(b_slug))
+                                    label_a=board_label(a_slug), label_b=board_label(b_slug), **_fx)
     except Exception as exc:                            # noqa: BLE001 -- a calculator error is a refusal
         res = {"declined": True, "reason": "the spread calculator could not run: %s" % (exc,)}
     return dict(res or {}, legs=(a_slug, b_slug))
+
+
+def _takes_kw(fn, name: str) -> bool:
+    """Does ``fn`` take the keyword ``name``? -- the defensive read of another lane's tail keyword (the
+    ``orchestrator._numbers_takes_usage_sink`` idiom), so this call site is HEAD's until that producer lands."""
+    try:
+        import inspect
+        return name in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 def sb_tape_spread(n: int, sp: dict, bd, *, block=None) -> tuple:
@@ -6019,7 +6182,180 @@ def sb_tape_spread(n: int, sp: dict, bd, *, block=None) -> tuple:
     call["rows"][0]["legs"] = [a_slug, b_slug]
     call["rows"][0]["leg_order"] = "%s minus %s" % (a_slug, b_slug)
     _scalar(block, v, unit=unit, kind="pair_level_spread", handle=n, text=fig)
-    return ("ASKED SPREAD [N%d] %s, settle on %s: %s" % (n, legs_words, d, fig)), [call]
+    # 09-27 SITTING 3 (CONTRACT Z13, U-8): A SPREAD THE CALCULATOR PUT IN ONE CURRENCY SAYS HOW -- each converted leg
+    # with its rate, the rate's own unit words and date, as the calculator stated them (``converted``), in the book's
+    # words (``fx_words``); the rate is a printed figure and is registered under this line's own handle. The legs'
+    # own rows are untouched (U8-e); a spread with no ``converted`` prints HEAD's line.
+    conv = sp.get("converted") if isinstance(sp.get("converted"), dict) else {}
+    tail = []
+    tpl = book_words("fx_words", "converted")
+    for side, slug in (("a", a_slug), ("b", b_slug)):
+        c = conv.get(side) if isinstance(conv.get(side), dict) else None
+        if not c or not tpl:
+            continue
+        try:
+            rv = float(c.get("rate"))
+        except (TypeError, ValueError):
+            continue
+        rtxt = figure_text(rv)
+        _scalar(block, rv, unit=str(c.get("rate_unit") or ""), kind="fx_rate", handle=n, text=rtxt,
+                row_id=rid, facts={"converted_leg": slug, "rate_date": str(c.get("rate_date") or ""),
+                                   "fx_metric": str(c.get("metric") or "")})
+        tail.append(tpl.format(leg=_leg(slug, tapes.get(slug)), rate=rtxt,
+                               unit=ascii_text(str(c.get("rate_unit") or "")),
+                               date=str(c.get("rate_date") or "")))
+    if tail:
+        call["rows"][0]["converted"] = {k: dict(v) for k, v in conv.items() if isinstance(v, dict)}
+    return ("ASKED SPREAD [N%d] %s, settle on %s: %s%s" % (n, legs_words, d, fig,
+                                                           ("; " + "; ".join(tail)) if tail else "")), [call]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE PAIR RELATION (09-27 fix sitting 3, lane R; CONTRACT Z5 -- U-3 row half)
+# ---------------------------------------------------------------------------------------------------
+#: THE PAIR RELATION LINE'S MARKER -- the ONE spelling (the CW_MARKER_PREFIX law). The line rides the SB-ASK
+#: class as its second alternation (the SB-F / SB-P precedent: a new class key would red lint clause 10, whose
+#: sample map is keyed on ``set(ROW_CLASSES)`` in a file this lane does not own).
+PAIR_RELATION_LEAD: str = "PAIR RELATION"
+
+
+@lru_cache(maxsize=256)
+def _concept_contracts(concept: str) -> tuple:
+    """``(kind, contracts)`` -- the tradeable contracts a DECLARED driver commodity names, through the estate's
+    own hierarchy resolver (``hierarchy.expand_concept``: complex > group > node > contract, reading
+    commodity_hierarchy.yaml's contract -> node map) -- never a match on display labels. ``("unknown", ())``
+    where the hierarchy cannot be read."""
+    try:
+        from leviathan.graphrag import hierarchy as _hier
+        ex = _hier.expand_concept(str(concept or ""))
+        return str(ex.kind), tuple(str(c) for c in ex.contracts)
+    except Exception:                                   # noqa: BLE001 -- no hierarchy, no join
+        return "unknown", ()
+
+
+def _edge_joins(declared: str, resolved: str, leg: str) -> tuple:
+    """Does a leg's declared driver commodity NAME the other leg? ``(joins, is_class)`` -- joined where the graph's
+    own forward resolution (``graph.cross_links``' ``target_contract``, carried on ``bd.edges`` as ``other``) IS
+    that leg, where the declared value IS that contract, or where the hierarchy expands the declared value to a set
+    of contracts holding it (``wheat`` -> the wheat complex -> CBOT SRW among its four); ``is_class`` where that set
+    is a class of several contracts (the edge was declared for the class, not for the contract)."""
+    if not declared and not resolved:
+        return False, False
+    if leg and (str(resolved or "") == leg or str(declared or "") == leg):
+        return True, False
+    kind, cons = _concept_contracts(str(declared or ""))
+    if leg in cons:
+        return True, (kind in ("complex", "group") and len(cons) > 1)
+    return False, False
+
+
+def pair_relation(bd, sp: Optional[dict]) -> Optional[dict]:
+    """THE PAIR'S RELATION AS SERVED FACTS (CONTRACT Z5, U-3) -- ``None`` where ``sp`` is ``None`` or DECLINED (a
+    refused spread has no standing to state; its refusal line is HEAD's). Else::
+
+        {"legs": (a, b), "leg_order": "<a> minus <b>", "spread_handle": int | None, "value": float, "unit": str,
+         "sign": -1 | 0 | 1, "standing": "under" | "over" | "level",
+         "edges": [{"from", "onto", "relation", "sign", "lag", "declared", "class"}, ...]}
+
+    THE STANDING is the calculator's OWN value's sign in the line's own leg order (``a minus b``): negative -> the
+    first leg stands UNDER the second, positive -> OVER, zero -> LEVEL -- never recomputed from the legs (threat
+    R3-c). THE EDGES are EACH declared inter-commodity edge between the two legs, off the board's own edge record
+    (``bd.edges``, the walk's ``cross_edges`` over ``graph.cross_links``): every FORWARD edge a leg's own card
+    declares whose driver commodity names the other leg (:func:`_edge_joins`: the graph's own resolution or the
+    hierarchy's contract -> node map, never a label match, threat R3-b), each with its OWN relation, sign and lag
+    -- never reconciled into one relation (threat R3-a) and never a verdict (threat R3-d): the graph declares a
+    co-move sign, not a level condition, so the row states the standing and the declarations side by side and the
+    writer reasons over both."""
+    if not isinstance(sp, dict) or sp.get("declined"):
+        return None
+    legs = tuple(str(x) for x in (sp.get("legs") or ()))
+    if len(legs) != 2 or not all(legs):
+        return None
+    try:
+        v = float(sp.get("value"))
+    except (TypeError, ValueError):
+        return None
+    if v != v:
+        return None
+    sign = 1 if v > 0 else (-1 if v < 0 else 0)
+    a, b = legs
+    edges: list = []
+    seen: set = set()
+    for e in (getattr(bd, "edges", None) or ()):
+        if not isinstance(e, dict) or str(e.get("direction") or "") != "forward":
+            continue
+        onto = str(e.get("anchor") or "")
+        if onto not in legs:
+            continue
+        other = b if onto == a else a
+        joins, is_class = _edge_joins(str(e.get("declared") or ""), str(e.get("other") or ""), other)
+        if not joins:
+            continue
+        key = (other, onto, str(e.get("relation") or ""), str(e.get("sign") or ""), str(e.get("lag") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        edges.append({"from": other, "onto": onto, "relation": str(e.get("relation") or ""),
+                      "sign": str(e.get("sign") or ""), "lag": str(e.get("lag") or ""),
+                      "declared": str(e.get("declared") or ""), "class": bool(is_class)})
+    try:
+        _sh = int(sp.get("handle")) if sp.get("handle") is not None else None
+    except (TypeError, ValueError):
+        _sh = None
+    return {"legs": legs, "leg_order": "%s minus %s" % legs, "spread_handle": _sh, "value": v,
+            "unit": str(sp.get("unit") or ""), "sign": sign,
+            "standing": ("over" if sign > 0 else ("under" if sign < 0 else "level")), "edges": edges}
+
+
+def sb_pair_relation(rel: Optional[dict], bd=None, *, block=None) -> str:
+    """SB-ASK's second alternation, THE PAIR RELATION LINE (CONTRACT Z5, U-3): printed after the ASKED SPREAD line,
+    citing the spread's own handle and minting nothing -- the standing in the book's words
+    (``pair_standing_words``: the first word of the side the spread's sign puts the first leg on) and EACH declared
+    edge in ``pair_relation_words``' words with its own relation (the graph's relation id in reader spacing), sign
+    words (:data:`rows.SIGN_WORDS`) and lag (:func:`band_words`); ``none`` where no edge between the legs is
+    declared. REGISTERED as one scalar of kind ``pair_relation`` under the spread's handle carrying the standing,
+    the whole standing vocabulary and the edges, so the verifier holds a writer's standing word bound to the pair
+    to the side the served spread gives (lane V) and corrects only a contradiction. ``""`` with no relation, no
+    spread handle, or no book."""
+    if not rel or rel.get("spread_handle") is None:
+        return ""
+    words = {k: book_words("pair_relation_words", k) for k in ("standing", "declared", "edge", "class_of", "none")}
+    stand = book_list("pair_standing_words", str(rel.get("standing") or ""))
+    if not all(words.values()) or not stand:
+        return ""
+    a, b = tuple(rel.get("legs") or ("", ""))
+    tapes = (getattr(bd, "tape", None) or {}) if bd is not None else {}
+
+    def _leg(slug):
+        t = tapes.get(slug) if isinstance(tapes, dict) else None
+        cm = month_words(str(getattr(t, "contract_month", "") or "")) if t is not None else ""
+        return ("%s %s" % (board_label(slug), cm)).strip()
+
+    from leviathan.graphrag.state.lagbands import parse_lag as _parse_lag
+    parts = [words["standing"].format(a=_leg(a), standing=stand[0], b=_leg(b))]
+    clauses: list = []
+    for e in rel.get("edges") or ():
+        drv = board_label(e["from"])
+        if e.get("class") and e.get("declared"):
+            drv = words["class_of"].format(declared=humanise(e["declared"]), leg=board_label(e["from"]))
+        sw = chain_edge_words(e.get("sign"))
+        clauses.append(words["edge"].format(
+            driver=drv, relation=humanise(e.get("relation") or ""), onto=board_label(e["onto"]),
+            sign=(sw or book_words("pair_relation_words", "unsigned")),
+            lag=band_words(_parse_lag(e.get("lag") or ""))))
+    if clauses:
+        parts.append("%s: %s" % (words["declared"], "; ".join(clauses)))
+    else:
+        parts.append(words["none"])
+    _scalar(block, rel.get("value"), unit=str(rel.get("unit") or ""), kind="pair_relation",
+            row_id="%s|pair_level_spread|%s" % (a, b), handle=int(rel["spread_handle"]),
+            text=stand[0],
+            facts={"legs": [a, b], "leg_order": rel.get("leg_order"), "standing": rel.get("standing"),
+                   "standing_words": {k: list(book_list("pair_standing_words", k))
+                                      for k in ("under", "over", "level")},
+                   "sign": rel.get("sign"), "spread_handle": int(rel["spread_handle"]),
+                   "edges": [dict(e) for e in (rel.get("edges") or ())]})
+    return ascii_text("%s on [N%d]: %s" % (PAIR_RELATION_LEAD, int(rel["spread_handle"]), "; ".join(parts)))
 
 
 def horizon_chain(bd):
@@ -6401,7 +6737,16 @@ class Block:
     sentence (the terminator it never carried) so the two rows are two sentences again, which is what
     they always were. Neither row loses a word, a handle or a call."""
 
-    def __init__(self, *, start: int = 1, e_start: int = 1):
+    def __init__(self, *, start: int = 1, e_start: int = 1, numbers_ledger=None):
+        #: 09-27 SITTING 3 (CONTRACT Z16, S2 M-3): the turn's ONE issuer of [N] handles for its served rows
+        #: (``citations.NumbersLedger``, seeded with the seat's served calls by the answer seam on a board turn;
+        #: ``None`` everywhere else -- the EvidenceLedger law). Asked for every call this block minted, in mint
+        #: order, by :meth:`settle_numbers`: an identity already served at an equal value keeps the handle it
+        #: already holds and this block mints no second call for it. ``None`` -> HEAD's numbering, byte for byte.
+        self.numbers_ledger = numbers_ledger
+        #: 09-27 SITTING 3 (CONTRACT Z4, U-7): the netting facts each ASKED SIDES clause printed, per market --
+        #: ``{slug: ask_netting_facts(...)}`` -- read by the seam onto the trace. Empty when none printed.
+        self.ask_netting: dict = {}
         self.lines: list = []
         self.calls: list = []
         self.trips: list = []
@@ -6443,7 +6788,7 @@ class Block:
 
     def scalar(self, value, *, unit: str, kind: str, row_id: Optional[str] = None,
                handle: Optional[int] = None, text: str = "", words: str = "", direction: str = "",
-               direction_words: Optional[dict] = None, fan_id: str = "") -> None:
+               direction_words: Optional[dict] = None, fan_id: str = "", facts: Optional[dict] = None) -> None:
         """REGISTER ONE PRINTED FIGURE (CONTRACT.md C4) -- called by the template AT THE MOMENT it formats
         that number, so the printed words and the registered scalar are the SAME variable. It is PENDING
         until the row that printed it is committed by :meth:`add`, which binds it to that row's class; a
@@ -6466,6 +6811,13 @@ class Block:
             d["direction_words"] = {k: tuple(v) for k, v in dict(direction_words).items()}
         if fan_id:
             d["fan_id"] = str(fan_id)
+        # 09-27 SITTING 3 (CONTRACT Z4 / Z5 / Z6): the FACTS a registered figure carries for the verifier's
+        # checks -- a threshold's judged statistic and relation, a pair's standing, a netting part -- appended
+        # as TAIL keys, each omitted when empty and never overwriting a key the scalar already carries.
+        for k, v in dict(facts or {}).items():
+            if v is None or v == "" or v == () or v == [] or v == {} or k in d:
+                continue
+            d[str(k)] = (tuple(v) if isinstance(v, list) else v)
         self._pending.append(d)
 
     def served_scalars(self) -> list:
@@ -6613,6 +6965,87 @@ class Block:
 
     def text(self) -> str:
         return "\n".join(self.lines)
+
+    def settle_numbers(self) -> dict:
+        """ASK THE TURN'S NUMBERS LEDGER FOR EVERY CALL THIS BLOCK MINTED (09-27 SITTING 3, CONTRACT Z16 / S2 M-3).
+
+        THE MEASURED DEFECT (sitting 2's B43): one served identity printed under several [N] -- ONI and IOD under
+        both poles, one PSD export row under three policy drivers, a convention distance twice (152 of 697 calls
+        on the eighteen fixture boards) -- so a writer citing the second handle cited a figure the footer lists
+        twice, and the seat's own read of a series the board also printed took a second address.
+
+        THE RULE IS THE LEDGER'S, NEVER THIS BLOCK'S: the calls are offered in MINT ORDER (the order their handles
+        were printed, ``start`` upward, dense by construction -- :meth:`add` commits a line and its calls
+        together), and ``ledger.address(call)`` answers ``(handle, reused)``: an equal identity at an equal value
+        keeps the handle it already holds (a seat handle, or an earlier board handle) and this block DROPS that
+        call; every other call takes the ledger's next handle, which is this block's own next handle shifted
+        down by the calls dropped before it. The same map then rewrites every place a board handle lives --
+        each committed line's ``[N..]`` tokens, the served-scalars pool, the manifest, the row handles -- so
+        nothing on the page can point at a handle the block no longer mints. Returns ``{old: new}`` for every
+        handle that moved (``{}`` with no ledger, or when nothing moved: HEAD's block, byte for byte)."""
+        led = self.numbers_ledger
+        if led is None or not self.calls:
+            return {}
+        start = int(self._next) - len(self.calls)
+        remap: dict = {}
+        kept: list = []
+        for i, call in enumerate(self.calls):
+            try:
+                h, reused = led.address(call)
+                h, reused = int(h), bool(reused)
+            except Exception:                           # noqa: BLE001 -- a ledger that cannot answer moves nothing
+                return {}
+            old = start + i
+            if h != old:
+                remap[old] = h
+            if not reused:
+                kept.append(call)
+        if not remap:
+            return {}
+        _n_minted = len(self.calls)
+        self.calls = kept
+        self._next = start + len(kept)
+        _rx = re.compile(r"\[N(\d+)\]")
+
+        def _mv(h):
+            try:
+                return remap.get(int(h), int(h)) if h is not None else h
+            except (TypeError, ValueError):
+                return h
+
+        def _line(s: str) -> str:
+            return _rx.sub(lambda m: "[N%d]" % _mv(int(m.group(1))), str(s or ""))
+
+        self.lines = [_line(ln) for ln in self.lines]
+        for s in self._scalars:
+            if s.get("handle") is not None:
+                s["handle"] = _mv(s["handle"])
+            for k in ("judged_handle", "spread_handle"):
+                if s.get(k) is not None:
+                    s[k] = _mv(s[k])
+        for m in self.rows_meta:
+            if "line" in m:
+                m["line"] = _line(m["line"])
+            if m.get("handles"):
+                m["handles"] = tuple(dict.fromkeys(_mv(h) for h in m["handles"]))
+            for k in ("hop_handle",):
+                if m.get(k) is not None:
+                    m[k] = _mv(m[k])
+            if m.get("hop_handles"):
+                m["hop_handles"] = tuple(dict.fromkeys(_mv(h) for h in m["hop_handles"]))
+            if isinstance(m.get("watch_row"), dict) and m["watch_row"].get("handle") is not None:
+                m["watch_row"] = dict(m["watch_row"], handle=_mv(m["watch_row"]["handle"]))
+        self.row_handles = {k: {kk: _mv(vv) for kk, vv in dict(v).items()} for k, v in self.row_handles.items()}
+        for part in self.ask_netting.values():
+            for k in ("opposing",):
+                if part.get(k):
+                    part[k] = [dict(x, handle=_mv(x.get("handle"))) for x in part[k]]
+            for k in ("event", "tape"):
+                if isinstance(part.get(k), dict) and part[k].get("handle") is not None:
+                    part[k] = dict(part[k], handle=_mv(part[k]["handle"]))
+        if _n_minted > len(kept):
+            self.count("numbers_ledger_reused", _n_minted - len(kept))
+        return remap
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -6927,6 +7360,78 @@ def _outcome_scale(o: dict, scales: dict) -> float:
     return 1.0 if s is None else float(s)
 
 
+def _then_current_line(b, bd, row, st):
+    """``(line, calls)`` of the then-current WASDE line of ONE held row (CONTRACT Z22) -- ``None`` where lane W's
+    ``feeders.then_current_state`` is absent or answers ``None`` (the row is not held, its line did not read), or the
+    book has no role words. Printed by :func:`sb_state` on a copy of the node row carrying the line's OWN state, with
+    the role words as its clause (never a template of its own)."""
+    try:
+        from leviathan.graphrag.state import feeders as _F
+        fn = getattr(_F, "then_current_state", None)
+        tcs = fn(st, asof=str(getattr(bd, "asof", "") or "")) if callable(fn) else None
+    except Exception:                                   # noqa: BLE001 -- a probe's line never costs the board
+        tcs = None
+    words = book_words("then_current_words", "role")
+    if tcs is None or not words:
+        return None
+    try:
+        import dataclasses as _dc
+        tc_row = _dc.replace(row, state=tcs, series_key=str(tcs.key.label()))
+    except Exception:                                   # noqa: BLE001 -- a stand-in row with no fields is not printed
+        return None
+    line, calls = sb_state(b.next_handle, tc_row, asof=str(getattr(bd, "asof", "") or ""), block=b,
+                           subject_clause=words)
+    return (line, calls) if line else None
+
+
+def held_rows_of(block, bd=None) -> list:
+    """CONTRACT Z21 (S2 ``held_rows_in_claims`` TL;DR half) -- ``[{"handle", "row_id"}]``, one per RENDERED state row
+    whose period stamp says it is held only as last revised (``period_behind["why"] == "last_revised"``, the feeder's
+    own fold), the handle its own LEVEL handle on this block. ``[]`` where none (the seam then omits the key)."""
+    out: list = []
+    seen: set = set()
+    for m in (getattr(block, "rows_meta", None) or ()):
+        if m.get("role") not in ("state", "cited_state") or not m.get("row_key"):
+            continue
+        key = tuple(m["row_key"])
+        if key in seen:
+            continue
+        row = bd.row(*key) if (bd is not None and hasattr(bd, "row")) else None
+        st = getattr(row, "state", None) if row is not None else None
+        pb = dict(getattr(st, "period_behind", None) or {}) if st is not None else {}
+        if str(pb.get("why") or "") != "last_revised":
+            continue
+        seen.add(key)
+        lvl = ((getattr(block, "row_handles", None) or {}).get(key) or {}).get("level")
+        hs = tuple(m.get("handles") or ())
+        h = lvl or (hs[0] if hs else None)
+        out.append({"handle": (int(h) if h else None),
+                    "row_id": str(getattr(row_identity_for(row), "row_id", "") or "%s|%s" % key)})
+    return out
+
+
+def block_sentences(block) -> list:
+    """CONTRACT Z9 (U-12 block half) -- ``[{"cls", "text"}]``: every committed line of the block split into its
+    sentences by the verifier's own splitter (``verify._SENT_SPLIT``, the one the coverage instrument reads prose
+    with), each with the line's class -- the population lane I's furniture count reads the page against. ``[]``
+    for no block."""
+    if block is None:
+        return []
+    try:
+        from leviathan.graphrag import verify as _vf
+        rx = _vf._SENT_SPLIT
+    except Exception:                                   # noqa: BLE001 -- no splitter, one sentence per line
+        rx = None
+    out: list = []
+    for ln, cls in zip(getattr(block, "lines", None) or (), getattr(block, "classes", None) or ()):
+        c = (cls or ("",))[0] if isinstance(cls, (list, tuple)) else str(cls or "")
+        for sent in (rx.split(str(ln)) if rx is not None else [str(ln)]):
+            t = sent.strip()
+            if t:
+                out.append({"cls": str(c or ""), "text": t})
+    return out
+
+
 def board_side(bd, row) -> str:
     """THE SIDE ONE READING SETTLES FOR ITS OWN MARKET TODAY (CONTRACT C-I3b): ``"for"`` / ``"against"`` /
     ``"unsettled"`` -- ``walk._chain_direction`` (the ONE side rule: ``(direction, side)`` minted as one pair) on
@@ -6979,7 +7484,7 @@ def fan_pole_clause(seed) -> str:
 ASK_SIDES_LEAD: str = "ASKED SIDES"
 
 
-def sb_ask_sides(sides: dict, front: Optional[dict], *, block=None) -> str:
+def sb_ask_sides(sides: dict, front: Optional[dict], *, block=None, netting: Optional[dict] = None) -> str:
     """THE SETTLED SIDES BESIDE WHAT IS PRICED (CONTRACT Y13 / M-4): the board's SETTLED side counts on one market
     (C-I3b's one side rule over the rendered readings) as served figures (kind ``count``, noun ``readings``),
     as ONE clause the caller appends to that market's own front-price line (``front={"front": True}``) -- so a
@@ -7006,9 +7511,162 @@ def sb_ask_sides(sides: dict, front: Optional[dict], *, block=None) -> str:
             " %s [N%d]" % (words["standing"], int(pct)) if pct else "")
     elif fr.get("front"):
         front_w = ", %s" % words["front"]
-    return ("%s%s: %s, %s, %s and %s%s"
+    return ("%s%s: %s, %s, %s and %s%s%s"
             % (ASK_SIDES_LEAD, (" on %s" % fr["label"]) if fr.get("label") else "", words["lead"], parts[0],
-               parts[1], parts[2], front_w))
+               parts[1], parts[2], front_w, _netting_clause(netting, block=block)))
+
+
+def _netting_clause(netting: Optional[dict], *, block=None) -> str:
+    """THE NETTING FACTS ON THE ASKED SIDES CLAUSE (09-27 sitting 3, CONTRACT Z4 -- U-7 producer half): each part
+    :func:`ask_netting_facts` found, in the book's words (``ask_netting_words``; the event's side in
+    ``ask_sides_words``' own side words, the tape's move in :data:`RUN_DIRECTION_WORDS`), EACH WITH ITS OWN HANDLE, and
+    each registered as a served figure of kind ``netting`` (tail keys ``part`` and the row's own ``row_id``) where
+    its handle carries one. FACTS ONLY: no verdict, no instruction and no sentence to copy -- the mandate (lane A)
+    asks the writer to net its lean against them or say why not. ``""`` for no netting (HEAD's clause, byte for
+    byte) or no book."""
+    nt = dict(netting or {})
+    if not nt:
+        return ""
+    w = {k: book_words("ask_netting_words", k) for k in ("lead", "opposing", "event", "tape", "opposing_each")}
+    if not (w["lead"] and w["opposing"] and w["event"] and w["tape"]):
+        return ""
+    parts: list = []
+    opp = [x for x in (nt.get("opposing") or ()) if isinstance(x, dict) and x.get("handle")]
+    if opp:
+        if len(opp) > 1 and w["opposing_each"]:
+            # a balanced lean: the loudest on EACH side, each named by its side in ``ask_sides_words``' own words
+            _sides = [("%s [N%d]" % (book_words("ask_sides_words", str(x.get("side") or "")) or "", int(x["handle"])))
+                      .strip() for x in opp]
+            parts.append("%s, %s" % (w["opposing_each"], " and ".join(_sides)))
+        else:
+            parts.append("%s [N%d]" % (w["opposing"], int(opp[0]["handle"])))
+        for x in opp:
+            if x.get("value") is not None:
+                _scalar(block, x["value"], unit=str(x.get("unit") or ""), kind="netting", handle=int(x["handle"]),
+                        row_id=(str(x.get("row_id") or "") or None), text="",
+                        facts={"part": "opposing", "side": str(x.get("side") or "")})
+    ev = nt.get("event") if isinstance(nt.get("event"), dict) else None
+    if ev and (ev.get("handle") or ev.get("e_handle")):
+        side_w = (book_words("ask_sides_words", "for") if ev.get("sign") == "+" else
+                  book_words("ask_sides_words", "against") if ev.get("sign") == "-" else
+                  SIGN_WORDS.get("0", ""))
+        cites = " ".join(c for c in (("[E%d]" % int(ev["e_handle"])) if ev.get("e_handle") else "",
+                                     ("[N%d]" % int(ev["handle"])) if ev.get("handle") else "") if c)
+        parts.append("%s %s %s" % (w["event"], side_w, cites) if side_w else "%s %s" % (w["event"], cites))
+        if ev.get("handle") and ev.get("value") is not None:
+            _scalar(block, ev["value"], unit=str(ev.get("unit") or ""), kind="netting", handle=int(ev["handle"]),
+                    row_id=(str(ev.get("row_id") or "") or None), text="",
+                    facts={"part": "event", "sign": str(ev.get("sign") or ""),
+                           "e_handle": (int(ev["e_handle"]) if ev.get("e_handle") else None)})
+    tp = nt.get("tape") if isinstance(nt.get("tape"), dict) else None
+    if tp and tp.get("handle"):
+        dw = RUN_DIRECTION_WORDS.get(str(tp.get("direction") or ""), "")
+        parts.append("%s [N%d]%s" % (w["tape"], int(tp["handle"]), (", " + dw) if dw else ""))
+        if tp.get("value") is not None:
+            _scalar(block, tp["value"], unit=str(tp.get("unit") or ""), kind="netting", handle=int(tp["handle"]),
+                    row_id=(str(tp.get("row_id") or "") or None), text="",
+                    facts={"part": "tape", "window": str(tp.get("window") or "")})
+    if not parts:
+        return ""
+    body = parts[0] if len(parts) == 1 else "%s and %s" % (", ".join(parts[:-1]), parts[-1])
+    return "; %s: %s" % (w["lead"], body)
+
+
+def ask_netting_facts(bd, block=None, *, slug: str = "", tape=None, tape_first_handle: Optional[int] = None) -> dict:
+    """THE FACTS A LEAN ON ONE MARKET IS WEIGHED AGAINST (09-27 sitting 3, CONTRACT Z4 -- U-7 producer half),
+    each present ONLY where the block PRINTED its handle (threat R7-e):
+
+      * ``opposing`` -- the reading furthest from its own record (the board's own rank: the rendered state row's
+        ``rank``) on the side OPPOSITE the settled lean of this market's rendered readings (C-I3b's one side rule,
+        ``rows_meta["side"]``); a balanced lean names the loudest on EACH side. A ``context_only`` row settles no side
+        (``board_side``) and is never one (R7-a); a row whose period is behind the store's (``period_behind``) or held
+        only as last revised (``feeders.held_as_last_revised``) is no current-state reading and is skipped by name
+        (R7-b, ``skipped``);
+      * ``event`` -- the open event on this market the block rendered (role ``event_open``: the walk's own dated
+        reading, never a receipt's words, R7-c), its declared sign, its [E] and the [N] of the reading it sits on;
+      * ``tape`` -- the longest same-contract change the tape line prints (``tape.changes``, never a cross-contract
+        move, R7-d), its handle on that line (``tape_first_handle`` = the settle's), its window and direction.
+
+    ``{}`` where nothing qualifies. Zero reads; nothing here is computed that the block did not print."""
+    out: dict = {}
+    meta = list(getattr(block, "rows_meta", None) or ())
+    mine = [m for m in meta if m.get("role") in ("state", "cited_state")
+            and str((m.get("row_key") or ("",))[0]) == str(slug) and m.get("side") in ("for", "against")]
+    n_for = sum(1 for m in mine if m["side"] == "for")
+    n_against = sum(1 for m in mine if m["side"] == "against")
+    if n_for or n_against:
+        want = (["against"] if n_for > n_against else ["for"] if n_against > n_for else ["for", "against"])
+        skipped: list = []
+        opp: list = []
+        for side in want:
+            cands = sorted((m for m in mine if m["side"] == side),
+                           key=lambda m: (m.get("rank") is None, m.get("rank") if m.get("rank") is not None else 0))
+            for m in cands:
+                row = bd.row(*tuple(m["row_key"])) if hasattr(bd, "row") else None
+                st = getattr(row, "state", None) if row is not None else None
+                if row is None or st is None or getattr(row, "context_only", False):
+                    continue
+                rid = str(getattr(row_identity_for(row), "row_id", "") or "%s|%s" % tuple(m["row_key"]))
+                if getattr(st, "period_behind", None) or _held(st):
+                    skipped.append(rid)
+                    continue
+                hs = tuple(m.get("handles") or ())
+                if not hs:
+                    continue
+                opp.append({"handle": int(hs[0]), "row_id": rid, "side": side,
+                            "value": getattr(st, "level_shown", None),
+                            "unit": str(getattr(st, "narrate_unit", "") or getattr(st, "unit", "") or "")})
+                break
+        if opp:
+            out["opposing"] = opp
+        if skipped:
+            out["skipped"] = skipped
+    for m in meta:
+        if m.get("role") != "event_open" or str((m.get("row_key") or ("",))[0]) != str(slug):
+            continue
+        if not (m.get("e_handle") or m.get("hop_handle")):
+            continue
+        row = bd.row(*tuple(m["row_key"])) if hasattr(bd, "row") else None
+        sg = str(getattr(row, "sign", "") or "") if row is not None else ""
+        st = getattr(row, "state", None) if row is not None else None
+        out["event"] = {"handle": (int(m["hop_handle"]) if m.get("hop_handle") else None),
+                        "e_handle": (int(m["e_handle"]) if m.get("e_handle") else None),
+                        "sign": sg if sg in ("+", "-", "0") else "0",
+                        "row_id": (str(getattr(row_identity_for(row), "row_id", "") or "") if row is not None
+                                   else ""),
+                        "value": (getattr(st, "level_shown", None) if (st is not None and m.get("hop_handle"))
+                                  else None),
+                        "unit": str(getattr(st, "narrate_unit", "") or "") if st is not None else ""}
+        break
+    if tape is not None and tape_first_handle:
+        h = int(tape_first_handle)
+        best = None
+        for ch in (getattr(tape, "changes", None) or ()):
+            if ch.get("declined"):
+                continue
+            h += 1
+            try:
+                n = int(ch.get("n_periods") or 0)
+                d = float(ch.get("delta"))
+            except (TypeError, ValueError):
+                continue
+            if best is None or n > best[0]:
+                best = (n, h, d, str(ch.get("window") or ""))
+        if best is not None:
+            out["tape"] = {"handle": best[1], "window": best[3],
+                           "direction": ("up" if best[2] > 0 else "down" if best[2] < 0 else "flat"),
+                           "value": round(best[2], 4), "unit": str(getattr(tape, "unit", "") or ""),
+                           "row_id": tape_row_id(tape)}
+    return out
+
+
+def _held(st) -> bool:
+    """``feeders.held_as_last_revised`` -- the one predicate (CONTRACT Y5), read defensively."""
+    try:
+        from leviathan.graphrag.state import feeders as _F
+        return bool(_F.held_as_last_revised(st))
+    except Exception:                                   # noqa: BLE001
+        return False
 
 
 def _watch_line_counts(bd, w: dict) -> list:
@@ -7049,7 +7707,22 @@ def _stamp_watch_row(b, bd, w: dict, handles_by_row: dict) -> None:
     _line = str(b.rows_meta[-1].get("line") or "")
     _low = " %s " % " ".join(_line.lower().replace(",", " ").split())
     _cls = str(b.rows_meta[-1].get("cls") or "")
-    for v, noun in dict.fromkeys(_watch_line_counts(bd, w)):
+    # 09-27 SITTING 3 (CONTRACT Z18, S2 V-3): THE COUNTS THE WATCH LINE'S OWN TEMPLATE FORMATTED -- the watch row's
+    # ``formatted_counts`` ([[value, noun], ...], lane AN's producer) -- are registered, and exactly those: the
+    # number-word presence test (a count registered wherever its word appears on the line, for whatever noun) is
+    # retired wherever the producer states what it formatted. A row without the key keeps HEAD's test.
+    _fc = w.get("formatted_counts") if isinstance(w, dict) else None
+    if isinstance(_fc, (list, tuple)):
+        for it in _fc:
+            try:
+                v, noun = int(it[0]), str(it[1])
+            except (TypeError, ValueError, IndexError):
+                continue
+            if v < 0:
+                continue
+            b._scalars.append({"value": float(v), "unit": noun, "kind": "count", "row_id": None,
+                               "handle": None, "text": words_for_int(v), "cls": _cls})
+    for v, noun in (dict.fromkeys(_watch_line_counts(bd, w)) if not isinstance(_fc, (list, tuple)) else ()):
         if " %s " % words_for_int(v) in _low:
             b._scalars.append({"value": float(v), "unit": noun, "kind": "count", "row_id": None,
                                "handle": None, "text": words_for_int(v), "cls": _cls})
@@ -7069,9 +7742,13 @@ COUNT_SCALAR_KINDS: tuple = ("count", "fan_count")
 
 
 def served_counts(block) -> list:
-    """CONTRACT C-I6 -- ``[{noun, value, text}]``, every count the block PRINTED with its noun, derived from the
-    block's own registered scalars of a count kind (:data:`COUNT_SCALAR_KINDS`) -- ONE producer, so the trace can
-    never carry a count the block did not print (threat N6-a). One entry per distinct (noun, value, text)."""
+    """CONTRACT C-I6 -- ``[{noun, value, text, kind}]``, every count the block PRINTED with its noun, derived from
+    the block's own registered scalars of a count kind (:data:`COUNT_SCALAR_KINDS`) -- ONE producer, so the trace can
+    never carry a count the block did not print (threat N6-a). One entry per distinct (noun, value, text, kind).
+
+    09-27 SITTING 3 (LEFTOVERS I2-a): each entry carries the KIND it was registered under (``count`` -- a count line,
+    a quorum, a watch line -- or ``fan_count``, a fan's split), so a fan's "markets" and a chain line's "markets" are
+    two populations to the census that reads them, never one noun."""
     out, seen = [], set()
     for s in (block.served_scalars() if block is not None else ()):
         if str(s.get("kind") or "") not in COUNT_SCALAR_KINDS:
@@ -7082,11 +7759,11 @@ def served_counts(block) -> list:
             continue
         if v != v or v < 0 or v != int(v):
             continue
-        key = (str(s.get("unit") or ""), int(v), str(s.get("text") or ""))
+        key = (str(s.get("unit") or ""), int(v), str(s.get("text") or ""), str(s.get("kind") or ""))
         if key in seen:
             continue
         seen.add(key)
-        out.append({"noun": key[0], "value": key[1], "text": key[2]})
+        out.append({"noun": key[0], "value": key[1], "text": key[2], "kind": key[3]})
     return out
 
 
@@ -7129,7 +7806,7 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                  e_start: int = 1, anchor_label: str = "", loud_only: bool = True, age_clauses=None,
                  caps: Optional[dict] = None, chain_receipts=None,
                  evidence_ordinals: Optional[dict] = None, evidence_address=None, ask_rows=None,
-                 page_markets=None) -> Block:
+                 page_markets=None, numbers_ledger=None) -> Block:
     """THE WHOLE BLOCK. Deterministic, ASCII, every figure bound to its own call, every cut NAMED.
 
     **09-24 FIX ROUND (lane R) -- THREE KEYWORDS, EACH ABSENT ON HEAD'S CALL:** ``evidence_address`` is
@@ -7163,10 +7840,14 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     # numbered from 1 by `cit.unify` over `uniq`, so a board event receipt would print a handle already
     # pointing at somebody else's document -- the same collision `take_e` was written to remove one
     # scope in. The seam passes `len(uniq) + 1`; the harness and every deck leave it at 1.
-    b = Block(start=start, e_start=e_start)
+    b = Block(start=start, e_start=e_start, numbers_ledger=numbers_ledger)
     cap = dict(caps or render_caps(bd.mode, getattr(bd, "knobs", None)))
     ages = dict(age_clauses or {})
-    b.add(sb_header(bd, anchor_label=anchor_label), label="header")
+    # 09-27 SITTING 3 (CONTRACT Z9, U-12 block half): THE HEADER STATES ONCE WHAT THE BLOCK IS -- the panel of served
+    # facts the writer reads, never the text it prints -- in the book's words (``panel_words.head``, the ONE copy;
+    # the mandate's panel sentence is its sibling key). No book, no sentence: HEAD's header, byte for byte.
+    _panel = book_words("panel_words", "head")
+    b.add(sb_header(bd, anchor_label=anchor_label) + ((" " + _panel) if _panel else ""), label="header")
 
     order = {k: i for i, k in enumerate(bd.order)}
     # THE RANK THE **CUT** LINES TAKE, and it is `None` on every tier but Scan (S7 round 2). The state
@@ -7222,8 +7903,19 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                     b.add(_al, label=f"ask row N{_h}", display="a figure this question asked for", role="ask")
         _sp = tape_pair_spread(bd)
         if _sp is not None:
-            _sl, _sc = sb_tape_spread(b.next_handle, _sp, bd, block=b)
-            b.add(_sl, _sc, label="ask spread", display="the spread this question sets", role="ask")
+            _sh = b.next_handle
+            _sl, _sc = sb_tape_spread(_sh, _sp, bd, block=b)
+            _got_sp = b.add(_sl, _sc, label="ask spread", display="the spread this question sets", role="ask")
+            # 09-27 SITTING 3 (CONTRACT Z5, U-3 row half): THE PAIR'S RELATION AS A SERVED FACT, on the line after the
+            # spread it reads -- the spread's own standing and each declared edge between the legs, each with its own
+            # sign words, never reconciled and never a verdict. Only over a spread the calculator SERVED and the block
+            # committed with its handle; a refused spread keeps HEAD's refusal line alone.
+            if _got_sp == _sl and _sc and not _sp.get("declined"):
+                _rel = pair_relation(bd, dict(_sp, handle=_sh))
+                _rl = sb_pair_relation(_rel, bd, block=b)
+                if _rl:
+                    b.add(_rl, label="pair relation", display="the relation between the markets this question sets",
+                          role="ask")
             # THE CALCULATOR'S OUTCOME RIDES THE TRACE (``Board.notes``, which ``Board.trace`` carries): the
             # figure and its legs, or the refusal in the calculator's own words (R-5).
             try:
@@ -7463,6 +8155,19 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                 _lead = book_words("positioning_words", "record_extreme_lead")
                 if _lead and _lead in line and b.rows_meta:
                     b.rows_meta[-1]["asymmetry"] = "positioning_asymmetry"
+                # 09-27 SITTING 3 (CONTRACT Z22, S2 ORCH-P2): A ROW HELD ONLY AS LAST REVISED IS FOLLOWED BY THE LINE
+                # ITS PUBLISHER CARRIED FOR THE YEAR THEN CURRENT, as ITS OWN row -- lane W's ``then_current_state``
+                # (zero reads: the retention probe's own read of the mapped WASDE line) printed by the ONE row
+                # template under its own handle, with its own card, release and role, and the book's role words
+                # (``then_current_words``). The held row keeps its own figure (threat P1-b); a row nothing measured
+                # (every offline instrument, every live turn the probe did not stamp) prints nothing new.
+                _tc_line = _then_current_line(b, bd, row, st)
+                if _tc_line is not None:
+                    b.add(_tc_line[0], _tc_line[1], label=f"then current {row.contract}/{row.driver_id}",
+                          display=f"the line current then for {row_words(row.contract, row.driver_id)}",
+                          role="then_current")
+                    if b.rows_meta and b.rows_meta[-1].get("role") == "then_current":
+                        b.rows_meta[-1]["row_key"] = tuple(row.key)
         if _cited_row:
             # 09-25 (RT-5): the chain line that cites this row already states its link, so it takes no
             # edge line and no projection of its own -- the row is here for its handles.
@@ -7640,6 +8345,9 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         # 09-26 SITTING 2 (LEFTOVERS D, Y21): the handles a writer can cite for THIS event -- the [E] of its dated
         # report and the [N] of the reading it sits on -- so ``board_coverage`` reads a citation, not a token
         if b.rows_meta and str(b.rows_meta[-1].get("role") or "").startswith("event"):
+            # 09-27 SITTING 3 (CONTRACT Z4): the event's own row, so the ask head's netting facts find the dated
+            # action on ITS market (telemetry beside the line, never a byte of it)
+            b.rows_meta[-1]["row_key"] = tuple(row.key)
             if e:
                 b.rows_meta[-1]["e_handle"] = int(e)
             if handles_by_row.get(row.key):
@@ -7986,7 +8694,8 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
             b.add(sb_absence(f"{board_label(slug)} price path", tp.status), label=f"tape {slug}",
                   display=f"the price path of {board_label(slug)}")
             continue
-        line, calls = sb_tape(b.next_handle, tp, asof=bd.asof, block=b)
+        _tn = b.next_handle
+        line, calls = sb_tape(_tn, tp, asof=bd.asof, block=b)
         # 09-26 FIX SITTING 2 (CONTRACT Y13 / M-4): THE SETTLED SIDES RIDE THE FRONT PRICE'S OWN LINE -- the tape
         # line mints the front price the clause sits beside, so the clause cites nothing and mints nothing (the
         # figure classes' handles stay dense and in call order), and the LINE carrying ``ASK_SIDES_LEAD`` is the
@@ -7999,9 +8708,19 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                 if (_m.get("role") in ("state", "cited_state") and _m.get("side") in _sides
                         and str((_m.get("row_key") or ("",))[0]) == str(slug)):
                     _sides[_m["side"]] += 1
-            _ask = sb_ask_sides(_sides, {"front": True}, block=b) if (_sides["for"] or _sides["against"]) else ""
+            # 09-27 SITTING 3 (CONTRACT Z4, U-7 producer half): THE FACTS A LEAN IS WEIGHED AGAINST ride the same
+            # clause -- the reading furthest from its own record on the side opposite the settled lean, the dated
+            # action on this market with its declared side, and the front price's longest same-contract move on this
+            # very line -- each with its OWN handle, found only among what this block printed (ask_netting_facts).
+            _nf = (ask_netting_facts(bd, b, slug=slug, tape=tp, tape_first_handle=_tn)
+                   if (_sides["for"] or _sides["against"]) else {})
+            _ask = (sb_ask_sides(_sides, {"front": True}, block=b, netting=_nf)
+                    if (_sides["for"] or _sides["against"]) else "")
             if _ask and line:
                 line = line + "; " + _ask
+                _shown_nf = {k: v for k, v in _nf.items() if k in ("opposing", "event", "tape", "skipped")}
+                if _shown_nf:
+                    b.ask_netting[str(slug)] = _shown_nf
         except Exception:                               # noqa: BLE001 -- the clause never costs the tape line
             b.count("ask_sides_error")
         b.add(line, calls, label=f"tape {slug}",
@@ -8274,9 +8993,14 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         # `form` key, so this branch is unreachable on a HEAD board and the loop below is byte for byte
         # what it was.
         if w.get("form") == "absence":
-            b.add(sb_absence(w.get("label") or "a forward item on this page",
+            b.add(sb_absence(w.get("label") or "a forward item here",
                              w.get("reason") or "watch_floor_unmet"),
                   label=f"watch {w['kind']}", role="watch", tokens=())
+            # 09-27 SITTING 3 (lane R, OI-2): the absence's own REASON word rides its manifest entry, so the coverage
+            # instrument reads WHICH watch absence this is off the row, never off the label's words (the label is
+            # lane AN's and may change its page-talk without moving the instrument)
+            if b.rows_meta and b.rows_meta[-1].get("role") == "watch":
+                b.rows_meta[-1]["watch_absence"] = str(w.get("reason") or "watch_floor_unmet")
             continue
         # A NOMINATION NAMES THE ROW IT RESTS ON, through the handle that row's own SB-1 line minted.
         # `handles_by_row` is the render's own map and is complete by here; a row whose state was not
@@ -8443,6 +9167,14 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
             # and the block said nothing. That is the silent-decline class this board's whole closed
             # decline vocabulary exists to close, so it is consumed here beside every other note.
             b.add(sb_subject_ambiguous(note.get("ids") or ()), label="subject ambiguous")
+    # 09-27 SITTING 3 (CONTRACT Z16, S2 M-3): THE TURN'S NUMBERS LEDGER ANSWERS FOR EVERY CALL THIS BLOCK MINTED --
+    # one served identity at one value, one handle -- BEFORE the manifest is stamped, so every reader after this
+    # line meets the ledger's handles. A board handed no ledger (every flag-off turn, every deck) keeps HEAD's.
+    if numbers_ledger is not None:
+        try:
+            b.settle_numbers()
+        except Exception:                               # noqa: BLE001 -- a ledger never costs the board
+            b.count("numbers_ledger_error")
     # THE COVERAGE MANIFEST RIDES THE BOARD (S7 item 1). It is stamped HERE and by nothing else,
     # because this function is the only place that knows which rows a reader actually met -- after
     # every cap, every fence correction and every weld. `Board.coverage` is filled later, at the answer
@@ -9635,8 +10367,11 @@ def _nomination_coverage(rows, sents, verdict_fn, asof: str = "", *, text: str =
             "watch_candidates_cited": cited,
             "watch_bullets": len(bullets),
             "watch_writer_added": sum(1 for ok in matched if not ok),
-            "watch_admitted_zero": any(str(m.get("line") or "").startswith(
-                "BOARD ABSENCE a forward item on this page") for m in rows),
+            # 09-27 SITTING 3 (lane R, OI-2): read off the row's own absence reason (the render's manifest stamp);
+            # a manifest banked before the stamp keeps HEAD's reading of its line
+            "watch_admitted_zero": any((m.get("watch_absence") == "watch_floor_unmet") if "watch_absence" in m
+                                       else str(m.get("line") or "").startswith(
+                                           "BOARD ABSENCE a forward item on this page") for m in rows),
             "watch_nomination_groups": len([g for m in noms for g in (m.get("tokens") or ())]),
             # THE INSTRUMENT'S OWN ERROR FLOOR, CARRIED WITH ITS NUMBERS (review round 2, minor c; the
             # bullet keys added round 4). An arm reading a RATE off these counters needs to know what

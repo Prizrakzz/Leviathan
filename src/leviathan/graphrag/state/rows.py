@@ -22,6 +22,7 @@ PURE: dataclasses, one closed enum per field that has one, and no I/O. The produ
 """
 from __future__ import annotations
 
+import re as _re
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any, Optional
@@ -582,7 +583,8 @@ def population_words(pop: dict, *, book: Optional[dict] = None) -> str:
       * otherwise -> the ``window`` words, with the window's first MONTH (``{month}``).
 
     A template may name ``{month}`` / ``{day}`` (the first observation), ``{last_month}`` / ``{last_day}``,
-    ``{n}`` and ``{n_words}`` -- each derived here from ``pop`` by this module's own date and number words.
+    ``{through}`` (09-27 sitting 3, P1-i: the last period, at the row's own precision), ``{n}`` and
+    ``{n_words}`` -- each derived here from ``pop`` by this module's own date and number words.
     ``""`` when ``pop`` is empty (HEAD), when the book declares no template for the case, or when the template
     names a fact ``pop`` does not carry. ``book`` overrides the conventions book (a deck's)."""
     if not isinstance(pop, dict) or not pop:
@@ -608,6 +610,12 @@ def population_words(pop: dict, *, book: Optional[dict] = None) -> str:
     for key, tok in (("day", first), ("last_day", last)):
         if _is_iso_day(tok) and day_words(tok):
             fields[key] = day_words(tok)
+    # 09-27 SITTING 3 (lane R, LEFTOVERS P1-i): ``{through}`` -- the LAST period the population holds, at the
+    # precision the row's own axis carries it (a month in month words, a marketing year as its own label), so a
+    # whole-record rank names where that record ENDS: the 2024 US soybean stocks-to-use rank "of its own record"
+    # ranked through 2020/21 -- a series the store held only as last revised -- and said nothing of it.
+    if "last_month" in fields:
+        fields["through"] = fields["last_month"]
     try:
         n = int(pop.get("n"))
         if n > 0:
@@ -619,6 +627,134 @@ def population_words(pop: dict, *, book: Optional[dict] = None) -> str:
         return str(tmpl).format_map(fields).strip()
     except (KeyError, ValueError, IndexError):
         return ""
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE ONE SPLICE PRODUCER (09-27 fix sitting 3, lane R; CONTRACT Z8, U-10 producer half)
+# ---------------------------------------------------------------------------------------------------
+#: THE ENGLISH ARTICLES -- the determiner class a served NAME may open with ("the longest dry-day run in the
+#: month, ..."). GRAMMAR, the way :data:`_ONES` is the number words: never a vocabulary of the estate's own and
+#: never a list standing in for a measured fact. A name that opens with one keeps it inside its apposition.
+SPLICE_ARTICLES: tuple = ("the", "a", "an")
+
+#: THE SEPARATORS a strike may leave doubled on either side of its span (", [E4]," -> ","), read only OUTSIDE a
+#: figure token (a comma between two digits is a thousands group, never a separator) and never inside ``[..]``.
+SPLICE_SEPARATORS: str = ",;"
+
+#: The marks a space never stands before once a span has left it: a separator, a terminator, a closing bracket.
+_SPLICE_TIGHT_RIGHT: str = ",;:.!?)"
+
+#: A PLAIN name is words alone -- letters, apostrophes and hyphens between spaces, no comma, no bracket, no
+#: digit -- so it can stand in a compound in the slot's own place ("the high-confidence exports reading"); any
+#: other name (it carries its own commas or clauses) enters in APPOSITION after the slot's head, where its own
+#: punctuation cannot run into the sentence's.
+_SPLICE_PLAIN_RX = _re.compile(r"[A-Za-z][A-Za-z'\-]*(?: [A-Za-z][A-Za-z'\-]*)*")
+_SPLICE_NEXT_WORD_RX = _re.compile(r"[ \t]+([A-Za-z][A-Za-z'\-]*)")
+
+
+def _splice_heads() -> tuple:
+    """``state_conventions.splice_heads`` -- the generic nouns this page names a served reading by, the FIRST of
+    them the head a span that IS the slot's head is replaced by -- read through the conventions' own cached loader
+    on use (this module does no I/O at import). A missing book is ``()``: the splice then replaces the span with
+    the name alone, HEAD's substitution."""
+    try:
+        from leviathan.graphrag.state import lint as _lint
+        v = (_lint.load_conventions() or {}).get("splice_heads")
+        return tuple(str(x).strip() for x in v if str(x or "").strip()) if isinstance(v, (list, tuple)) else ()
+    except Exception:                                   # noqa: BLE001 -- no book, no heads
+        return ()
+
+
+def _splice_sentence_start(text: str, at: int) -> bool:
+    """Does ``text[at:]`` open a sentence (nothing before it but spaces, a terminator or a line break)?"""
+    left = text[:at].rstrip(" \t")
+    return not left or left[-1] in ".!?\n"
+
+
+def _splice_slot_article(text: str, at: int) -> bool:
+    """Does the SLOT already carry an article before ``text[at:]``? -- the nearest word before it, skipping the
+    slot's hyphen-joined compound modifiers ("the high-confidence ..."), is one of :data:`SPLICE_ARTICLES`. Grammar
+    read off the sentence, never a word the estate chose."""
+    for w in reversed(_re.findall(r"[A-Za-z][A-Za-z'\-]*", text[:at])[-4:]):
+        if "-" in w:
+            continue
+        return w.lower() in SPLICE_ARTICLES
+    return False
+
+
+def splice(text: str, start: int, end: int, name: str = "", *, book=None, head: bool = False) -> tuple:
+    """``(start, end, replacement)`` for ``text[start:end]`` -- THE ONE SPLICE every seam that writes a row name into
+    prose, or strikes a span out of it, goes through (CONTRACT Z8; readers: lane A's name-binding lint, lane V's
+    strike and citation insertion). Pure; never raises on a well-formed span; the returned range may be WIDER than
+    the one asked (it takes the slot's own head, or one of two doubled separators, with it).
+
+    THE MEASURED DEFECTS (U-10, the arm-A pages): the routing correction wrote "the high-confidence the longest
+    dry-day run in the month, as a z-score for SE Asia Palm Belt reading [N24]" (a determiner doubled and a name
+    carrying its own commas spliced BEFORE the slot's head); the noun correction wrote "India's exports sits" (the
+    verb agreed with the noun the correction removed); a verifier strike left "[E1],, with" (both separators kept).
+
+    ``name`` GIVEN -- the identity's name enters so the slot keeps ONE determiner, its adjectives and the noun that
+    carries the verb's agreement:
+      * the word right after the span is one of the book's ``splice_heads`` -> it IS the slot's own head and is
+        kept; a PLAIN name (words alone, no article) takes the span's place as a compound ("the high-confidence
+        exports reading"), any other name enters in apposition after the head, its own article kept inside it
+        ("the high-confidence reading (the longest dry-day run in the month, ...)");
+      * ``head=True`` -- the CALLER states its span ends at the slot's head noun (the noun correction, whose span
+        is the bound noun up to its head by the lint's own construction): the book's FIRST head stands in for it
+        (``series``, one word for both numbers, so the writer's own verb still agrees -- NO MORPHOLOGY RULE, never
+        a trailing-"s" test), a plain name as its compound ("India's exports series sits"), any other in
+        apposition after it;
+      * otherwise (a routing or commodity word, or a whole noun phrase the correction replaces with the whole name,
+        its own head included) the name takes the span's place -- HEAD's substitution -- its leading article
+        dropped where the slot already carries one (never "the high-confidence the ...");
+      * a span opening a sentence keeps its capital.
+    ``name`` EMPTY -- the span is STRUCK: where both sides of it carry the SAME separator (``,`` / ``;``, read
+    outside a figure token and outside ``[..]``), ONE goes with it (", [E4]," -> ","); a space left before a
+    separator, a terminator or a closing bracket goes; two spaces meeting become one. Nothing else moves.
+
+    MEASURED ON THE FIFTY (``r_work/drives/b54_splice.py``, HEAD's own nine name corrections re-applied): the first
+    cut inferred the head from the word after the span alone and read a following noun as a verb in five of nine
+    ("the board series crush margin", "sunflower oil series production") -- which is why the head is the caller's
+    statement and never a guess here."""
+    text = str(text or "")
+    start, end = max(0, int(start)), max(0, int(end))
+    end = max(start, min(end, len(text)))
+    nm = " ".join(str(name or "").split())
+    if nm:
+        heads = tuple(str(h).strip() for h in (book if book is not None else _splice_heads()) if str(h or "").strip())
+        low_heads = {h.lower() for h in heads}
+        words = nm.split(" ")
+        article = words[0].lower() in SPLICE_ARTICLES and len(words) > 1
+        compound = (not article) and bool(_SPLICE_PLAIN_RX.fullmatch(nm))
+        nxt = _SPLICE_NEXT_WORD_RX.match(text, end)
+        if nxt is not None and nxt.group(1).lower() in low_heads:
+            if compound:
+                a, b, rep = start, end, nm                              # the slot keeps its own head after it
+            else:
+                a, b, rep = start, nxt.end(), "%s (%s)" % (nxt.group(1), nm)
+        elif head and heads:
+            a, b, rep = start, end, ("%s %s" % (nm, heads[0]) if compound else "%s (%s)" % (heads[0], nm))
+        else:
+            a, b, rep = start, end, nm                                  # HEAD's substitution
+            if article and _splice_slot_article(text, start):
+                rep = " ".join(words[1:])                               # the slot supplies the determiner
+        if _splice_sentence_start(text, a) and rep[:1].islower():
+            rep = rep[:1].upper() + rep[1:]
+        return a, b, rep
+    left, right = text[:start], text[end:]
+    lr, rl = left.rstrip(), right.lstrip()
+    wl, wr = len(left) - len(lr), len(right) - len(rl)
+    if left.rfind("[") > left.rfind("]"):
+        return start, end, ""                                           # inside a handle group: the span alone
+    lc, rc = lr[-1:], rl[:1]
+    if (lc and lc == rc and lc in SPLICE_SEPARATORS
+            and not (lc == "," and lr[-2:-1].isdigit() and rl[1:2].isdigit())):
+        return len(lr), end + wr + 1, ""                                # ", [E4]," -> "," (one separator kept)
+    if rc and rc in _SPLICE_TIGHT_RIGHT and wl:
+        return len(lr), end, ""                                         # "sits [E4]." -> "sits."
+    if wr and (wl or not lr):
+        return start, end + wr, ""                                      # "sits [E4] at" -> "sits at"
+    return start, end, ""
 
 
 def cell_rule_for(*, axis: str = "", collapse: str = "", scope: str = "", basin_surfaces=(),
@@ -1077,6 +1213,11 @@ class TapeState:
     derivation: list = field(default_factory=list)
     inputs: dict = field(default_factory=dict)
     reads: int = 0
+    #: 09-27 SITTING 3 (CONTRACT Z13, U-8): the tape currency's exchange-rate row (``feeders.fx_rows``' entry:
+    #: ``{metric, rate, date, unit, status, ...}``), set by the seam ONLY on a non-USD leg of a pair that settles in
+    #: two currencies -- the stats engine converts that leg by it or declines naming it. TAIL field, empty everywhere
+    #: else (the tape is never converted: the row is a second fact beside it).
+    fx: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)

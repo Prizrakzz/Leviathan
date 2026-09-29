@@ -317,6 +317,28 @@ def _roll_inputs_apply(table: str, spec, *, vintage: bool) -> bool:
         return False
 
 
+def _seat_ym_lag_kw() -> dict:
+    """FIX SITTING 3, LANE T (CONTRACT Z15, sitting 2 MAJOR M-2): ``{"ym_lag": True}`` when the numbers seat's
+    publication-lag switch is on (``agent._ym_lag_on``, GRAPHRAG_YM_PUBLICATION_LAG -- STATE_ENGINE_DESIGN D21's
+    own flag, default OFF), else ``{}``.
+
+    THE MEASURED DEFECT: the board has read every ``year_month`` card with ``ym_lag=True`` since S1, while the
+    cascade's reads compiled without it -- so a data month is admitted at the as-of the moment its month ENDS
+    rather than when the card's declared ``ym_publication_lag_days`` makes it public (an August CHIRPS drought_z,
+    knowable 2026-09-25, served at as-of 2026-09-24 on two 09-24 pages). The flag is READ ONCE, in agent.py, by
+    the seat's own flag idiom; this module still performs no environment read of any kind ([SKEPTIC F3]: it asks
+    the seat's reader, it owns none). OMIT-WHEN-OFF: off -> the kwarg is absent and every ``Q.run`` call below
+    is HEAD's call byte for byte (the spies that re-declare ``Q.run``'s signature stay valid). ``ym_lag`` moves
+    only a ``year_month`` card's month guard (``query._guard``), so every other card compiles HEAD's SQL either
+    way. NEVER RAISES: an unreadable seat reads as off."""
+    try:
+        # lazy: the seat and this module import each other lazily only
+        from leviathan.graphrag.numbers import agent as _seat
+        return {"ym_lag": True} if _seat._ym_lag_on() else {}
+    except Exception:  # noqa: BLE001 -- an unreadable switch is the default (off), never a broken read
+        return {}
+
+
 def fetch_window(qfn, *, table, metric, commodity, country, t1, t2, asof,
                  agg="series", period=None, period_type="date",
                  futures_newest_first: bool | str = False) -> dict:
@@ -363,7 +385,7 @@ def fetch_window(qfn, *, table, metric, commodity, country, t1, t2, asof,
         # and shims that re-declare its signature, and a kwarg passed unconditionally would break them
         # on turns that are not using the projection at all.
         _roll = {"roll_inputs": True} if _roll_inputs_apply(table, spec, vintage=vintage) else {}
-        rows = Q.run(spec, query_fn=qfn, futures_newest_first=futures_newest_first, **_roll)
+        rows = Q.run(spec, query_fn=qfn, futures_newest_first=futures_newest_first, **_roll, **_seat_ym_lag_kw())
     except Exception as e:  # noqa: BLE001 -- a bad/slow lookup must NEVER kill the reasoning turn
         return {"query": q, "rows": [], "status": "error", "error": str(e)[:200]}
     return {"query": q, "rows": rows, "status": _status(rows, vintage=vintage)}
@@ -1561,7 +1583,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              xc_leg_handles: bool = False,
              vintage_role: bool = False,
              xc_sublegs_on_composer: bool = False,
-             board: dict | None = None) -> tuple:
+             board: dict | None = None,
+             numbers_ledger=None) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -1635,6 +1658,13 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     whose node order and windows come from the board when the payload is present. `board is None` ->
     every branch below is the branch HEAD takes, byte for byte, which is what `test_board_seam_off`
     and the deep golden assert. This module still performs no environment read of any kind.
+
+    `numbers_ledger` (FIX SITTING 3, CONTRACT Z16 / sitting 2 M-3 + OI-3 b) is the board turn's ONE issuer of
+    `[N]` handles (`citations.NumbersLedger`, seeded with the seat's calls; the board's own rows were already
+    addressed through it when the block rendered them, so their append below does NOT ask again -- asking twice
+    would hand every board row back its own handle and mint nothing). The BASE WAVE asks it before each mint
+    (`_assemble`): the same served row identity at the same value is ONE handle, never two. `None` (every flag-off
+    turn, and any caller that does not pass it) -> HEAD, byte for byte.
 
     `extreme_locator` (D-XL, E32) is the SAME omit-when-off idiom once more, and it is a REQUEST DICT
     rather than a bool because the leg's whole input is the planner's resolved intent -- board,
@@ -1798,7 +1828,10 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
         pass
     base = len(extra_number_calls)
-    block_lines, trace, era_deltas = _assemble(records, kept, base, extra_number_calls, **_dq)
+    # FIX SITTING 3 (CONTRACT Z16 / OI-3 b): the board turn's numbers ledger is ASKED by the base wave's mints
+    # (omit-when-off: `None` on every flag-off turn -> `_assemble` is called exactly as HEAD calls it).
+    _nl = {"numbers_ledger": numbers_ledger} if numbers_ledger is not None else {}
+    block_lines, trace, era_deltas = _assemble(records, kept, base, extra_number_calls, **_dq, **_nl)
     # T2a pace legs (CONVERGENCE_TIER1): gated ONLY by the answer.py-threaded `pace` kwarg
     # (GRAPHRAG_CASCADE_PACE_LEG is read at that seam, never here -- the price_request/xc discipline).
     # pace False -> no pace spec ever existed -> records carry no pace legs -> byte-identical. On FIRE the
@@ -2356,6 +2389,17 @@ def _pace_synth(rec: dict, row: dict, value, n: int, *, kind: str, unit: str) ->
 
     prov = {k: src.get(k) for k in _GUARD_COLS if src.get(k) is not None}
     q = {**(rec.get("query") or {}), "metric": f"{row.get('metric')}_{kind}"}
+    # FIX SITTING 3, LANE T (CONTRACT Z25 / sitting 2 OI-3 a, Y24's spelling) -- THE DERIVATION, DECLARED BESIDE
+    # THE SLUG IT ALREADY BUILDS (the slug is kept: every reader of `metric` keeps its bytes). What the row IS: the
+    # `kind` of pace fact, the card metric it is `of` (the map row's own metric), and the period noun of its
+    # `grain` -- `_pace_grain(row)`, the SAME producer that chose the window and wrote "from the prior <grain>" on
+    # the line. `citations.from_number` then names the row by its derivation and its OWN latest period (PC-7,
+    # declared in sitting 2, dormant until this key): never "weekly_exports_1000mt_pace_change ...
+    # 2026-07-18..2026-09-26", a week-over-week change printed under the ten-week fetch window. A row with no
+    # grain (never reached: the caller only mints on a grain) declares nothing and keeps HEAD's label.
+    grain = _pace_grain(row)
+    if grain and row.get("metric"):
+        q["derived"] = {"kind": kind, "of": row.get("metric"), "grain": grain}
     return {"query": q,                                       # CYCLE-5 VINTAGE-2, the pace twin
             "rows": [{"value": value, "unit": unit, **_row_vintage(src),
                       **({"_provenance": prov} if prov else {})}],
@@ -2969,16 +3013,60 @@ def _fmt_absence(rec: dict) -> str:
     return f"- {what}: (record silent for that era)"
 
 
-def _assemble(records: list, kept: list, base: int, calls: list, *, display=None) -> tuple:
+def _ledger_in_step(ledger, base: int) -> bool:
+    """FIX SITTING 3 (CONTRACT Z16 / OI-3 b): is the board turn's numbers ledger ABOUT TO ISSUE the next position
+    of the call list (``base + 1``)? The cascade's handles are POSITIONAL (``[N<k>]`` is ``calls[k - 1]``), so the
+    ledger may be consulted only while the two agree; a ledger that is not (a caller that seeded it with other
+    calls, or none) is never asked and every handle is HEAD's. Read defensively off the ledger (lane V's class):
+    an object without the attributes this needs reads as not in step."""
+    try:
+        return (callable(getattr(ledger, "address", None)) and callable(getattr(ledger, "identity", None))
+                and int(getattr(ledger, "_next")) == int(base) + 1)
+    except Exception:  # noqa: BLE001 -- an unreadable ledger is never consulted
+        return False
+
+
+def _assemble(records: list, kept: list, base: int, calls: list, *, display=None,
+              numbers_ledger=None) -> tuple:
     """Pre-scale + inject endpoint/delta/%-change [N] rows (continue-count), compute per-node CROSS-ERA
     deltas, set the divergence flag on opposite signs, render block lines + trace. Appends to `calls`
     IN PLACE; synthetic delta rows are free (they do not count against CASCADE_CAP). Returns
     (lines, trace, era_deltas_by_key) -- deltas keyed {node_key: {era_idx: delta}} feed the RF-4 reroute
-    pass (one caller: quantify)."""
+    pass (one caller: quantify).
+
+    FIX SITTING 3, LANE T (CONTRACT Z16, sitting 2 M-3 / OI-3 b): ``numbers_ledger`` (a board turn's
+    ``citations.NumbersLedger``; ``None`` on every flag-off turn -> HEAD, byte for byte) is ASKED before each base-
+    wave call is minted: a served row identity it already holds at the SAME value takes that handle back (the
+    line prints it; no call is minted and the count does not advance -- the same series read under two drivers
+    is one [N], never two), a new identity takes the next position. Consulted only while the ledger is in step
+    with the positional handles (``_ledger_in_step``); a reuse is taken only where the call at that handle IS
+    the same identity (the ledger's own ``identity``), and the first disagreement stops the consultation for the
+    rest of the wave (every later handle positional, HEAD's rule)."""
     lines, trace = [], []
     deltas_by_key: dict = {}
     by_node = _group_by_node(records, kept)
     n = base
+    _led = [numbers_ledger] if (numbers_ledger is not None and _ledger_in_step(numbers_ledger, base)) else [None]
+
+    def _mint(call: dict) -> int:
+        """Mint ONE call and return the handle its line prints (HEAD: append, next position)."""
+        nonlocal n
+        led = _led[0]
+        if led is not None:
+            try:
+                h, reused = led.address(call)
+                h = int(h)
+            except Exception:  # noqa: BLE001 -- a ledger that cannot answer stops being asked
+                _led[0], h, reused = None, n + 1, False
+            if reused:
+                if 1 <= h <= len(calls) and led.identity(calls[h - 1]) == led.identity(call):
+                    return h
+                _led[0] = None                   # out of step: positional from here on (HEAD's rule)
+            elif h != n + 1:
+                _led[0] = None
+        n += 1
+        calls.append(call)
+        return n
     for key, grp in by_node.items():
         row = grp["row"]
         eras = grp["eras"]
@@ -2987,30 +3075,26 @@ def _assemble(records: list, kept: list, base: int, calls: list, *, display=None
         for i, recs in sorted(eras.items()):
             oks = [r for r in recs if r.get("status") == "ok" and (r.get("rows") or [])]
             for r in oks:                                         # inject each MY endpoint level (pre-scaled)
-                n += 1
-                calls.append(_shown(_prescaled(r, row, n), _scaled_val(r, row)))
-                lines.append(_fmt_line(r, row, n, era=i, **({"display": display} if display else {})))
+                h = _mint(_shown(_prescaled(r, row, n + 1), _scaled_val(r, row)))
+                lines.append(_fmt_line(r, row, h, era=i, **({"display": display} if display else {})))
             for r in recs:
                 if r.get("status") and r["status"] != "ok":
                     lines.append(_fmt_absence(r))
             d = _era_delta(oks, row)
             if d is not None:
                 era_deltas[i] = d
-                n += 1
-                calls.append(_shown(_delta_call(oks[-1], row, d, n, kind="delta"), d))
-                lines.append(_fmt_delta(row, d, n, era=i, q=oks[-1].get("query")))
+                h = _mint(_shown(_delta_call(oks[-1], row, d, n + 1, kind="delta"), d))
+                lines.append(_fmt_delta(row, d, h, era=i, q=oks[-1].get("query")))
                 pct = _pct_change(oks, row)
                 if pct is not None:
-                    n += 1
                     # O-9 (09-24): the bound magnitude is the PRINTED one (`_pct_print`; HEAD's pct when off)
-                    calls.append(_shown(_delta_call(oks[-1], row, pct, n, kind="pct"),
-                                        _pct_print(pct, display)[1]))
-                    lines.append(_fmt_pct(row, pct, n, era=i, q=oks[-1].get("query"),
+                    h = _mint(_shown(_delta_call(oks[-1], row, pct, n + 1, kind="pct"),
+                                     _pct_print(pct, display)[1]))
+                    lines.append(_fmt_pct(row, pct, h, era=i, q=oks[-1].get("query"),
                                           **({"display": display} if display else {})))
         if cur and cur.get("status") == "ok" and (cur.get("rows") or []):
-            n += 1
-            calls.append(_shown(_prescaled(cur, row, n), _scaled_val(cur, row)))
-            lines.append(_fmt_line(cur, row, n, era="current", **({"display": display} if display else {})))
+            h = _mint(_shown(_prescaled(cur, row, n + 1), _scaled_val(cur, row)))
+            lines.append(_fmt_line(cur, row, h, era="current", **({"display": display} if display else {})))
         elif cur:
             lines.append(_fmt_absence(cur))
         div, a, b = _divergence(era_deltas, eras, cur, row)
@@ -3025,10 +3109,9 @@ def _assemble(records: list, kept: list, base: int, calls: list, *, display=None
             ced = _cross_era_diff(era_deltas, eras, cur, row)
             if ced is not None:
                 diff, period_lbl, later_rec = ced
-                n += 1
-                calls.append(_shown(_delta_call(later_rec, row, diff, n, kind="era_diff",
-                                                period=period_lbl), diff))
-                lines.append(_fmt_era_diff(row, diff, n, period=period_lbl, q=later_rec.get("query")))
+                h = _mint(_shown(_delta_call(later_rec, row, diff, n + 1, kind="era_diff",
+                                             period=period_lbl), diff))
+                lines.append(_fmt_era_diff(row, diff, h, period=period_lbl, q=later_rec.get("query")))
             lines.append(f"DIVERGENCE on {_metric_display(row)}: {a:+g} vs {b:+g} "
                          f"({row.get('narrate_unit') or ''}) "
                          f"-- render '## Where the record disagrees' and show BOTH eras; do not blend.")
@@ -7483,6 +7566,38 @@ _CW_RELATION_WORDS = {
     "leads_lags": "the record places a lead-lag between them",
 }
 
+
+def cw_relation_words(relation: str, sign: str, *, display=None) -> str:
+    """FIX SITTING 3, LANE T (CONTRACT Z7, U-9 row half -- by file: the consequence line is this module's) -- a
+    declared relation's words ON THE CONSEQUENCE HOP, WITH ITS DECLARED SIGN under the analyst display key.
+
+    THE MEASURED DEFECT (max page, arm A): "soybean meal and soybean oil -- declared to compete for the same demand;
+    soyoil moved -8.11 %; the read: the two moves sat at odds". ``_CW_RELATION_WORDS`` is orientation-free BY
+    DESIGN and carries no sign, so a ``competes_with`` edge declared '-' (the soy crush pair) and one declared '+'
+    (ZCE meal) printed the SAME words beside OPPOSITE verdicts, and the writer could not tell which way the
+    relation was declared to run -- the fact the verdict is read against.
+
+    THE FACT ADDED: the edge's declared sign in the ONE closed sign vocabulary the board already prints for every
+    edge (``state.rows.SIGN_WORDS``: "in the same direction" / "in the opposite direction" / "with no committed
+    direction", read, never re-typed) -- orientation-free by construction (it reads the same under (A, B) and
+    (B, A); config_check clause (ii) holds the composed words to the relation phrases' own directional lint).
+    NOT a sentence to copy: a fact beside the relation, which the writer uses in its own words.
+
+    ``display != CW_DISPLAY_ANALYST`` (every flag-off turn) -> the relation's own phrase byte for byte, so
+    the flag-off consequence line and the g1 goldens keep HEAD's bytes. A sign the vocabulary does not carry, or
+    an unreadable vocabulary, keeps HEAD's words (never a guessed direction). Raises KeyError exactly where
+    HEAD's lookup of the phrase did (an unmapped relation never reaches here: the admission ladder declines
+    it first)."""
+    base = _CW_RELATION_WORDS[relation]                # THE one render read of the phrase table (mf1's pin)
+    if str(display or "") != CW_DISPLAY_ANALYST:
+        return base
+    try:
+        from leviathan.graphrag.state import rows as _rows  # the leaf: stdlib imports only
+        sw = str((_rows.SIGN_WORDS or {}).get(str(sign or "")) or "")
+    except Exception:  # noqa: BLE001 -- no vocabulary: HEAD's words, never a guessed direction
+        sw = ""
+    return f"{base}, declared to move {sw}" if sw else base
+
 # Reader label per slug the walk can put on a surface (resolve-or-decline, never a raw slug on a
 # reader line, letters-only). EVERY VALUE IS display._contract_label's OWN SPELLING, and the lint
 # pins that equality (STEP-12 review D9: a second board vocabulary put two names on one page and a
@@ -8034,6 +8149,49 @@ def _cw_hop_header(label_a: str, label_b: str, phrases: list, blurb: str, firing
     return base + CW_XCCY_CLAUSE.format(a=_cw_currency_words(xccy[0]), b=_cw_currency_words(xccy[1]))
 
 
+def _cw_verdict_mid(verdict: str, *, reason: str | None = None, display=None) -> str:
+    """ROW 2's READ, the ONE producer of its words -- lifted VERBATIM out of `_cw_verdict_line` (FIX SITTING 3,
+    CONTRACT Z7) so the episode-verdict stamp's `verdict_words` are the line's OWN words, never a second copy.
+
+    FIXER PASS (REVIEW_RA M10, O-9 extended; item 24): under the analyst display key the verdict names the window
+    it read in the register table's own words (`_cw_desk_words`), never "this firing" -- three of the four measured
+    09-24 "firing" instances on the page were copied from THIS line. Off the key: HEAD's words, byte for byte."""
+    on = (f"over the named window of one of the {_cw_desk_words()['episodes']}"
+          if str(display or "") == CW_DISPLAY_ANALYST else "on this firing")
+    if reason == "fx_flips_sign":
+        return ("the exchange rate between the two settlement currencies moved further over this "
+                "window than the board priced in it did, and it moved the same way, so the record "
+                f"declines to read a direction {on} -- state that plainly")
+    if verdict == "aligned":
+        return f"the declared relation held {on}"
+    if verdict == "at_odds":
+        return f"the two moves sat at odds with the declared relation {on}"
+    return f"the record declines to read a direction {on} -- state that plainly"
+
+
+def cw_episode_verdict(parent: str, child: str, relations, sign, verdict: str, *, display=None,
+                       handles=()) -> dict:
+    """FIX SITTING 3, LANE T (CONTRACT Z7, U-9 row half) -- THE CONSEQUENCE CELL'S VERDICT AS A SERVED FACT on its
+    legs' calls, ANALYST DISPLAY KEY ONLY (the caller stamps it under that key and nowhere else):
+    ``{"legs": [parent, child], "relation": <the declared relation(s), '; '-joined in the hop's own sorted order>,
+    "sign": <the edge's declared sign, '+' | '-' | '0'>, "verdict": "aligned" | "at_odds" | "undetermined",
+    "verdict_words": {"aligned": <the line's own mid>, "at_odds": <the line's own mid>}}`` -- both mids from
+    `_cw_verdict_mid`, the producer ROW 2 prints, so the words a reader checks a sentence against are the words the
+    line printed. ``handles`` (the two legs' printed ``N<k>`` handles, in leg order; omitted when empty) is a
+    tail key so a reader can bind a sentence to the cell without re-deriving positions.
+
+    THE FACT, NOT A TEMPLATE: the writer narrates the verdict in its own words; lane V's check corrects only a
+    sentence bound to the cell's handles that states the OPPOSITE of the served verdict (aligned <-> at_odds)."""
+    out = {"legs": [str(parent), str(child)], "relation": "; ".join(str(r) for r in (relations or ())),
+           "sign": str(sign or ""), "verdict": str(verdict or "undetermined"),
+           "verdict_words": {"aligned": _cw_verdict_mid("aligned", display=display),
+                             "at_odds": _cw_verdict_mid("at_odds", display=display)}}
+    hs = [str(h) for h in (handles or ()) if h]
+    if len(hs) == 2:
+        out["handles"] = hs
+    return out
+
+
 def _cw_verdict_line(label_a: str, label_b: str, verdict: str, *, xccy: tuple | None = None,
                      reason: str | None = None, display=None) -> str:
     """ROW 2 -- the three-valued read, letters only, no handles (a handle digit here would be a
@@ -8045,22 +8203,7 @@ def _cw_verdict_line(label_a: str, label_b: str, verdict: str, *, xccy: tuple | 
     read on each board's own-currency move, which contradicts a mid that has just said no direction
     was read at all -- under a mandate to state the READ in the block's own terms. On that branch
     the tail states the currencies and claims no direction."""
-    # FIXER PASS (REVIEW_RA M10, O-9 extended; item 24): under the analyst display key the verdict names
-    # the window it read in the register table's own words (`_cw_desk_words`), never "this firing" -- three
-    # of the four measured 09-24 "firing" instances on the page were copied from THIS line. Off the key:
-    # HEAD's words, byte for byte.
-    on = (f"over the named window of one of the {_cw_desk_words()['episodes']}"
-          if str(display or "") == CW_DISPLAY_ANALYST else "on this firing")
-    if reason == "fx_flips_sign":
-        mid = ("the exchange rate between the two settlement currencies moved further over this "
-               "window than the board priced in it did, and it moved the same way, so the record "
-               f"declines to read a direction {on} -- state that plainly")
-    elif verdict == "aligned":
-        mid = f"the declared relation held {on}"
-    elif verdict == "at_odds":
-        mid = f"the two moves sat at odds with the declared relation {on}"
-    else:
-        mid = f"the record declines to read a direction {on} -- state that plainly"
+    mid = _cw_verdict_mid(verdict, reason=reason, display=display)
     base = (f"CONSEQUENCE READ {label_a} and {label_b}: {mid}; the moves above are the record, "
             f"in-sample on the named window only, never extended beyond it")
     if not xccy:
@@ -9062,6 +9205,11 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     # fenced path too. Without it a fenced block reported fx_planned 1 / fx_rendered 0 / declines []
     # with a read genuinely paid and named by nothing.
     fx_rendered_keys: list = []
+    # FIX SITTING 3 (CONTRACT Z7): each CLOSED cell's own call, keyed (slug, span) -- read ONLY under the analyst
+    # display key, to stamp the consequence cell's verdict on both legs' calls. Off the key it is filled and never
+    # read, so every call and line is HEAD's.
+    _cw_call_of: dict = {}
+    _cw_analyst = str(display or "") == CW_DISPLAY_ANALYST
     for _fi, f in enumerate(firings):
         t1, t2, span_tok, span_days = f["start"], f["end"], f["span"], f["span_days"]
         # M4 as adjudicated: the firing label is the INJECTED LINE'S OWN NODE TOKEN verbatim --
@@ -9102,6 +9250,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
             calls.append(_shown(_cw_call(root, root_rec, asof),
                                 _pct_print(root_rec["move_pct"], display)[1]))   # O-9: the PRINTED magnitude
             root_rec["handle"] = f"N{n}"
+            _cw_call_of[(root, span_tok)] = calls[-1]
             lines.append(_cw_cell_line(n, root, root_rec, asof, age_note=age_note, **_dkw))
         payload["cells"].append({k: v for k, v in root_rec.items() if k != "_res"})
         if root_rec["status"] != "closed":
@@ -9143,7 +9292,10 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 crec, cr = _cw_cell(qfn, child, t1, t2, span_tok, asof,
                                     futures_newest_first=futures_newest_first)
             reads_spent += cr
-            phrases = [_CW_RELATION_WORDS[rel] for rel in a["relations"]]
+            # FIX SITTING 3 (CONTRACT Z7, U-9): the declared sign beside each relation's words under the analyst
+            # key (`cw_relation_words`); HEAD's phrase byte for byte off it. Every relation on
+            # an admitted pair carries the pair's ONE declared sign (the ladder admits a unanimous sign only).
+            phrases = [cw_relation_words(rel, a["sign"], display=display) for rel in a["relations"]]
             rendered_pairs.append((parent, child))
             # V2-3 (M7): the currency clause -- and therefore the seam literal the persona gate
             # greps for -- exists ONLY on a CLOSED cell, so the mandate can never ship demanding a
@@ -9157,6 +9309,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 calls.append(_shown(_cw_call(child, crec, asof),
                                     _pct_print(crec["move_pct"], display)[1]))   # O-9: the PRINTED magnitude
                 crec["handle"] = f"N{n}"
+                _cw_call_of[(child, span_tok)] = calls[-1]
                 lines.append(_cw_cell_line(n, child, crec, asof, age_note=age_note, **_dkw))
                 priced_children.add(child)
                 # -- V2-3 BELT A: THE FX ADMISSION LADDER, SEVEN RUNGS IN ONE ORDER, READ ONLY --
@@ -9280,6 +9433,20 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                     lines.append(_cw_verdict_line(_CW_BOARD_LABEL[parent],
                                                   _CW_BOARD_LABEL[child], verdict,
                                                   xccy=_x, reason=_vr, **_dkw))
+                if _cw_analyst:
+                    # FIX SITTING 3 (CONTRACT Z7, U-9 row half): the cell's served verdict, stamped on BOTH legs'
+                    # calls (analyst key only -- off it no call gains a key). A leg shared by several cells (a
+                    # root with two children) keeps the FIRST cell's stamp; every cell is complete on its CHILD's
+                    # call, whose `handles` names both legs as printed.
+                    _ev = cw_episode_verdict(parent, child, a["relations"], a["sign"],
+                                             str(crec.get("verdict") or "undetermined"), display=display,
+                                             handles=((parent_rec or {}).get("handle"), crec.get("handle")))
+                    _cc = _cw_call_of.get((child, span_tok))
+                    if _cc is not None:
+                        _cc["episode_verdict"] = _ev
+                    _pc = _cw_call_of.get((parent, span_tok))
+                    if _pc is not None and "episode_verdict" not in _pc:
+                        _pc["episode_verdict"] = dict(_ev)
                 # -- V2-3 BELT B: RENDER, with its marks captured IMMEDIATELY AFTER the verdict
                 # append so a raised render trims ONLY its own lines and its own call and can never
                 # orphan the child ROW-1, its handle or its verdict (the D2 orphan-call class).

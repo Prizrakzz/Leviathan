@@ -34,8 +34,9 @@ def test_the_board_mandate_and_every_recency_literal_are_untouched():
     """DR-8: `SYSTEM_STATE_BOARD_MANDATE` ships whenever `_state_board_block_on(vp)` holds, so a word
     edited into it changes the prompt on EVERY board-on turn with the desk flag OFF. The desk register
     is a SECOND literal for exactly that reason -- the `_SYSTEM_CASCADE_WALK_MANDATE` idiom."""
-    assert N.SYSTEM_STATE_BOARD_MANDATE.startswith("THE STATE OF THE WORLD block above is this turn's "
-                                                   "board:")
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 -- declared DM4): the opening states what the panel HOLDS
+    # (`narration.MANDATE_RULES` board_intro); the claim kept: the literal opens on the block's own marker name.
+    assert N.SYSTEM_STATE_BOARD_MANDATE.startswith("THE STATE OF THE WORLD block above is this turn's ")
     assert N.SYSTEM_STATE_BOARD_MANDATE.endswith("Use no heading called then or now.")
     assert N.MANDATE_MOVEMENTS == (("DIRECTION", "## Mechanism", ""), ("EVIDENCE", "## The record", ""),
                                    ("SPILLOVERS", "## Cross-commodity", "## Mechanism"),
@@ -90,10 +91,14 @@ def test_the_mandate_answers_the_recency_movement_it_would_otherwise_contradict(
     m = N.desk_register_mandate(state_board=True)
     assert "RECENCY" in m
     assert "the board price tape" in m                   # the ONE phrase that stays as the blocks give it
-    assert "three dated facts" in m
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (a) -- declared DM4): the board mandate's own EVIDENCE movement
+    # now asks for the layers' bounds in the reader's words ("the newest date its figures were known"), so there
+    # is no instrument phrasing left for this clause to answer and it no longer restates "three dated facts";
+    # the claim kept: the answering clause rides the leg that supplies its facts, and names the tape's own name.
+    assert "the newest date its figures were known" in N.state_board_mandate(desk=True)
     ban = N.desk_register_mandate()
     assert "RECENCY" not in ban and "board price tape" not in ban, ban
-    assert "no naming of the " in ban, "the BAN half is turn-wide and must survive the split"
+    assert "Say the market thing instead:" in ban, "the BAN half is turn-wide and must survive the split"
 
 
 def test_system_is_byte_identical_with_the_leg_off():
@@ -482,9 +487,12 @@ def test_major4_the_recency_instruction_rides_the_leg_that_supplies_its_facts():
     assert "The RECENCY movement" not in flag_only and "board price tape" not in flag_only
     assert N.SYSTEM_STATE_BOARD_MANDATE not in flag_only
     both = an._system(desk_register=True, state_board=True)
-    assert "The RECENCY movement" in both and "board price tape" in both
+    # RE-BANKED 09-27 (U-12 -- declared DM4): the recency half names the layers' own phrase, not "The RECENCY
+    # movement" (its three facts are the board mandate's EVIDENCE clause now); the claim kept: board-gated
+    assert "RECENCY layers" in both and "board price tape" in both
+    assert "RECENCY layers" not in flag_only
     # the BAN half is legitimately turn-wide: "the graph" leaks on a boardless cascade walk
-    assert "no naming of the " in flag_only
+    assert "Say the market thing instead:" in flag_only
     assert N.check_literals() == []
 
 
@@ -912,8 +920,10 @@ def test_chain_the_movement_lands_as_three_and_renumbers_the_two_below_it():
     assert N.MANDATE_CHAIN_MOVEMENT in lit
     # the JOIN is grammatical at both ends -- a substitution that welded two clauses is a defect of the
     # shipped text and of nothing smaller
-    assert "another. (3) THE CHAIN: take the block's leading chains" in lit     # 09-25 (A-5)
-    assert "named first. (4) SPILLOVERS: name the other markets" in lit
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 -- declared DM4): the clauses on either side of the joins are the
+    # declared facts (recency_layers before, spillover_signs after); the claim kept: both joins are grammatical
+    assert "as a whole. (3) THE CHAIN: take the block's leading chains" in lit
+    assert "named first. (4) SPILLOVERS: the other markets" in lit
 
 
 def test_chain_the_non_obvious_watch_variant_survives_the_renumbering():
@@ -1060,21 +1070,24 @@ def test_chain_a_renumbering_that_lost_a_movement_is_caught_by_arithmetic():
     "the block's own count of the past times this reading sat this far out and how many of them "
     "moved the way the model expects",
     "history, never a forecast",
-    # the OUTCOME line the owner added, as history and never as a forecast
-    "give the chain's own outcome line the same way, as what measured after those past episodes",
+    # the OUTCOME the owner added, as history and never as a forecast. RE-BANKED 09-27 (U-12 (a), declared DM4): the
+    # clause asks for the outcome itself (in its own units, with its handle), no longer for its LINE
+    "the chain's outcome in its own units with its handle, as what measured after those past episodes",
     "never as what is coming",
     # the RELATIVE-VALUE call the owner added -- one sentence, or an honest refusal to settle it
     "Where the question sets one market against another, make the call on the pair where the chain "
     "ends",
     "which of the two the record leans toward and the reading that carries it",
-    "saying plainly that the record does not settle it",
+    "or that the record does not settle it",                                   # 09-27 (U-12): the same fact
     # anti-padding (threat E2) and the count line
     "Narrate those leading chains and not the rest of the driver model",
     # 09-25 (A-5): the count line gets ONE plain clause and one number -- palm/rape narrated the whole line.
     # RE-BANKED 09-26 SITTING 2 (lane N, N-4): the number is the FURTHER count the line itself prints (corn/wheat
-    # F10 printed the pool total as "beyond those"), copied as printed, with the markets the line names
-    "where the block prints a COUNT line, give it one plain clause -- the number of further chains it "
-    "prints, as it prints it, and the markets it names -- and move on",
+    # F10 printed the pool total as "beyond those"), with the markets the line names.
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (a) -- declared DM4): the FACT, never the line -- "as it prints
+    # it" was a copy order; the further count and the markets are asked for in one clause of the writer's own
+    "Where the block prints a COUNT line, the number of further chains it counts and the markets it names, "
+    "in one clause of your own",
     # ROUND 2, review MAJOR 4: the chain under the print line is RENDERED IN ONE LINE, never dropped,
     # so the writer is ordered to give it its sentence -- the other half of the 2026-09-17 deviation
     "Where the block gives a chain in a single line, that chain still gets its sentence",
@@ -1087,8 +1100,9 @@ def test_chain_a_renumbering_that_lost_a_movement_is_caught_by_arithmetic():
     "what this market's data covers on this turn, never that the chain itself is a weak one",
     # the two consequences B.5 names: the record does not restate, and the stanza is the chain's THEN
     "Do not restate under the record a reading this movement has already given its figure to",
-    # ROUND 2, review MAJOR 3: the like-state attribution is CONDITIONED on the block's own marker
-    "where the block marks a LIKE STATE stanza as the chain's, read that stanza as the history of "
+    # ROUND 2, review MAJOR 3: the like-state attribution is CONDITIONED on the block's own marker (09-27: its own
+    # declared clause now, so it opens its sentence)
+    "Where the block marks a LIKE STATE stanza as the chain's, read that stanza as the history of "
     "the chain you named first",
 ])
 def test_chain_every_clause_DESIGN_B5_names_is_in_the_shipped_movement(clause):
@@ -1114,7 +1128,8 @@ def test_chain_the_like_state_attribution_is_CONDITIONAL_and_both_states_are_pin
                           NOT name `first_dim`, a flag or any wiring, or it would go stale on the
                           commit that satisfies it."""
     m = N.MANDATE_CHAIN_MOVEMENT
-    assert "where the block marks a LIKE STATE stanza as the chain's" in m
+    # RE-BANKED 09-27 (U-12 -- declared DM4): the conditioned attribution is its own declared clause (like_state_chain)
+    assert "Where the block marks a LIKE STATE stanza as the chain's" in m
     assert "read that stanza as the history of the chain you named first" in m
     # the UNCONDITIONED order is gone in every spelling it could survive in
     assert "read a LIKE STATE stanza as the history" not in m
@@ -1124,7 +1139,7 @@ def test_chain_the_like_state_attribution_is_CONDITIONAL_and_both_states_are_pin
         assert wiring not in m, wiring
     # it is still the LAST clause of the movement, so the join into (4) SPILLOVERS is the pinned one
     assert m.rstrip().endswith("read that stanza as the history of the chain you named first.")
-    assert "you named first. (4) SPILLOVERS: name the other markets" in N.state_board_mandate(
+    assert "you named first. (4) SPILLOVERS: the other markets" in N.state_board_mandate(
         chain=True)
 
 
@@ -1144,9 +1159,10 @@ def test_chain_the_top_chain_is_NARRATED_even_when_the_block_gives_it_one_line()
     assert "gives a chain in a single line" in m
     assert "that chain still gets its sentence" in m
     assert "never reaches the reader without one" in m
-    # the count clause is still there and is still about the REST -- the one-line chain is not a count
-    assert "prints a COUNT line, give it one plain clause" in m                       # 09-26 s2 (N-4)
-    assert m.index("gives a chain in a single line") > m.index("the markets it names -- and move on")
+    # the count clause is still there and is still about the REST -- the one-line chain is not a count.
+    # RE-BANKED 09-27 (U-12 (a) -- declared DM4): the count is asked for as a FACT in one clause of the writer's own
+    assert "prints a COUNT line, the number of further chains it counts" in m
+    assert m.index("gives a chain in a single line") > m.index("in one clause of your own")
     # 09-25 (A-5): and the order no longer rides the page's own rendering verb at all -- the writer copied
     # "the one chain the page renders in full" onto the cocoa page; the chains are the record's LEADING ones
     assert "renders" not in m and "in full" not in m
@@ -1195,10 +1211,12 @@ def test_chain_the_flag_scoped_TABLE_and_the_flag_scoped_LITERAL_agree_in_both_s
     # THE FLAG-OFF BYTES, banked. RE-BANKED 09-26 SITTING 2 (lane N, N-1, declared DM4): movement (2)'s
     # "the newest dated document behind the page" now reads "behind this answer" (the SB-L line's own words) --
     # the claim kept: the chain=False literal is ONE banked string and the function returns it by identity.
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 -- declared DM4): the literal is COMPOSED from the declared
+    # clauses (`narration.MANDATE_FACTS` / `MANDATE_RULES`); the claim kept: ONE banked string, returned by identity.
     assert hashlib.sha256(N.SYSTEM_STATE_BOARD_MANDATE.encode("utf-8")).hexdigest() == (
-        "68b9697644dedc77724d65bea6c10bf122f03cc0c71af3a31e9225578eb6445b")
+        "dc4499c5f0472d626114d5eb9d565169b645a6102114fb23591405b8bcecc9e2")
     assert N.state_board_mandate() is N.SYSTEM_STATE_BOARD_MANDATE
-    assert len(N.SYSTEM_STATE_BOARD_MANDATE) == 3498
+    assert len(N.SYSTEM_STATE_BOARD_MANDATE) == 3365
 
 
 def test_chain_the_movement_carries_no_word_budget():
@@ -1281,9 +1299,10 @@ def test_chain_the_B5_clause_map_is_one_to_one():
         assert m.count(new) == 1, new
     # the movement still orders the same NUMBER of things in the same ORDER: the anchors of each order,
     # read off the literal, in sequence
+    # RE-BANKED 09-27 (U-12 (a) -- declared DM4): the outcome anchor is the FACT clause ("the chain's outcome")
     anchors = ["take the block's leading chains", "At each link give the figure",
                "Cite the chain's dated report", "THEN, and only then, say what the record shows",
-               "give the chain's own outcome line", "make the call on the pair",
+               "the chain's outcome in its own units", "make the call on the pair",
                "Narrate those leading chains and not the rest",
                "that chain still gets its sentence", "Where the block states what it could read",
                "Do not restate under the record", "read that stanza as the history"]
@@ -1353,9 +1372,11 @@ def test_0925_A5_the_chain_movement_names_chains_by_mechanism_and_counts_in_one_
         for gone in ("renders in full", "puts first", "state the count and move on", "instead of in full"):
             assert gone not in m, (desk, gone)
         assert "take %s's leading chains, in the order it gives them" % rec in m, desk
-        assert "Name every chain by what it links -- where it starts and the market it reaches" in m
-        assert ("give it one plain clause -- the number of further chains it prints, as it prints it"
-                in m)                                                          # 09-26 s2 (N-4): re-banked
+        # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (a) -- declared DM4): the positive order is the FACT clause
+        # ("naming it by what it links ..."); the count is asked for as a fact, never "as it prints it"
+        assert "naming it by what it links -- where it starts and the market it reaches" in m
+        assert "the number of further chains it counts and the markets it names, in one clause of your own" in m
+        assert "as it prints it" not in m
     assert N.check_literals() == []
     assert N.state_board_mandate(chain=False) is N.SYSTEM_STATE_BOARD_MANDATE      # chain off: HEAD's object
 

@@ -219,8 +219,10 @@ def test_the_knowledge_date_row_finally_offers_a_NOUN_phrase():
     # into PHRASES on `,` / ` or ` alone, so a rule joined on here is swallowed into the phrase beside
     # it. Measured on the first draft of this very row -- see `test_no_HEAD_replacement_phrase_was_lost`.
     assert "never as bare digits" not in repl
-    assert ("never as the year, the month and the day run together with no separators"
-            in N.desk_register_mandate())
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (d) -- declared DM4): the date rule is KEPT (no prose-side
+    # corrector enforces it -- threat A12d-a) as one declared clause (`narration.MANDATE_RULES` date_spelling),
+    # its shape unchanged; the claim kept: the spelling rule lives in the mandate prose, never in this column.
+    assert "never the year, the month and the day run together" in N.desk_register_mandate()
 
 
 def test_no_HEAD_replacement_phrase_was_lost():
@@ -354,14 +356,16 @@ def test_the_mandate_carries_the_SCORING_rule_and_it_is_SCOPED():
     removed the count would have removed the only surface on which a reader or a fact lens could catch
     it, which is a fence that deletes a backed figure and leaves the claim standing."""
     m = N.desk_register_mandate()
-    assert "A PATTERN IS NAMED BY ITS CONDITIONS AND NEVER BY ITS SCORE" in m
-    # RE-BANKED 09-26 SITTING 2 (lane N, N-2): the rule asks for the conditions SHOWING and the ones read on the
-    # other side or carrying no reading -- and never the verdict ("in force" / "met"), which the record does not
-    # decide (the board refuses it; 7 of 10 arm-A pages minted it off this very clause). The fact survives.
-    assert "never call the pattern in force or met" in m
-    assert "say which of its conditions this market is showing" in m   # the fact SURVIVES, named
-    assert "do not print the number a pattern needs to fire" in m      # the THRESHOLD
-    assert "do not print the size of the roster it draws from" in m    # the ROSTER SIZE
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (d) -- declared DM4): the rule is ONE declared fact clause
+    # (`narration.MANDATE_FACTS` pattern_conditions -- no token enforces "in force", threat A12d-a), its worked
+    # example dropped (a sentence handed to the writer to copy). Every claim of the pin is kept: the conditions
+    # SHOWING are named, the ones on the other side or unread too, never the verdict, never the threshold number,
+    # never the roster size.
+    assert "A pattern is given by the conditions this market shows" in m
+    assert "never as in force or met, which the record does not decide" in m
+    assert "the ones that read on the other side or carry no reading here" in m   # the fact SURVIVES, named
+    assert "never by the count it needs" in m                                      # the THRESHOLD
+    assert "or the size of the roster it draws from" in m                          # the ROSTER SIZE
     # ...and the ban that reached the board mandate's own required prose is GONE, by name
     assert "never quote a driver count" not in m
     assert "counts the things it is reading" not in m
@@ -377,12 +381,13 @@ def test_the_mandate_carries_the_DATE_rule_and_it_CARVES_OUT_THE_BARE_YEAR():
     `MY20xx` tokens and 44 printed VALUES on the case list alone. The rule now names the SHAPE and
     states the carve-out in its own text."""
     m = N.desk_register_mandate()
-    assert "EVERY CALENDAR DATE YOU PRINT IS SPELLED THE WAY A DESK SPELLS ONE" in m
-    assert "never as the year, the month and the day run together with no separators" in m
-    assert "A YEAR STANDING ALONE AND A MARKETING YEAR ARE NOT CALENDAR DATES" in m
-    assert "since 2022, in 2012, MY2026" in m
-    # ...and it explicitly overrides the blocks, because the blocks are where the bare digits come from
-    assert "whatever spelling the notes above happen to carry" in m
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (d) -- declared DM4): the rule is KEPT (no prose-side corrector
+    # enforces it, threat A12d-a) as one declared clause, SHAPE and CARVE-OUT unchanged; its worked digits (a
+    # sentence handed to the writer) and the override clause are dropped -- the block now prints every date
+    # through `narration.iso_date`, so the notes carry the desk spelling themselves.
+    assert "Every calendar date is an ISO date or the day and the month written out" in m
+    assert "never the year, the month and the day run together" in m
+    assert "a year standing alone and a marketing year stay as they are" in m
     assert "never as a bare run of digits with no separators" not in m
 
 
@@ -410,12 +415,14 @@ def test_the_desk_leg_does_not_contradict_the_BOARD_leg_it_is_appended_after():
     the self-named literal's constructions byte for byte (flag-off / board-only cells, B3), and keeps
     the ORDER claim -- the desk leg is still the later instruction."""
     m = N.desk_register_mandate()
-    assert "THAT IS A RULE ABOUT SCORING MACHINERY AND NOT ABOUT COUNTING" in m
-    assert "a count in words is a fact about the market" in m
-    assert "how many other markets carry the same state" in m          # movement (3)
-    assert "how many such cases the record holds" in m                 # movement (2) / base rates
-    owed_constructions = ("then how many such cases the record carries, in words",
-                          "name the other markets {record} declares the same loud state moves",
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (d) -- declared DM4): the clarifier "THAT IS A RULE ABOUT SCORING
+    # MACHINERY AND NOT ABOUT COUNTING" is DROPPED -- its whole job was to keep the counts the board mandate
+    # owes, and those are now FACTS the board mandate asks for by name (`narration.MANDATE_FACTS`
+    # spillover_signs / like_state_outcome, `MANDATE_RULES` base_rates). The claim kept: the desk leg cannot be
+    # read as cancelling them -- it carries no counting ban at all, and the board leg still orders all three.
+    assert "THAT IS A RULE ABOUT SCORING MACHINERY" not in m and "counts the things it is reading" not in m
+    owed_constructions = ("how many such cases the record holds, in words",
+                          "the other markets {record} declares the same state moves",
                           "Base rates come from {record}'s count words")
     # ...the board mandate's own required constructions are UNTOUCHED, byte for byte, on the self-named
     # literal every flag-off board turn ships (B3: `state_board_mandate(False) is` that literal)
@@ -444,11 +451,17 @@ def test_the_anaphor_in_the_ban_half_has_its_ANTECEDENT_back():
     to a BAN clause. Order is asserted, not read: the exemption list follows the sentence it refers
     back to, and the exchange paragraph follows the exemption list and restates its own subject."""
     m = N.desk_register_mandate()
-    own_name = m.index("is the market's own name and stays exactly as written")
-    so_are = m.index("So are the other phrases that only LOOK like our words")
-    write_any = m.index("Write any of those exactly as a desk writes them")
-    exchange = m.index("A NAMED EXCHANGE OR INSTITUTION is the market's own name only when")
-    assert own_name < so_are < write_any < exchange, (own_name, so_are, write_any, exchange)
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (d) -- declared DM4): the exemptions are ONE declared clause
+    # ("The ban leaves the market's own names alone: ..."), so no sentence depends on another's position -- the
+    # anaphor this pin guarded cannot recur; the claim kept: the exempt idioms attach to the exemption, never to
+    # a ban clause, and follow the ban they qualify.
+    ban = m.index("Say the market thing instead:")
+    ex = m.index("The ban leaves the market's own names alone:")
+    assert ban < ex
+    seg = m[ex:m.index(".", m.index("port idioms"))]
+    for idiom in ("the CBOT soybean board", "row crops", "warehouse and delivery receipts", "the receipt of something",
+                  "chart and port idioms", "contract convention"):
+        assert idiom in seg, idiom
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -523,12 +536,13 @@ def test_the_rules_OWN_WORKED_EXAMPLES_OBEY_THE_RULES():
     prints neither a threshold number nor a roster size; and no digit run anywhere in either half of
     the shipped mandate is an undelimited calendar date, so the only digits the writer meets in this
     literal are ones its own date rule permits."""
-    example = ("the crush margin is wide and the meal basis is firm, two of its conditions, while export pace "
-               "reads on the other side")                                # 09-26 s2 (N-2): re-banked, no verdict
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 -- declared DM4): the worked examples are GONE (a sentence handed
+    # to the writer is a template, the owner's 09-27 law); the claim kept: nothing in either half of the shipped
+    # mandate is a score or an undelimited date the rules forbid.
     m = N.desk_register_mandate()
-    assert example in m, "the worked example moved; re-cut this pin beside it"
-    assert not _reaches_scoring(example), _SCORE_SPAN.search(example)
+    assert "the crush margin is wide and the meal basis is firm" not in m
     for half in (m, N.desk_register_mandate(state_board=True)):
+        assert not _reaches_scoring(half), _SCORE_SPAN.search(half)
         assert not _reaches_date(half), _UNDELIMITED_DATE.findall(half)
 
 
@@ -540,8 +554,10 @@ def test_the_mandate_stops_teaching_the_bare_commodity_board():
     removed on the eve of the arm (it moves the reported number on BOTH cells for a reason that is not
     the treatment); the PROMPT is corrected instead, which costs no charge on either cell."""
     m = N.desk_register_mandate()
-    assert "is the market's own name only when the exchange or the institution is actually named" in m
-    assert "a bare wheat board is not" in m
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (d) -- declared DM4): the aside is one clause of the exemption
+    # rule, its worked words ("Chicago wheat or the CBOT wheat contract") dropped as a template; the claim kept:
+    # the prompt no longer teaches the bare commodity board the lint exempts.
+    assert "a commodity's board only with its exchange named" in m
     # ROUND-2 MINOR 4: the aside no longer asserts a DATE. The Canadian Wheat Board's single-desk
     # monopoly ended in 2012 but the entity continued and was later sold, so "closed in 2012" was
     # loose -- and this wheat-specific aside ships on every cocoa, coffee and palm turn that lights the
@@ -552,12 +568,12 @@ def test_the_mandate_stops_teaching_the_bare_commodity_board():
     # 09-23 (OWNER DECISION 8): the v1 count is read on the FROZEN eleven names and stays 23; the
     # extended count adds exactly one charge per C13 row, because the mandate prints the table and each
     # new row's own name is the word it bans (threat R-9: recomputed and pinned, never assumed).
-    assert reg.count_desk_register(m, reg.DESK_REGISTER_V1_NAMES) == 23, reg.desk_register_hits(m)
-    _new = len(reg.DESK_REGISTER_TOKENS) - len(reg.DESK_REGISTER_V1_NAMES)
-    # 09-25 FIX ROUND 3 (RT-7): the evidence menu's own tier word ("trust tier") joins the table -- twelve
-    assert _new == 12
-    assert reg.count_desk_register(m) == 23 + _new, reg.desk_register_hits(m)
-    assert "Chicago wheat or the CBOT wheat" in m
+    # RE-BANKED 09-27 (U-12 (d)): the literal no longer LISTS the banned words in prose (the table carries each),
+    # so its self-lint FALLS: the v1 count is the table's own names plus the one commodity-board clause.
+    _v1 = reg.count_desk_register(m, reg.DESK_REGISTER_V1_NAMES)
+    assert _v1 < 23, reg.desk_register_hits(m)
+    assert reg.count_desk_register(m) < 23 + len(reg.DESK_REGISTER_TOKENS) - len(reg.DESK_REGISTER_V1_NAMES)
+    assert "Chicago wheat or the CBOT wheat" not in m
     # the exemption itself did NOT move -- this test is the record of that decision
     assert reg.count_desk_register("it is the one channel that supports the wheat board too") == 0
 
@@ -568,11 +584,16 @@ def test_the_recency_clause_names_the_replacement_for_the_blocks_own_words():
     where the writer is told what to write instead, and it rides the leg that supplies the facts."""
     board_half = N.desk_register_mandate(state_board=True)
     ban_half = N.desk_register_mandate()
-    # RE-BANKED 09-26 SITTING 2 (lane N, N-1): the layer by name, never the page ("The numbers behind this page
-    # were known ..." was copied off this clause on the max and palm/rape pages)
-    assert "the newest figure was known on its date" in board_half
-    assert "the newest figure was known on its date" not in ban_half
-    assert "three dated facts" in board_half and "the board price tape" in board_half
+    # RE-BANKED 09-27 (fix sitting 3, lane A, U-12 (a) -- declared DM4): the board mandate's own EVIDENCE movement
+    # now names each layer in the reader's words ("the newest date its figures were known, the newest dated
+    # document behind this answer, the session the board price tape runs through"), so this clause no longer
+    # restates the three facts or tells the writer which sentence to write ("the sentence you are told to write
+    # for the tape layer" was a LINE); it keeps the one thing the ban needs on a board turn -- the tape layer's
+    # own name is exempt. The claim kept: the replacement for the block's own words is named, on the board leg only.
+    assert "the board price tape" in board_half and "RECENCY" in board_half
+    assert "the board price tape" not in ban_half
+    assert "the newest date its figures were known" in N.state_board_mandate(desk=True)
+    assert "the sentence you are told to write" not in board_half
 
 
 def test_both_mandate_halves_are_still_register_clean_at_build():
@@ -840,6 +861,13 @@ _C13_CHARGED = {
     # 09-25 FIX ROUND 3 (RT-7): the 09-25 cocoa page's own sentence, verbatim
     "trust tier": ("The two readings of the same season's cushion differ by trust tier: the ICCO's published "
                    "2024/25 stocks-to-grindings is 29.2%, while the series read here gives 28.52%."),
+    # 09-27 FIX SITTING 3 (lane R, CONTRACT Z24 / S2 OI-2 -- DECLARED in BUILD_R: four rows appended, the claim kept:
+    # each new row charges the served sentence it was written against, verbatim from the arm-A treatment pages)
+    "this page": "Nothing else on this page cleared the bar for cotton.",
+    "cleared the bar": "Three items cleared the bar on this market.",
+    "nominated": "the rest of the nominated list sat on corn and rapeseed meal and I have left it there.",
+    "this estate": ("The managed-money reading is declared same-direction on thirteen other markets this estate "
+                    "tracks."),
 }
 
 

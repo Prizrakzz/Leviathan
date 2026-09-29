@@ -310,9 +310,14 @@ def test_M3a_M3d_the_timing_phrase_is_corrected_only_against_a_measured_other_re
         assert cen["absence_rows_appended"] == 0                              # an empty read: TRUE, no append
         if expect_corrected:
             assert cen.get("absence_reason_corrected") == 1
+            # RE-BANKED 09-27 (fix sitting 3, lane A, S2 V-2 / CONTRACT Z20 -- declared DM1): the correction writes
+            # the BOOK's reader words for the measured reason (`absence_reason_words`, lane R), never the seat's
+            # model-facing note; the seat's table is read only where the book declares nothing. The claim kept:
+            # the timing words are corrected only against a measured OTHER reason, and only there.
+            from leviathan.graphrag.state import render as _R
+            _why = _R.book_words("absence_reason_words", "store_gap") or words["store_gap"]
             assert st["mechanism"] == _DT_2024.replace(
-                "not yet published at this as-of",
-                "absent from our record (held in this store only under a later revision)")
+                "not yet published at this as-of", "absent from our record (%s)" % _why)
         else:
             assert st["mechanism"] == _DT_2024                                # M3-a / unread: as written
             assert cen.get("absence_reason_corrected") is None
