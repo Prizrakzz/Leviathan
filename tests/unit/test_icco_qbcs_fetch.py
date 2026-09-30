@@ -56,6 +56,16 @@ ROUND 3 (2026-09-22): a fix that DELETED, and a leg with nothing behind it
    -- was one transient away from a family red with nothing behind it. 429 and 503 are now retried
    with backoff; a 404 never is, because it is the normal answer for a quarter that was never
    published.
+
+DATA REPAIRS (2026-09-29, ICCO-1..4)
+------------------------------------
+8. The page parser moved to ``leviathan.transforms.raw_to_bronze.icco_cocoa`` (the silver task reads
+   the banked bytes with it) and the positional table parser is deleted; the parser pins of sections
+   1-3 MOVED with it, each quoting its cause and keeping its claim.  A capture is now FILED BY THE
+   PUBLISHER'S IDENTITY (the Aug-2017 bulletin served from the November-2019 URL lands on its own
+   record, not on release_date=2019-11-30), and A BANKED RELEASE IS NEVER REWRITTEN: a capture that
+   states nothing new writes nothing; one that states something new is kept beside the record as
+   ``capture_<digest16>.html``.  Section 8 pins both through the real ``_process_qbcs``.
 """
 from __future__ import annotations
 
@@ -64,6 +74,8 @@ from pathlib import Path
 
 import pytest
 from bs4 import BeautifulSoup
+
+from leviathan.transforms.raw_to_bronze import icco_cocoa as qp
 
 _REPO = Path(__file__).resolve().parents[2]
 _FETCHER = _REPO / "jobs" / "ingest" / "fetch_icco_qbcs_summary.py"
@@ -148,9 +160,14 @@ class _Recorder:
         return key in self.landed
 
 
-def _run_process_qbcs(monkeypatch, *, month, year, status, body, landed, skip_existing=False):
-    """Drive the REAL _process_qbcs and return (outcome, recorder). No network, no S3."""
+def _run_process_qbcs(monkeypatch, *, month, year, status, body, landed, skip_existing=False,
+                      held=None):
+    """Drive the REAL _process_qbcs and return (outcome, recorder). No network, no S3.
+
+    ``held`` maps a key the estate holds to its bytes, for the read-back the never-overwrite rule
+    makes (a key absent from it reads as unreadable)."""
     rec = _Recorder(landed)
+    monkeypatch.setattr(fi, "_read_s3_bytes", lambda _b, key, _r: (held or {}).get(key))
     monkeypatch.setattr(fi, "_fetch_page", lambda _url: (status, body))
     monkeypatch.setattr(fi, "upload_bytes_to_s3", rec.upload)
     monkeypatch.setattr(fi, "write_raw_s3_metadata", rec.metadata)
@@ -188,6 +205,16 @@ def _ewg_key(season: str, leaf: str) -> str:
 # ---------------------------------------------------------------------------
 # 1. The Q3 / PROSE layout
 # ---------------------------------------------------------------------------
+# MOVED 2026-09-29 (data repairs ICCO-2): the page parser left this file for the pure module
+# ``leviathan.transforms.raw_to_bronze.icco_cocoa`` (``qp`` below), because the silver task must read
+# the banked page bytes with the SAME function the fetcher files them by.  The positional table parser
+# these pins also exercised (``_parse_qbcs_table``) is DELETED -- it lost every signed cell written
+# with a NO-BREAK SPACE after the sign and labelled the same season's previous estimate with the
+# prior season's name.  Each moved pin keeps its claim; only the function it calls moved.
+
+
+def _prose(name: str):
+    return qp.parse_prose_statement(qp.content_text(_soup(name)))
 
 
 def test_the_august_pages_really_carry_no_table():
@@ -197,58 +224,63 @@ def test_the_august_pages_really_carry_no_table():
 
 
 def test_head_parser_still_returns_none_on_the_august_pages():
-    """The table path is UNTOUCHED -- that is what keeps the other 48 releases byte-identical."""
+    """MOVED (cause: the positional table parser is deleted).  Claim kept: the August pages carry no
+    summary table, so they are read as the PROSE layout -- never as a table."""
     for name in (_AUG_2025, _AUG_2026):
-        assert fi._parse_qbcs_table(_soup(name)) is None
+        assert qp._find_summary_table(_soup(name)) is None
+        assert qp.parse_qbcs_page((_FIXTURES / name).read_bytes()).layout == "prose"
 
 
 def test_prose_layout_reads_the_august_2026_bulletin():
     """World Gross Production 4.733 mt, Grindings 4.649 mt, surplus 37,000 t, stocks 1.309 mt."""
-    out = fi._parse_qbcs_prose(_soup(_AUG_2026))
+    out = _prose(_AUG_2026)
     assert out is not None
-    assert out["cocoa_year_current"] == "2024/25"
-    assert out["current"] == {
-        "world_production_kt": 4733.0,
-        "world_grindings_kt": 4649.0,
+    assert out["cocoa_year"] == "2024/25"
+    assert {k: out["values"][k] for k in qp.BALANCE_METRICS} == {
+        "production_kt": 4733.0,
+        "grindings_kt": 4649.0,
         "surplus_deficit_kt": 37.0,
-        "end_season_stocks_kt": 1309.0,
+        "end_stocks_kt": 1309.0,
     }
 
 
 def test_prose_layout_reads_the_august_2025_bulletin():
     """The same shape one year earlier -- the regression fixture the census asked for."""
-    out = fi._parse_qbcs_prose(_soup(_AUG_2025))
+    out = _prose(_AUG_2025)
     assert out is not None
-    assert out["cocoa_year_current"] == "2023/24"
-    assert out["current"] == {
-        "world_production_kt": 4368.0,
-        "world_grindings_kt": 4818.0,
+    assert out["cocoa_year"] == "2023/24"
+    assert {k: out["values"][k] for k in qp.BALANCE_METRICS} == {
+        "production_kt": 4368.0,
+        "grindings_kt": 4818.0,
         "surplus_deficit_kt": -494.0,
-        "end_season_stocks_kt": 1270.0,
+        "end_stocks_kt": 1270.0,
     }
 
 
 def test_a_deficit_is_negative_and_a_surplus_is_positive():
     """Sign convention of the TABLE layout ("- 492" / "+ 48"), carried into the prose."""
-    assert fi._parse_qbcs_prose(_soup(_AUG_2025))["current"]["surplus_deficit_kt"] < 0
-    assert fi._parse_qbcs_prose(_soup(_AUG_2026))["current"]["surplus_deficit_kt"] > 0
+    assert _prose(_AUG_2025)["values"]["surplus_deficit_kt"] < 0
+    assert _prose(_AUG_2026)["values"]["surplus_deficit_kt"] > 0
 
 
 def test_prose_record_has_no_prior_block():
-    """One season is stated, so one is recorded. raw_to_bronze skips a vintage with no cocoa year."""
+    """MOVED (cause: the ``prior`` block is gone -- it was the ICCO-2(b) mislabel).  Claim kept: one
+    season is stated, so ONE is recorded as a stated row; the withheld season is a withheld row."""
     for name in (_AUG_2025, _AUG_2026):
-        out = fi._parse_qbcs_prose(_soup(name))
-        assert out["prior"] == {}
-        assert out["cocoa_year_prior"] is None
+        page = qp.parse_qbcs_page((_FIXTURES / name).read_bytes())
+        assert len(page.prose_rows) == 1
+        assert page.columns == []
+        assert len(page.withheld_seasons) == 1
+        assert page.withheld_seasons[0] != page.prose_rows[0]["cocoa_year"]
 
 
 def test_metric_keys_are_in_the_table_layout_s_insertion_order():
-    """A prose release and a table release must be the same record downstream."""
-    out = fi._parse_qbcs_prose(_soup(_AUG_2026))
-    assert list(out["current"]) == [
-        "world_production_kt", "world_grindings_kt",
-        "surplus_deficit_kt", "end_season_stocks_kt",
-    ]
+    """A prose release and a table release must be the same record downstream: MOVED (cause: the
+    record is now the page parse), claim kept -- the prose statement carries exactly the metrics a
+    table column carries, in the same order."""
+    prose = _prose(_AUG_2026)["values"]
+    table_page = qp.parse_qbcs_page((_FIXTURES / "qbcs_excerpt_2026-05-29.html").read_bytes())
+    assert list(prose) == list(table_page.columns[0].values)
 
 
 # ---------------------------------------------------------------------------
@@ -258,20 +290,20 @@ def test_metric_keys_are_in_the_table_layout_s_insertion_order():
 
 def test_the_withheld_season_is_never_the_label():
     """The 2026 page withholds 2025/26 and reports 2024/25; the 2025 page withholds 2024/25."""
-    assert "withheld" in fi._content_text(_soup(_AUG_2026)).lower()
-    assert fi._parse_qbcs_prose(_soup(_AUG_2026))["cocoa_year_current"] != "2025/26"
-    assert fi._parse_qbcs_prose(_soup(_AUG_2025))["cocoa_year_current"] != "2024/25"
+    assert "withheld" in qp.content_text(_soup(_AUG_2026)).lower()
+    assert _prose(_AUG_2026)["cocoa_year"] != "2025/26"
+    assert _prose(_AUG_2025)["cocoa_year"] != "2024/25"
 
 
 def test_two_qualifying_seasons_refuse_to_guess():
     """Ambiguity is a parse failure the fence announces, not a coin flip."""
     text = ("Data for the 2024/25 season are estimated as follows. "
             "Separately, data for the 2023/24 season remain unchanged.")
-    assert fi._prose_season(text) is None
+    assert qp.prose_season(text) is None
 
 
 def test_no_qualifying_season_refuses():
-    assert fi._prose_season("The Secretariat withheld data for the 2025/26 season.") is None
+    assert qp.prose_season("The Secretariat withheld data for the 2025/26 season.") is None
 
 
 # ---------------------------------------------------------------------------
@@ -286,12 +318,12 @@ def test_the_august_2026_dateline_names_the_may_issue():
 
 def test_an_out_of_window_dateline_never_becomes_the_key():
     """HEAD returns 2026-05-29 here -- which would OVERWRITE the May release with August's numbers."""
-    assert fi._parse_release_date(_soup(_AUG_2026), "august", 2026) == "2026-08-31"
+    assert qp.release_date_of(_soup(_AUG_2026), "august", 2026) == ("2026-08-31", "publication_stamp")
 
 
 def test_an_in_window_dateline_is_kept_exactly():
     """The Aug-2025 dateline (29 August 2025) is correct and must survive untouched."""
-    assert fi._parse_release_date(_soup(_AUG_2025), "august", 2025) == "2025-08-29"
+    assert qp.release_date_of(_soup(_AUG_2025), "august", 2025) == ("2025-08-29", "dateline")
 
 
 def test_the_window_opens_on_the_first_of_the_bulletin_month():
@@ -309,27 +341,34 @@ def test_the_window_closes_short_of_the_next_quarterly_issue():
 
 def test_the_publication_stamp_is_the_correction_not_the_primary():
     """It is read only after the dateline is refused -- it lags the real release by up to 111 days."""
-    assert fi._published_time_date(_soup(_AUG_2026)) == "2026-08-31"
-    assert fi._published_time_date(_soup(_AUG_2025)) == "2025-08-29"
+    assert qp.published_time_date(_soup(_AUG_2026)) == "2026-08-31"
+    assert qp.published_time_date(_soup(_AUG_2025)) == "2025-08-29"
 
 
 def test_a_table_layout_release_keeps_its_dateline(synthetic_table_page=None):
-    """The 48 landed table releases must not move; their datelines sit 25-34 days into the window."""
+    """The 48 landed table releases must not move; their datelines sit 25-34 days into the window.
+
+    MOVED (cause: the positional parser is deleted).  The synthetic page gains the KIND row every one
+    of the 48 real table pages prints ("Revised estimates" / "Forecasts"): the page parser reads a
+    column's kind from the header's own word and refuses a column that has none (T-ICCO-4), where
+    the deleted parser read no header at all.  Claim kept: the dateline stays, the figures parse.
+    """
     html = """<html><head>
         <meta property="article:published_time" content="2024-06-01T09:00:00+00:00" />
         </head><body><div class="entry-content">
         <p>Abidjan, 31 May 2024 - The International Cocoa Organization today releases
         Issue No. 2 - Volume L of the Quarterly Bulletin of Cocoa Statistics.</p>
         <table><tr><th>Cocoa year</th><th>2022/23</th><th>2023/24</th></tr>
+        <tr><td></td><td>Revised estimates</td><td>Revised forecasts</td></tr>
         <tr><td>World production</td><td>4 953</td><td>4 449</td></tr>
         <tr><td>World grindings</td><td>4 993</td><td>4 852</td></tr>
         <tr><td>Surplus / deficit</td><td>- 74</td><td>- 439</td></tr>
         <tr><td>End-of-season stocks</td><td>1 763</td><td>1 324</td></tr></table>
         </div></body></html>"""
-    soup = BeautifulSoup(html, "html.parser")
-    assert fi._parse_release_date(soup, "may", 2024) == "2024-05-31"
-    table = fi._parse_qbcs_table(soup)
-    assert table is not None and table["current"]["world_production_kt"] == 4449.0
+    page = qp.parse_qbcs_page(html, url_month="may", url_year=2024)
+    assert (page.release_date, page.release_date_source) == ("2024-05-31", "dateline")
+    by_season = {c.header_season: c.values for c in page.columns}
+    assert by_season["2023/24"]["production_kt"] == 4449.0
 
 
 # ---------------------------------------------------------------------------
@@ -822,3 +861,105 @@ def test_retry_after_is_honoured_and_capped():
     assert fi._retry_after_seconds(_RetryResponse(429), 2) == 8.0
     # a garbage header may not crash the fetcher
     assert fi._retry_after_seconds(_RetryResponse(429, headers={"Retry-After": "soon"}), 1) == 4.0
+
+
+# ---------------------------------------------------------------------------
+# 8. DATA REPAIRS (2026-09-29) -- filed by the publisher's identity, never written over
+# ---------------------------------------------------------------------------
+_AUG_2017_EXCERPT = "qbcs_excerpt_2017-08-31.html"
+_MAY_2016_EXCERPT = "qbcs_excerpt_2016-05-31.html"
+
+
+def _held_page_key(release_date: str) -> str:
+    return fi.raw_icco_qbcs_summary_key(release_date, "page.html")
+
+
+def test_the_august_2017_bulletin_served_from_the_november_2019_url_is_filed_by_its_own_identity(monkeypatch):
+    """N-3 / T-ICCO-5.  ``release_date=2017-08-31`` holds the Aug-2017 bulletin (Vol. XLIII No. 3)
+    captured from the NOVEMBER-2019 URL.  HEAD fenced the dateline by the URL month, refused both the
+    dateline and the stamp, and would have filed the Aug-2017 figures under release_date=2019-11-30.
+    The fence now opens on the month the page's own title names: it lands on its own record, which is
+    banked, and nothing is written because the page states nothing new."""
+    body = (_FIXTURES / _AUG_2017_EXCERPT).read_text(encoding="utf-8")
+    held = {_held_page_key("2017-08-31"): body.encode("utf-8")}
+    outcome, rec = _run_process_qbcs(monkeypatch, month="november", year=2019, status=200, body=body,
+                                     landed=list(_LANDED_KEYS) + list(held), held=held)
+    assert outcome.banked is True
+    assert outcome.banked_key.endswith("release_date=2017-08-31/icco_qbcs_summary_20170831.json")
+    assert outcome.result == "unchanged" and rec.puts == []
+    assert not any("2019-11-30" in k for k in rec.puts)
+
+
+def test_a_banked_release_is_never_rewritten(monkeypatch):
+    """T-ICCO-12.  The monthly fire used to rewrite every page.html and record JSON on a bucket whose
+    versioning reads Suspended (N-5: all 48 JSON carried ingested_at 2026-09-15).  A banked release
+    that states nothing new writes NOTHING -- even when the page's bytes changed (the "Latest News"
+    sidebar changes every month, which is why the comparison is by what the page STATES)."""
+    held_body = (_FIXTURES / _MAY_2016_EXCERPT).read_text(encoding="utf-8")
+    fetched = held_body.replace("</body>", "<aside>Latest News: a bulletin published later</aside></body>")
+    assert fetched != held_body
+    held = {_held_page_key("2016-05-31"): held_body.encode("utf-8")}
+    outcome, rec = _run_process_qbcs(monkeypatch, month="may", year=2016, status=200, body=fetched,
+                                     landed=list(_LANDED_KEYS) + list(held), held=held)
+    assert outcome.result == "unchanged" and outcome.banked is True
+    assert rec.puts == []
+    assert fi.terminal_failures([outcome]) == [] and fi.orphan_pages([outcome], "b", "r", exists=rec.exists) == []
+
+
+def test_a_capture_that_states_something_new_is_kept_beside_the_record_never_over_it(monkeypatch):
+    """A re-fetch whose page states a different figure keeps its bytes as capture_<digest16>.html in
+    the SAME folder; the record JSON and the page that minted it are untouched."""
+    held_body = (_FIXTURES / _MAY_2016_EXCERPT).read_text(encoding="utf-8")
+    assert "4 039" in held_body
+    fetched = held_body.replace("4 039", "4 040", 1)
+    held = {_held_page_key("2016-05-31"): held_body.encode("utf-8")}
+    outcome, rec = _run_process_qbcs(monkeypatch, month="may", year=2016, status=200, body=fetched,
+                                     landed=list(_LANDED_KEYS) + list(held), held=held)
+    assert outcome.result == "uploaded" and outcome.banked is True and outcome.json_key is None
+    assert len(rec.puts) == 1
+    leaf = rec.puts[0].rsplit("/", 1)[-1]
+    assert leaf.startswith("capture_") and leaf.endswith(".html") and len(leaf) == len("capture_") + 16 + 5
+    assert rec.puts[0].rsplit("/", 1)[0] == _held_page_key("2016-05-31").rsplit("/", 1)[0]
+    assert _held_page_key("2016-05-31") not in rec.puts
+    assert fi.orphan_pages([outcome], "b", "r", exists=rec.exists) == []
+    # the same capture fetched again is not written twice
+    again, rec2 = _run_process_qbcs(monkeypatch, month="may", year=2016, status=200, body=fetched,
+                                    landed=list(_LANDED_KEYS) + list(held) + rec.puts, held=held)
+    assert again.result == "unchanged" and rec2.puts == []
+
+
+def test_an_unreadable_held_page_is_never_overwritten(monkeypatch):
+    """When the held page cannot be read back, the new capture is kept BESIDE it -- never over it."""
+    body = (_FIXTURES / _MAY_2016_EXCERPT).read_text(encoding="utf-8")
+    landed = list(_LANDED_KEYS) + [_held_page_key("2016-05-31")]
+    outcome, rec = _run_process_qbcs(monkeypatch, month="may", year=2016, status=200, body=body,
+                                     landed=landed, held={})
+    assert _held_page_key("2016-05-31") not in rec.puts
+    assert len(rec.puts) == 1 and rec.puts[0].rsplit("/", 1)[-1].startswith("capture_")
+
+
+def test_a_new_release_records_what_its_page_states(monkeypatch):
+    """The record JSON of an UNBANKED release is the page parse: identity, dated rung, each column
+    with its header season, kind and footnote marker -- never the positional current/prior blocks."""
+    import json as _json
+    body = (_FIXTURES / "qbcs_excerpt_2026-02-27.html").read_text(encoding="utf-8")
+    landed = [k for k in _LANDED_KEYS if "2026-02-27" not in k]
+    captured = {}
+    orig_upload = _Recorder.upload
+
+    def _upload(self, payload, bucket, key, region):  # noqa: ANN001
+        captured[key] = payload
+        return orig_upload(self, payload, bucket, key, region)
+
+    monkeypatch.setattr(_Recorder, "upload", _upload)
+    outcome, rec = _run_process_qbcs(monkeypatch, month="february", year=2026, status=200, body=body,
+                                     landed=landed)
+    assert outcome.result == "uploaded" and outcome.banked is False
+    record = _json.loads(captured[outcome.json_key])
+    assert "prior" not in record and "current" not in record
+    assert (record["bulletin_volume"], record["bulletin_issue"]) == ("LII", 1)
+    assert (record["release_date"], record["release_date_source"]) == ("2026-02-27", "dateline")
+    assert record["page_key"] == outcome.html_key and len(record["statement_sha256"]) == 64
+    own = [c for c in record["columns"] if not c["restated"]]
+    assert [(c["header_season"], c["figure_kind"], c["values"]["surplus_deficit_kt"]) for c in own] == [
+        ("2024/25", "revised_estimate", 75.0)]

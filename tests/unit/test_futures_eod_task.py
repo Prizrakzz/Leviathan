@@ -170,7 +170,12 @@ class TestIncrementalMerge:
         assert rec["prior_rows"] == len(prior)
         assert len(merged) == len(prior) + len(new)
         assert set(prior["trade_date"]) <= set(merged["trade_date"])
-        assert list(merged.columns) == S.SILVER_COLUMNS
+        # PIN MOVED (DATA REPAIRS 0929 / FUT-1): the write seam now stages the additive
+        # price_null_reason column wherever the table declaration carries it (write_columns). The
+        # claim is kept: the merge returns EXACTLY the contract's write shape -- the producers'
+        # SILVER_COLUMNS plus only what the declaration declares -- nothing dropped, nothing added.
+        assert list(merged.columns) == T2.write_columns(contract)
+        assert list(merged.columns)[:len(S.SILVER_COLUMNS)] == S.SILVER_COLUMNS
 
     def test_without_the_merge_the_partition_would_collapse(self):
         """The defect, stated as a measurement: the staged object IS the whole partition."""

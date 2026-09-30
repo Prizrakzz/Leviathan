@@ -159,6 +159,8 @@ DECKS = [
     "tests/unit/test_weather_compaction_f047.py",
     "tests/unit/test_state_registry_ym_lag.py",
     "tests/unit/silver/test_silver_registry_gen.py",
+    # the ORIGIN TIER + the KNOWN DATE (WX-1 / WX-2, data repairs 2026-09-29)
+    "tests/unit/test_weather_z_origin_tier.py",
 ]
 
 STEPS = [
@@ -618,6 +620,80 @@ STEPS = [
         "           so only the two Batch entrypoints are smoke-safe. This runbook's CHECK smokes the",
         "           b2s entrypoint and keys its PASS on the printed marker, never on a source string.",
     ]),
+    ("W7", "THE ORIGIN TIER + THE KNOWN DATE (WX-1/WX-2, data repairs 2026-09-29) -- EMBEDDER image + ONE repin", [
+        "WHAT SHIPS. gold_weather_z gains ROWS under NEW metric names (no column, no DDL, no Glue ALTER):",
+        "  cell tier     precip_total_mm, precip_normal_mm, precip_pct_normal, precip_is_preliminary",
+        "  country tier  <z>_country_mean (4 z metrics), precip_pct_normal_country, precip_pct_normal_cells,",
+        "                precip_preliminary_share, production_share, production_share_year",
+        "  basin tier    <z>_prod_weighted, precip_pct_normal_prod_weighted, precip_pct_normal_basin,",
+        "                precip_pct_normal_cells, precip_preliminary_share",
+        "Every row the table carried before is BYTE-IDENTICAL (compute_weather_z is not edited; the new",
+        "rows are appended AFTER it). The card does not declare the new names, so the pg loader's TALL",
+        "filter drops them and NOTHING changes on the served mirror until the serving side declares them.",
+        "",
+        "PRECONDITIONS (read, do not assume):",
+        "  (a) BUILD FROM A COMMITTED TREE, after fix sitting 4 lands: the embedder image also bakes",
+        "      src/leviathan/graphrag + configs/graphrag, and a MAIN-tree build today would bake another",
+        "      sitting's uncommitted serving code into gold-weather-z AND evidence-build.",
+        "  (b) THE WEIGHTS NEED A DECLARED FAOSTAT LAG: configs/datasets/source_contracts.yaml",
+        "      production:faostat publication_lag_days (the integrator's edit; O-4). Without it the",
+        "      producer writes every other origin row and logs, per basin, 'origin tier ABSENT ... the",
+        "      FAOSTAT publication lag is UNDECLARED'. The measured late-safe bound is 864 d (palm oil,",
+        "      a processed item, held only through 2023 at the 2026-05-13 fetch; primary crops 2024 -> 498).",
+        "  (c) THE DECLARATION NOTES (WX-2) land through the generator (integrator), never by hand.",
+        "",
+        "  1. BUILD + PUSH the EMBEDDER image with a durable tag, then read its digest back from ECR:",
+        "",
+        "  cd C:\\Users\\User\\Desktop\\Leviathan; .\\scripts\\build_push_embedder.ps1 -Tag \"20261001-wx\"",
+        "  cd C:\\Users\\User\\Desktop\\Leviathan; aws ecr describe-images --region us-east-1 "
+        "--repository-name leviathan-dev-leviathan-embedder --image-ids imageTag=20261001-wx "
+        "--query \"imageDetails[0].imageDigest\" --output text",
+        "",
+        "  2. REPIN leviathan-dev-gold-weather-z ONLY (EMBEDDER family -- a worker digest dies at STARTING).",
+        "     Dry run first; --apply only when the printed diff shows ONLY the image line:",
+        "",
+        "  cd C:\\Users\\User\\Desktop\\Leviathan; python scripts/ops/repin_jobdef_digest.py "
+        "--job-definition leviathan-dev-gold-weather-z --image-digest sha256:<DIGEST>",
+        "  cd C:\\Users\\User\\Desktop\\Leviathan; python scripts/ops/repin_jobdef_digest.py "
+        "--job-definition leviathan-dev-gold-weather-z --image-digest sha256:<DIGEST> --apply",
+        "",
+        "     The weather_daily DAG names the jobdef WITHOUT a revision, so the 08:00Z run takes the new",
+        "     revision; a push alone is a NO-OP (feedback_digest_pinned_jobdefs_make_push_a_noop).",
+        "",
+        "  3. OPTIONAL SMOKE, one commodity, ONDEMAND queue, before the DAG runs all 31. The body (a FILE,",
+        "     PowerShell 5.1 mangles embedded quotes on the way to a native exe):",
+        "",
+        '    {"command":["jobs/batch/gold_weather_z_task.py","--commodity","cocoa",',
+        '                "--force-overwrite","true"]}',
+        "",
+        "  cd C:\\Users\\User\\Desktop\\Leviathan; Set-Content -Encoding ascii -Path \"$env:TEMP\\gold_wx.json\" "
+        "-Value '{\"command\":[\"jobs/batch/gold_weather_z_task.py\",\"--commodity\",\"cocoa\","
+        "\"--force-overwrite\",\"true\"]}'; aws batch submit-job --region us-east-1 --job-name "
+        "gold-weather-z-wx-cocoa --job-queue leviathan-dev-queue-ondemand --job-definition "
+        "leviathan-dev-gold-weather-z:<NEW REV> --container-overrides \"file://$env:TEMP\\gold_wx.json\"",
+        "",
+        "     COST: $0 vendor; one Fargate task of the size the daily DAG already runs (2 vCPU / 8 GB,",
+        "     about $0.12 per hour at the us-east-1 Fargate list rates -- re-read the price page before",
+        "     quoting it). The origin tier adds one LIST plus one GET per silver_production object of the",
+        "     commodity (64 for cocoa) and seconds of compute.",
+        "",
+        "  4. READ-ONLY CHECK, after the smoke and again after the next 08:00Z DAG (T-WX-10: the daily",
+        "     --force-overwrite rewrite must still carry the new names):",
+        "",
+        "  cd C:\\Users\\User\\Desktop\\Leviathan; python scripts/ops/weather_z_freshness_runbook.py --step CENSUS --commodity cocoa",
+        "",
+        "     PASS = the [origin tier, WX-1] block lists the new names, the four West Africa members carry",
+        "     a share of normal and (with the lag declared) a production_share, and every SERVED metric's",
+        "     tip is what it was before the repin. The job log carries one 'origin tier ABSENT' line per",
+        "     weighted series that could not be built, with its reason -- EXPECTED today:",
+        "     northern_plains_prairies fails closed ('united_states' matches no FAOSTAT country_key; FAOSTAT",
+        "     says united_states_of_america), and weighted heat_stress_z months where a member's",
+        "     heat_stress_z is undefined (a zero-variance baseline) are absent, never renormalised.",
+        "",
+        "  5. NO PG RELOAD for this step: the mirror copies declared metrics only. The reload happens in",
+        "     the sitting that DECLARES the new names on the card (W6 step 6's discipline: gold first,",
+        "     then the loader's own image must carry the new card, then the reload).",
+    ]),
 ]
 
 
@@ -651,16 +727,26 @@ def _census(commodity: str = "corn_cbot") -> int:
         # the instrument the operator verifies the lane WITH disagreed with the producer's own tripwire,
         # which has read ``lag_days_for`` since 29de55eb. One function, one precedence, both seats.
         claimed: dict = {}
+        # WX-1 (2026-09-29): the origin tier writes metrics the card does NOT declare yet, and
+        # ``lag_days_for`` falls back to the card DEFAULT (5, the NASA figure) for an undeclared name --
+        # so this census would print a CHIRPS-fed precip_pct_normal as ~1 month BEHIND every month. A
+        # metric the card does not serve carries no promise; it is printed as such and never judged.
+        undeclared: set = set()
         try:
             from datetime import datetime, timezone
 
             from leviathan.graphrag.numbers.query import _ym_lagged_asof_ym
             from leviathan.graphrag.numbers.registry import lag_days_for, load_registry
             ts = load_registry().get("gold_weather_z")
+            card_metrics = set(getattr(ts, "metrics", None) or {})
             # UTC, matching the producer's counter and the gate's stage -- a census that read the
             # operator's LOCAL date would print a different promise than the job it is checking.
             asof = datetime.now(timezone.utc).date().isoformat()
             for metric in tips:
+                if metric not in card_metrics:
+                    undeclared.add(metric)
+                    claimed[metric] = None
+                    continue
                 lag = lag_days_for(ts, metric)
                 claimed[metric] = _ym_lagged_asof_ym(asof, lag) if lag else None
         except Exception as exc:  # noqa: BLE001
@@ -668,11 +754,16 @@ def _census(commodity: str = "corn_cbot") -> int:
         print(f"         object mtime {head['LastModified']}  {head['ContentLength']:,} B  "
               f"{len(gold):,} rows")
         for metric in sorted(tips):
+            if metric in undeclared:
+                print(f"         {metric:32s} tip={tips[metric]}  undeclared by the card "
+                      f"(stored, not served; no promise to judge)")
+                continue
             promise = claimed.get(metric)
             behind = months_behind(promise, tips[metric])
             flag = "" if behind in (0, None) else f"   <-- {behind} month(s) BEHIND"
             print(f"         {metric:32s} tip={tips[metric]}  "
                   f"card promises {promise if promise else 'undeclared'}{flag}")
+        _census_origin_tier(gold)
         prelim = tips.get("drought_z_is_preliminary")
         if prelim is not None:
             share = gold[gold["metric"] == "drought_z_is_preliminary"]["value"]
@@ -777,6 +868,48 @@ def _census(commodity: str = "corn_cbot") -> int:
     print("prelim PUBLISHED means drought_z can be served now, stamped preliminary; both absent means")
     print("the source has published nothing and the honest serve is the previous month.")
     return 0
+
+
+def _census_origin_tier(gold) -> None:
+    """The WX-1 origin tier inside one gold object, read-only: which of its names are present, the
+    newest COMPLETE month's share of normal and production share per member, and the weighted basin
+    rows beside the equal-weight ones. Prints; never raises (a census line, not a gate)."""
+    try:
+        from leviathan.transforms.gold.weather_z import (
+            COUNTRY_TIER_SUFFIX,
+            METRIC_PRECIP_PCT_COUNTRY,
+            METRIC_PRECIP_PCT_WEIGHTED,
+            METRIC_PRODUCTION_SHARE,
+            METRIC_PRODUCTION_SHARE_YEAR,
+            ORIGIN_METRICS,
+        )
+        origin = gold[gold["metric"].isin(ORIGIN_METRICS)]
+        print(f"         [origin tier, WX-1] {len(origin):,} rows under "
+              f"{origin['metric'].nunique()} of {len(ORIGIN_METRICS)} names "
+              f"(absent names: {sorted(set(ORIGIN_METRICS) - set(origin['metric'])) or 'none'})")
+        if origin.empty:
+            print("         NO origin rows: this object predates the WX-1 producer (or its image).")
+            return
+        pct = origin[origin["metric"] == METRIC_PRECIP_PCT_COUNTRY]
+        if not pct.empty:
+            ym = int((pct["year"] * 100 + pct["month"]).max())
+            y, m = divmod(ym, 100)
+            last = origin[(origin["year"] == y) & (origin["month"] == m)
+                          & origin["region"].str.endswith(COUNTRY_TIER_SUFFIX)]
+            for country, grp in last.groupby("country"):
+                vals = dict(zip(grp["metric"], grp["value"]))
+                print(f"         {y}-{m:02d} {country:16s} rain {vals.get(METRIC_PRECIP_PCT_COUNTRY, float('nan')):6.1f} % "
+                      f"of normal | production_share {vals.get(METRIC_PRODUCTION_SHARE, float('nan')):.4f} "
+                      f"(FAOSTAT {vals.get(METRIC_PRODUCTION_SHARE_YEAR, float('nan')):.0f})")
+            w = origin[(origin["metric"] == METRIC_PRECIP_PCT_WEIGHTED) & (origin["year"] == y)
+                       & (origin["month"] == m)]
+            for r in w.itertuples(index=False):
+                print(f"         {y}-{m:02d} {r.country:16s} production-weighted rain {r.value:6.1f} % of normal")
+            if w.empty:
+                print("         no production-weighted row that month: read the producer log's "
+                      "'origin tier ABSENT' lines (an undeclared FAOSTAT lag is the first suspect)")
+    except Exception as exc:  # noqa: BLE001
+        print(f"         [origin tier] unreadable: {type(exc).__name__}: {exc}")
 
 
 def _list(s3, prefix: str, suffix: str) -> list:

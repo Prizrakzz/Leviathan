@@ -189,6 +189,43 @@ class TestTheDenominatorIsPerMetricToo:
             "one blanket denominator would have made every one of these the same number"
 
 
+class TestAMetricTheCardDoesNotDeclareOwesNoPromise:
+    """T-WX-11 / N-12 (data repairs 2026-09-29). The origin tier (WX-1) writes metric names the card does
+    not declare yet. ``lag_days_for`` falls back to the card DEFAULT (5, the NASA figure) for such a name,
+    so a CHIRPS-fed ``precip_pct_normal`` would have been published ~one month "behind" every month --
+    and every new name would have minted a CloudWatch custom metric per commodity. A name the card does
+    not serve is neither published nor judged; the served names are exactly as before."""
+
+    def _with_origin(self):
+        rows = [_row(m, 2026, 7) for m in wz.ALL_METRICS]
+        rows += [_row(m, 2026, 7) for m in wz.ORIGIN_METRICS]
+        return _gold(rows)
+
+    def test_undeclared_names_publish_NOTHING_and_the_served_names_are_unchanged(self, cw, monkeypatch):
+        monkeypatch.setattr(task, "_claimed_ym", lambda _metric="": 202608)
+        task._emit_freshness_tripwire("corn_cbot", self._with_origin())
+        published = {next(dim["Value"] for dim in d["Dimensions"] if dim["Name"] == "Metric")
+                     for d in _datums(cw)}
+        assert published == set(wz.ALL_METRICS)
+        assert not published & set(wz.ORIGIN_METRICS)
+
+    def test_an_UNREADABLE_card_scopes_to_the_producers_card_bound_vocabulary(self, cw, monkeypatch):
+        def _boom():
+            raise KeyError("unknown table 'gold_weather_z'")
+        monkeypatch.setattr(task, "_declared_metrics", _boom)
+        monkeypatch.setattr(task, "_claimed_ym", lambda _metric="": 202608)
+        task._emit_freshness_tripwire("corn_cbot", self._with_origin())
+        tips = _named(cw, task._TIP_YM_METRIC)
+        assert len(tips) == len(wz.ALL_METRICS), "the tip still ships, scoped to the bound vocabulary"
+
+    def test_a_card_that_DECLARES_a_new_name_brings_it_back_with_no_code_change(self, monkeypatch):
+        monkeypatch.setattr(task, "_declared_metrics",
+                            lambda: frozenset(wz.ALL_METRICS) | {wz.METRIC_PRECIP_PCT_COUNTRY})
+        scoped, undeclared = task._tip_scope({m: 202607 for m in (*wz.ALL_METRICS, *wz.ORIGIN_METRICS)})
+        assert wz.METRIC_PRECIP_PCT_COUNTRY in scoped
+        assert set(undeclared) == set(wz.ORIGIN_METRICS) - {wz.METRIC_PRECIP_PCT_COUNTRY}
+
+
 class TestItCanNeverChangeTheProducersVerdict:
     def test_an_EMPTY_frame_emits_nothing_and_does_not_raise(self, cw, monkeypatch):
         monkeypatch.setattr(task, "_claimed_ym", lambda _metric="": 202608)

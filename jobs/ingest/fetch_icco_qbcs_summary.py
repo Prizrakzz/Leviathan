@@ -26,6 +26,8 @@ S3 key structure
     QBCS:  raw/production/source=icco_qbcs_summary/release_date={YYYY-MM-DD}/
                icco_qbcs_summary_{YYYYMMDD}.json
                page.html                  the page that MINTED that record, and only ever that
+               capture_<digest16>.html    a LATER capture that states something different
+                                          (never written over page.html; see _land_page)
                page_parse_failure.html    a body that yielded no record, kept for the replay
     EWG:   raw/production/source=icco_ewg_stocks/season={YYYY-YY}/
                icco_ewg_stocks_{YYYY-YY}.json
@@ -87,6 +89,24 @@ Both halves of that partition were INERT as first written, and the adversarial r
   key, and a release already banked is not an orphan.  A page with no banked JSON and a failed
   parse is still terminal -- and is named ONCE, not twice.
 
+What the data repairs changed (2026-09-29, ICCO-1..4)
+-----------------------------------------------------
+* ONE page parser, in ``transforms/raw_to_bronze/icco_cocoa.py`` (:func:`parse_qbcs_page`): the
+  table parser that took "the last two parsed numbers" of a row is deleted -- it lost every signed
+  cell written with a NO-BREAK SPACE after the sign and labelled the same season's previous estimate
+  with the prior season's name.  The silver task builds ``silver_icco_cocoa_releases`` from the
+  banked page BYTES with the same function, so the fetcher and the table never read a page two ways.
+* A capture is FILED BY THE PUBLISHER'S IDENTITY: the dateline is fenced to the month the page's own
+  title names, not the URL's.  The November-2019 URL serves the August-2017 bulletin (Vol. XLIII
+  No. 3); it is filed at release_date=2017-08-31, where its record already is.
+* A BANKED RELEASE IS NEVER REWRITTEN (T-ICCO-12): neither its record JSON nor the ``page.html`` that
+  minted it.  A capture that STATES something different lands beside them as
+  ``capture_<digest16>.html`` (addressed by what it states, because the page's "Latest News" sidebar
+  changes every month); one that states the same thing writes nothing and reports ``unchanged``.
+* The record JSON of a NEW release is the parse record (identity, dated rung, every column with its
+  header season, kind and footnote marker, prose rows, withheld seasons) plus ``page_key`` and
+  ``statement_sha256``.  It is a record of the fetch, not evidence: the page is.
+
 What round 3 corrected (2026-09-22)
 -----------------------------------
 * A PARSE FAILURE NO LONGER OVERWRITES THE PAGE THAT MINTED THE RECORD.  Round 2 moved the failure
@@ -115,11 +135,12 @@ What round 3 corrected (2026-09-22)
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import re
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Callable, NamedTuple
 
@@ -131,6 +152,14 @@ from leviathan.common.logging import get_logger
 from leviathan.storage.paths import raw_icco_ewg_stocks_key, raw_icco_qbcs_summary_key
 from leviathan.storage.raw_metadata import write_raw_s3_metadata
 from leviathan.storage.s3 import list_s3_keys, s3_object_exists, upload_bytes_to_s3
+from leviathan.transforms.raw_to_bronze.icco_cocoa import (
+    CAPTURE_PAGE_TEMPLATE,
+    PARSE_FAILURE_PAGE_NAME,
+    QBCS_ISSUE_MONTHS,
+    ParsedPage,
+    parse_qbcs_page,
+)
+from leviathan.transforms.raw_to_bronze.icco_cocoa import in_release_window as _in_release_window
 
 logger = get_logger(__name__)
 
@@ -164,8 +193,9 @@ _BACKOFF_CAP_S = 60.0
 METRIC_NAMESPACE = "Leviathan/Silver"
 INGEST_LEG_FAILURE_METRIC = "IngestLegFailures"
 
-# Months in which QBCS issues are published.
-_QBCS_MONTHS = ("february", "may", "august", "november")
+# Months in which QBCS issues are published -- declared ONCE, in the page parser's module (issue N
+# of a volume is the Nth of these months, which is also how a page's own title is checked).
+_QBCS_MONTHS = QBCS_ISSUE_MONTHS
 
 # QBCS month → approximate day of publication (used as fallback when the page
 # intro text does not contain a parseable date).
@@ -309,102 +339,19 @@ def _fetch_page(url: str, *, max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
 
 
 # ---------------------------------------------------------------------------
-# QBCS HTML parsing
+# QBCS page parsing: ONE parser, in the pure module the silver task reads the banked pages with
 # ---------------------------------------------------------------------------
-
-# Regex to extract "DD Month YYYY" from the page intro text.
-_DATE_RE = re.compile(
-    r"\b(\d{1,2})\s+(January|February|March|April|May|June|July|August|"
-    r"September|October|November|December)\s+(\d{4})\b",
-    re.IGNORECASE,
-)
-
-# Regex to extract volume and issue from strings like "Issue No. 1 – Volume LII"
-_VOLUME_RE = re.compile(
-    r"Issue\s+No[.\s]+(\d)\s*[–\-]\s*Volume\s+([IVXLCDM]+)",
-    re.IGNORECASE,
-)
-
-# Regex to extract cocoa year labels like "2024/25" or "2024/2025"
-_COCOA_YEAR_RE = re.compile(r"\b(20\d{2})/(\d{2,4})\b")
-
-# Regex to parse numeric values with optional thousands separators (spaces or commas).
-_NUMBER_RE = re.compile(r"[-–]?\s*[\d][\d\s,]*")
-
-# ---------------------------------------------------------------------------
-# Release-date window (P10)
-# ---------------------------------------------------------------------------
-# The intro dateline is the AUTHORITATIVE release date and stays primary -- but it is prose ICCO
-# writes by hand, and on the August 2026 bulletin it reads "Abidjan, Cote d'Ivoire, 29 May 2026",
-# the MAY issue's dateline copy-pasted into the August page.  Taken at face value that date
-# recomputes the S3 keys onto release_date=2026-05-29 and OVERWRITES the May record with August's
-# numbers -- silently, and strictly worse than the missed release it would be fixing.
-#
-# So the dateline is FENCED, never replaced: it must fall inside a window that opens on the first
-# day of the bulletin's own month.  Measured over the 50 landed QBCS pages, every one of the 48
-# that parse today sits 25..34 days into that window; the August 2026 dateline sits 64 days BEFORE
-# it.  The ceiling is 75 days -- comfortably past the widest real lag and comfortably short of the
-# ~92-day quarterly spacing, so a date belonging to the NEXT issue can never be accepted.
-#
-# When the dateline is out of window the page's own WordPress publication stamp is tried against
-# the same window (2026-08-31, +30 days: correct).  Only if BOTH fail does the last-day-of-month
-# fallback stand.  The fence CORRECTS the date; it never drops the release.
-_RELEASE_WINDOW_DAYS = 75
-
-# ---------------------------------------------------------------------------
-# QBCS PROSE layout (P10) -- the Q3/August shape
-# ---------------------------------------------------------------------------
-# Twice now -- 2025-08-31 and 2026-08-31 -- the Secretariat has "temporarily withheld" the current
-# season and published the balance sheet as a BULLETED PARAGRAPH with no <table> element at all
-# (both pages carry zero <table> tags).  _parse_qbcs_table cannot see it, returned None, and the
-# release was lost.  The numbers are stated plainly and are parsed here, with the same four metrics
-# in the same insertion order the table layout produces, so a prose release and a table release are
-# the same record downstream.
-#
-# The prose layout states ONE season (the one not withheld), so the record carries `current` only
-# and no `prior` block.  raw_to_bronze/icco_cocoa.py already skips a vintage whose block or cocoa
-# year is absent, so this reduces to 4 bronze rows instead of 8.  The year-on-year PERCENTAGES the
-# prose also prints are deliberately NOT back-divided into a prior column: a prior minted by
-# arithmetic is not a figure the page printed.
-_PROSE_NUM = r"([0-9][0-9\s,. ]*[0-9]|[0-9])"
-_PROSE_UNIT = r"\s*(million|thousand)?\s*(?:metric\s+)?tonnes"
-# The gap between the anchor and its figure may not cross a "tonnes" (that would let a metric whose
-# own figure is missing steal the NEXT metric's) nor a semicolon.
-_PROSE_GAP = r"(?:(?!tonnes)[^;]){0,140}?"
-
-_PROSE_SEASON_RE = re.compile(r"data\s+for\s+the\s+(20\d{2}/\d{2,4})\s+season", re.IGNORECASE)
-# The prose page names TWO seasons and only one of them owns the figures.  On both August pages the
-# FIRST "data for the ... season" belongs to the season the Secretariat WITHHELD ("temporarily
-# withheld production and grindings data for the 2025/26 season"), and the figures belong to the
-# SECOND ("However, data for the 2024/25 season are estimated as:").  Labelling a 2024/25 balance
-# sheet 2025/26 would publish the right numbers under the wrong year -- worse than the miss it
-# replaces -- so the season is chosen per SENTENCE: a sentence carrying "withheld" is rejected, a
-# sentence must carry an affirmative verb to be eligible, and zero or ambiguous candidates return
-# None (a terminal parse_error) rather than a guess.
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.:;])\s+(?=[A-Z])")
-_PROSE_WITHHELD_RE = re.compile(r"\bwithheld\b", re.IGNORECASE)
-_PROSE_AFFIRM_RE = re.compile(r"\b(?:estimated|unchanged|revised|remain|stand)\w*\b", re.IGNORECASE)
-_PROSE_PRODUCTION_RE = re.compile(
-    r"world\s+(?:gross\s+)?production\b" + _PROSE_GAP + r"\bto\s+" + _PROSE_NUM + _PROSE_UNIT,
-    re.IGNORECASE,
-)
-_PROSE_GRINDINGS_RE = re.compile(
-    r"world\s+grindings\b" + _PROSE_GAP + r"\bto\s+" + _PROSE_NUM + _PROSE_UNIT,
-    re.IGNORECASE,
-)
-_PROSE_BALANCE_RE = re.compile(
-    r"global\s+supply\s+(surplus|deficit)\b" + _PROSE_GAP + r"\b(?:as|to|of|at)\s+"
-    + _PROSE_NUM + _PROSE_UNIT,
-    re.IGNORECASE,
-)
-_PROSE_STOCKS_RE = re.compile(
-    r"end[-\s]?of[-\s]?season\s+stocks\b" + _PROSE_GAP + r"\bto\s+" + _PROSE_NUM + _PROSE_UNIT,
-    re.IGNORECASE,
-)
-
-# div.entry-content is the estate's own PIT-correct container for this site (the selector
-# raw_to_text/icco_qbcs.py uses): it drops the "Latest News" sidebar, which links FUTURE bulletins.
-_CONTENT_SELECTOR = "entry-content"
+# 2026-09-29 (data repairs ICCO-2).  The table parser that lived here took "the last two parsed
+# numbers" of each row, so a sign followed by a NO-BREAK SPACE (``+NBSP75``) parsed to nothing and
+# shifted every value one column left, and its ``prior`` block was the SAME season's previous estimate
+# under the PRIOR season's name.  It is deleted.  ONE parser now reads a page --
+# :func:`leviathan.transforms.raw_to_bronze.icco_cocoa.parse_qbcs_page` -- here to decide the key a
+# capture is filed under, and in the silver task to build the releases table from the banked bytes,
+# so the two can never read one page two ways.  The Q3/August PROSE layout and the P10 dateline fence
+# moved there unchanged, with one correction: the fence opens on the first day of the month the
+# PAGE's own title names, not the URL's (the August-2017 bulletin is served from the November-2019
+# URL, and the URL-month fence filed it under release_date=2019-11-30).  The URL month is used only
+# when a page's title names no bulletin month.
 
 # The GATED leg feeds a served table (silver_icco_cocoa) and its failures are terminal.  The EWG
 # leg feeds no SERVED table; the text/evidence layer reads its pages -- see the module docstring.
@@ -431,11 +378,21 @@ _RELEASE_DATE_IN_KEY_RE = re.compile(r"release_date=(\d{4}-\d{2}-\d{2})/")
 # is no dateline to move the failure onto a different partition: `raw/production/
 # source=icco_ewg_stocks/season=<s>/page.html` is the success key AND the failure key, on all 13
 # seasons, on every monthly fire (`skip_existing: false`).  The same constant is used there.
-_PARSE_FAILURE_PAGE = "page_parse_failure.html"
+_PARSE_FAILURE_PAGE = PARSE_FAILURE_PAGE_NAME   # declared once, beside the parser that reads the folder
+
+
+# A later capture of a bulletin the estate already holds lands beside it as ``capture_<digest16>.html``
+# (CAPTURE_PAGE_TEMPLATE), keyed by a digest of what the page STATES (its identity, date, columns,
+# prose and withheld seasons) -- never over ``page.html`` (T-ICCO-12: the bucket's versioning reads
+# Suspended, so an overwrite is a delete).  Addressed by the statement and not by the raw bytes
+# because every icco.org page carries a "Latest News" sidebar that changes every month: a raw-byte
+# address would mint ~50 new captures on every fire while the bulletin itself said nothing new.
+_CAPTURE_PAGE_TEMPLATE = CAPTURE_PAGE_TEMPLATE
 
 
 def _parse_number(text: str) -> float | None:
-    """Parse a potentially formatted number like "1 300", "4,698", "– 478" → float."""
+    """Parse "1 300", "4,698", "- 478" -> float.  EWG leg only (unsigned stock figures); the QBCS
+    page parser, whose signed cells this rule lost, lives in transforms/raw_to_bronze/icco_cocoa.py."""
     t = text.strip()
     # Normalise minus signs.
     t = re.sub(r"^[–−]", "-", t)
@@ -455,312 +412,16 @@ def _cell_text(cell: Any) -> str:
     return cell.get_text(separator=" ", strip=True)
 
 
-def _parse_qbcs_table(soup: BeautifulSoup) -> dict[str, Any] | None:
-    """Extract the QBCS world balance summary table.
-
-    The table has 5 data rows (production, grindings, surplus/deficit, stocks,
-    stocks/grindings ratio) and is consistent from Feb 2008 to the present.
-
-    Returns a dict with keys: cocoa_year_prior, cocoa_year_current, prior, current,
-    or None if parsing fails.
-    """
-    # Find the table that contains "production" in one of its cells.
-    target_table = None
-    for table in soup.find_all("table"):
-        text = table.get_text(separator=" ", strip=True).lower()
-        if "production" in text and "grindings" in text and "stocks" in text:
-            target_table = table
-            break
-
-    if target_table is None:
-        return None
-
-    rows = target_table.find_all("tr")
-    if not rows:
-        return None
-
-    # -----------------------------------------------------------------------
-    # Extract cocoa year labels from header row(s).
-    # The column header typically looks like "2023/24" or "2023/2024".
-    # -----------------------------------------------------------------------
-    header_text = " ".join(
-        _cell_text(c) for row in rows[:3] for c in row.find_all(["th", "td"])
-    )
-    year_matches = _COCOA_YEAR_RE.findall(header_text)
-    # Deduplicate while preserving order.
-    seen: set[str] = set()
-    cocoa_years: list[str] = []
-    for full, short in year_matches:
-        label = f"{full}/{short[-2:]}"  # normalise to 4/2 format, e.g. 2024/25
-        if label not in seen:
-            seen.add(label)
-            cocoa_years.append(label)
-
-    cocoa_year_prior = cocoa_years[0] if len(cocoa_years) >= 1 else None
-    cocoa_year_current = cocoa_years[-1] if len(cocoa_years) >= 2 else cocoa_years[0] if cocoa_years else None
-
-    # -----------------------------------------------------------------------
-    # Identify data rows by searching for keywords in the first cell.
-    # -----------------------------------------------------------------------
-    ROW_KEYS = {
-        "production": ("world_production_kt", False),
-        "grindings":  ("world_grindings_kt",  False),
-        "surplus":    ("surplus_deficit_kt",   True),   # may be negative
-        "deficit":    ("surplus_deficit_kt",   True),
-        "stocks":     ("end_season_stocks_kt", False),
-        "ratio":      ("stocks_grindings_pct", False),
-    }
-
-    extracted: dict[str, dict[str, float | None]] = {"prior": {}, "current": {}}
-
-    for row in rows:
-        cells = row.find_all(["th", "td"])
-        if len(cells) < 3:
-            continue
-        row_label = _cell_text(cells[0]).lower()
-
-        matched_key: str | None = None
-        is_signed = False
-        for keyword, (field_name, signed) in ROW_KEYS.items():
-            if keyword in row_label:
-                matched_key = field_name
-                is_signed = signed
-                break
-        if matched_key is None:
-            continue
-        # Already captured this field (e.g. "surplus/deficit" matches both "surplus" and
-        # the next keyword "deficit" in a later iteration); skip if already set.
-        if matched_key in extracted["prior"]:
-            continue
-
-        # The table typically has: [label | prior_prev_estimate | prior_revised | current | change_kt | change_pct]
-        # Or simpler: [label | prior | current | change_kt | change_pct]
-        # We want the two *estimated* values (skip the "previous estimates a/" column
-        # which is the first data column in some years).
-        # Strategy: take the last two numeric columns before the YoY change columns.
-        numeric_cells = []
-        for cell in cells[1:]:
-            val = _parse_number(_cell_text(cell))
-            if val is not None:
-                numeric_cells.append(val)
-
-        # For ratio rows the values are percentages, not thousands of tonnes.
-        # The table usually has 2–3 numeric values before the change columns.
-        # We take index -4 (prior revised) and -3 (current) when ≥4 values,
-        # else -2 and -1.
-        if is_signed:
-            # Surplus/deficit row can have negative values — all are already parsed.
-            pass
-
-        if len(numeric_cells) >= 4:
-            # [prev_estimate, prior_revised, current_estimate, change_kt, change_pct]
-            prior_val = numeric_cells[-4]
-            current_val = numeric_cells[-3]
-        elif len(numeric_cells) >= 2:
-            prior_val = numeric_cells[-2]
-            current_val = numeric_cells[-1]
-        else:
-            continue
-
-        extracted["prior"][matched_key] = prior_val
-        extracted["current"][matched_key] = current_val
-
-    if not extracted["current"]:
-        return None
-
-    return {
-        "cocoa_year_prior": cocoa_year_prior,
-        "cocoa_year_current": cocoa_year_current,
-        "prior": extracted["prior"],
-        "current": extracted["current"],
-    }
+def statement_digest(page: ParsedPage) -> str:
+    """sha256 of what a page STATES -- the parse record minus the page's own byte digest."""
+    record = page.to_record()
+    record.pop("page_sha256", None)
+    return hashlib.sha256(json.dumps(record, sort_keys=True, ensure_ascii=True).encode("ascii")).hexdigest()
 
 
-def _content_text(soup: BeautifulSoup) -> str:
-    """Visible text of div.entry-content, or of the whole page when that container is absent."""
-    container = soup.find("div", class_=_CONTENT_SELECTOR)
-    node = container if container is not None else soup
-    return node.get_text(separator=" ", strip=True).replace(" ", " ")
-
-
-def _kt(value: float, unit: str | None) -> float:
-    """Normalise a prose figure to thousands of tonnes (the estate's kt unit)."""
-    u = (unit or "").strip().lower()
-    if u == "million":
-        return round(value * 1000.0, 3)
-    if u == "thousand":
-        return round(value, 3)
-    # A bare "tonnes" figure ("estimated as 37,000 tonnes").
-    return round(value / 1000.0, 3)
-
-
-def _published_time_date(soup: BeautifulSoup) -> str | None:
-    """ISO date from the page's own WordPress ``article:published_time`` meta, or None."""
-    meta = soup.find("meta", attrs={"property": "article:published_time"})
-    content = (meta.get("content") or "") if meta is not None else ""
-    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", content)
-    if not m:
-        return None
-    try:
-        return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
-    except ValueError:
-        return None
-
-
-def _in_release_window(iso_date: str, month: str, year: int) -> bool:
-    """True when *iso_date* sits in [first day of the bulletin's month, +_RELEASE_WINDOW_DAYS)."""
-    try:
-        start = date(year, _MONTH_NAME_TO_NUM[month], 1)
-        candidate = date.fromisoformat(iso_date)
-    except (KeyError, ValueError):
-        return False
-    return start <= candidate < start + timedelta(days=_RELEASE_WINDOW_DAYS)
-
-
-def _parse_release_date(soup: BeautifulSoup, fallback_month: str, fallback_year: int) -> str:
-    """ISO release date for the bulletin, fenced against a dateline from the WRONG issue.
-
-    Order: the intro dateline (authoritative, and in window on all 48 QBCS pages that parse today),
-    then the page's own WordPress publication stamp, then the last day of the bulletin's month.  A
-    candidate is taken only when :func:`_in_release_window` accepts it -- see _RELEASE_WINDOW_DAYS
-    for the August-2026 dateline that names the MAY issue.
-    """
-    text = soup.get_text(separator=" ", strip=True)
-    m = _DATE_RE.search(text)
-    if m:
-        day = int(m.group(1))
-        month_num = _MONTH_NAME_TO_NUM[m.group(2).lower()]
-        year = int(m.group(3))
-        try:
-            candidate = date(year, month_num, day).isoformat()
-        except ValueError:
-            candidate = None
-        if candidate and _in_release_window(candidate, fallback_month, fallback_year):
-            return candidate
-        if candidate:
-            logger.warning(
-                "Dateline %s is outside the %s %d release window -- it does not belong to this "
-                "issue; falling through to the page's publication stamp",
-                candidate, fallback_month, fallback_year,
-            )
-
-    published = _published_time_date(soup)
-    if published and _in_release_window(published, fallback_month, fallback_year):
-        logger.info("Release date taken from the page's publication stamp: %s", published)
-        return published
-
-    # Fallback: use the last day of the publication month.
-    month_num = _MONTH_NAME_TO_NUM[fallback_month]
-    fallback_day = _QBCS_FALLBACK_DAY[fallback_month]
-    return date(fallback_year, month_num, fallback_day).isoformat()
-
-
-def _sentences(text: str) -> list[tuple[int, str]]:
-    """Split *text* into (offset, sentence) pairs.  Decimals survive: the split needs a capital."""
-    out: list[tuple[int, str]] = []
-    start = 0
-    for m in _SENTENCE_SPLIT_RE.finditer(text):
-        out.append((start, text[start:m.start()]))
-        start = m.end()
-    out.append((start, text[start:]))
-    return out
-
-
-def _prose_season(text: str) -> tuple[str, int] | None:
-    """The cocoa year the prose figures belong to, and the offset the figures start after.
-
-    Returns None when no sentence qualifies OR when more than one distinct season does -- an
-    ambiguous page is a parse failure the fence announces, never a coin flip.
-    """
-    candidates: list[tuple[str, int]] = []
-    for offset, sentence in _sentences(text):
-        m = _PROSE_SEASON_RE.search(sentence)
-        if m is None:
-            continue
-        if _PROSE_WITHHELD_RE.search(sentence):
-            continue
-        if not _PROSE_AFFIRM_RE.search(sentence):
-            continue
-        full, _, short = m.group(1).partition("/")
-        candidates.append((f"{full}/{short[-2:]}", offset + len(sentence)))
-
-    distinct = {label for label, _ in candidates}
-    if len(distinct) != 1:
-        if candidates:
-            logger.warning("Prose layout names %d distinct data seasons %s -- refusing to guess",
-                           len(distinct), sorted(distinct))
-        return None
-    return candidates[0]
-
-
-def _parse_qbcs_prose(soup: BeautifulSoup) -> dict[str, Any] | None:
-    """Extract the QBCS world balance summary from the Q3/August PROSE layout.
-
-    Used only when :func:`_parse_qbcs_table` finds no table.  Returns the same dict shape, with
-    ``prior`` empty and ``cocoa_year_prior`` None (the prose states one season), or None when the
-    page states no season or no metric -- which is then a TERMINAL parse_error, not a warning.
-    """
-    full_text = _content_text(soup)
-
-    chosen = _prose_season(full_text)
-    if chosen is None:
-        return None
-    cocoa_year, metrics_from = chosen
-
-    # The figures are read ONLY from the text that follows the sentence naming their season, so a
-    # withheld season stated earlier on the page can never lend its words to these numbers.
-    text = full_text[metrics_from:]
-
-    current: dict[str, float | None] = {}
-
-    # Insertion order matches the table layout's row order, so the JSON record is shape-identical.
-    prod_m = _PROSE_PRODUCTION_RE.search(text)
-    if prod_m:
-        val = _parse_number(prod_m.group(1))
-        if val is not None:
-            current["world_production_kt"] = _kt(val, prod_m.group(2))
-
-    grind_m = _PROSE_GRINDINGS_RE.search(text)
-    if grind_m:
-        val = _parse_number(grind_m.group(1))
-        if val is not None:
-            current["world_grindings_kt"] = _kt(val, grind_m.group(2))
-
-    bal_m = _PROSE_BALANCE_RE.search(text)
-    if bal_m:
-        val = _parse_number(bal_m.group(2))
-        if val is not None:
-            magnitude = _kt(abs(val), bal_m.group(3))
-            current["surplus_deficit_kt"] = (
-                -magnitude if bal_m.group(1).lower() == "deficit" else magnitude
-            )
-
-    stocks_m = _PROSE_STOCKS_RE.search(text)
-    if stocks_m:
-        val = _parse_number(stocks_m.group(1))
-        if val is not None:
-            current["end_season_stocks_kt"] = _kt(val, stocks_m.group(2))
-
-    if not current:
-        return None
-
-    return {
-        "cocoa_year_prior": None,
-        "cocoa_year_current": cocoa_year,
-        "prior": {},
-        "current": current,
-    }
-
-
-def _parse_volume_issue(soup: BeautifulSoup) -> tuple[str | None, int | None]:
-    """Extract volume (Roman numeral string) and issue number from page text."""
-    text = soup.get_text(separator=" ", strip=True)
-    m = _VOLUME_RE.search(text)
-    if m:
-        issue = int(m.group(1))
-        volume = m.group(2).upper()
-        return volume, issue
-    return None, None
+def yields_release(page: ParsedPage) -> bool:
+    """True when the page states at least one season (a table column, a prose row or a withheld season)."""
+    return page.failure is None and bool(page.columns or page.prose_rows or page.withheld_seasons)
 
 
 # ---------------------------------------------------------------------------
@@ -883,7 +544,7 @@ def banked_summary_key(month: str, year: int, landed_keys: list[str]) -> str | N
     two most recent quarters.  Two records (2020-03-06, 2020-12-02) landed in the month AFTER
     their bulletin's, which is why the window and not a month prefix is the right question.
 
-    The match is the SAME release window :func:`_parse_release_date` accepts a dateline from, so
+    The match is the SAME release window the page parser accepts a dateline from, so
     the question "is this key this bulletin's?" has exactly one answer in the module.  Keys arrive
     from S3 in lexicographic order, so the earliest matching release date wins deterministically.
     """
@@ -962,20 +623,14 @@ def _process_qbcs(
         logger.warning("HTTP %s for %s", status_code, url)
         return FetchOutcome("error", _GATED_LEG, url, banked=banked, banked_key=banked_key)
 
-    soup = BeautifulSoup(html_text, "html.parser")
-    release_date = _parse_release_date(soup, month, year)
-    volume, issue = _parse_volume_issue(soup)
-    table_data = _parse_qbcs_table(soup)
-    if table_data is None:
-        table_data = _parse_qbcs_prose(soup)
-        if table_data is not None:
-            logger.info(
-                "No summary TABLE on %s -- read the Q3/PROSE layout instead: cocoa_year=%s "
-                "metrics=%s",
-                url, table_data["cocoa_year_current"], sorted(table_data["current"]),
-            )
+    html_bytes = html_text.encode("utf-8")
+    # ONE parser (the silver task reads the banked bytes with the same function).  The URL month is
+    # passed only as the fallback for a page whose own title names no bulletin month.
+    page = parse_qbcs_page(html_bytes, url_month=month, url_year=year, source_url=url)
+    for note in page.notes:
+        logger.warning("QBCS page %s: %s", url, note)
 
-    if table_data is None:
+    if not yields_release(page):
         # No dateline is trustworthy on a page that yields no record, so the HTML lands beside the
         # record the estate ALREADY holds when there is one.  Writing it to the last-day-of-month
         # key instead is what minted release_date=2025-08-31/page.html, an orphan folder no run
@@ -987,56 +642,98 @@ def _process_qbcs(
         folder = (banked_key or html_key).rsplit("/", 1)[0]
         html_key = f"{folder}/{_PARSE_FAILURE_PAGE}"
         logger.error(
-            "PARSE FAILURE: neither the table nor the prose layout yields a record from %s "
-            "(banked=%s) -- the HTML is kept at %s for the replay, beside the record and never "
-            "over it",
-            url, banked_key or False, html_key,
+            "PARSE FAILURE: the page yields no release (%s) from %s (banked=%s) -- the HTML is kept "
+            "at %s for the replay, beside the record and never over it",
+            page.failure or "no season stated", url, banked_key or False, html_key,
         )
         # Still store the raw HTML: the fence corrects the exit code, it never drops the evidence.
-        html_bytes = html_text.encode("utf-8")
         upload_bytes_to_s3(html_bytes, bucket, html_key, region)
         write_raw_s3_metadata(bucket, html_key, html_bytes, url, "text/html", region)
         return FetchOutcome("parse_error", _GATED_LEG, url, banked=banked, html_key=html_key,
                             banked_key=banked_key)
 
-    # Recompute keys with the actual release date parsed from the page.
+    # The keys come from the PAGE: its own dateline, fenced by its own bulletin identity.
+    release_date = page.release_date
     json_key = raw_icco_qbcs_summary_key(release_date, f"icco_qbcs_summary_{release_date.replace('-', '')}.json")
-    html_key = raw_icco_qbcs_summary_key(release_date, "page.html")
 
-    # NOW the dateline is known: refine `banked` onto the REAL key this record lands on.  The
-    # window lookup above already answers the same question for every landed release; this makes
-    # the carried key the exact one whenever the two can differ.
-    if json_key in (landed_keys or []):
-        banked_key = json_key
-        banked = True
+    # NOW the page's own date is known, `banked` is re-read on the key THIS page's record lands on.
+    # The URL-window lookup above answered for the bulletin the URL names; the page may be another
+    # (the November-2019 URL serves the August-2017 bulletin, whose record the estate holds).
+    banked = json_key in (landed_keys or [])
+    banked_key = json_key if banked else None
+
+    digest = statement_digest(page)
+    page_key, wrote_page = _land_page(bucket, region, release_date, html_bytes, digest, url)
+
+    if banked:
+        # T-ICCO-12: a banked release is never rewritten.  Its record JSON and the page that minted
+        # it stay exactly as they are; a capture that STATES something different was kept beside
+        # them under its statement digest (the silver task lists it; it never replaces the record).
+        logger.info("QBCS %s (Vol. %s No. %s) is banked at %s -- %s", release_date,
+                    page.bulletin_volume, page.bulletin_issue, banked_key,
+                    f"a capture stating something new was kept at {page_key}" if wrote_page
+                    else "the page states nothing new; nothing written")
+        return FetchOutcome("uploaded" if wrote_page else "unchanged", _GATED_LEG, url, banked=True,
+                            html_key=page_key if wrote_page else None, banked_key=banked_key)
 
     record: dict[str, Any] = {
-        "release_date": release_date,
-        "bulletin_volume": volume,
-        "bulletin_issue": issue,
-        "cocoa_year_prior": table_data["cocoa_year_prior"],
-        "cocoa_year_current": table_data["cocoa_year_current"],
-        "prior": table_data["prior"],
-        "current": table_data["current"],
+        **page.to_record(),
+        "canonical_url": page.source_url,
         "source_url": url,
+        "page_key": page_key,
+        "statement_sha256": digest,
         "ingested_at": datetime.utcnow().isoformat() + "Z",
     }
-
     json_bytes = json.dumps(record, indent=2, ensure_ascii=False).encode("utf-8")
-    html_bytes = html_text.encode("utf-8")
-
     upload_bytes_to_s3(json_bytes, bucket, json_key, region)
     write_raw_s3_metadata(bucket, json_key, json_bytes, url, "application/json", region)
-    upload_bytes_to_s3(html_bytes, bucket, html_key, region)
-    write_raw_s3_metadata(bucket, html_key, html_bytes, url, "text/html", region)
 
     logger.info(
-        "Uploaded  QBCS  %s  volume=%s issue=%s  cocoa_year=%s  →  s3://%s/%s",
-        release_date, volume, issue, table_data["cocoa_year_current"],
-        bucket, json_key,
+        "Uploaded  QBCS  %s  (%s)  Vol. %s No. %s  layout=%s  page=%s  ->  s3://%s/%s",
+        release_date, page.release_date_source, page.bulletin_volume, page.bulletin_issue,
+        page.layout, page_key, bucket, json_key,
     )
-    return FetchOutcome("uploaded", _GATED_LEG, url, banked=banked,
-                        html_key=html_key, json_key=json_key, banked_key=banked_key)
+    return FetchOutcome("uploaded", _GATED_LEG, url, banked=False,
+                        html_key=page_key, json_key=json_key, banked_key=None)
+
+
+def _read_s3_bytes(bucket: str, key: str, region: str) -> bytes | None:
+    """The bytes of an object the estate holds, or None when they cannot be read (never raises)."""
+    try:
+        from leviathan.storage.s3 import get_thread_local_s3_client, s3_download_with_retry
+        return s3_download_with_retry(bucket, key, get_thread_local_s3_client(region))
+    except Exception as exc:  # noqa: BLE001 -- an unreadable held page is treated as DIFFERENT
+        logger.warning("could not read %s (%s: %s) -- a new capture is kept beside it, never over it",
+                       key, type(exc).__name__, str(exc)[:160])
+        return None
+
+
+def _land_page(bucket: str, region: str, release_date: str, html_bytes: bytes, digest: str,
+               url: str) -> tuple[str, bool]:
+    """Keep this capture WITHOUT ever overwriting a page the estate holds: (key, wrote?).
+
+    * no ``page.html`` in the release folder -> it lands there;
+    * a ``page.html`` that states the same thing (its statement digest equals this one) -> nothing is
+      written and that page's key is returned;
+    * a ``page.html`` that states something else, or cannot be read -> this capture lands beside it
+      under ``capture_<digest[:16]>.html``, once (a capture already held under that name is not
+      rewritten).
+    """
+    page_key = raw_icco_qbcs_summary_key(release_date, "page.html")
+    if not s3_object_exists(bucket, page_key, region):
+        upload_bytes_to_s3(html_bytes, bucket, page_key, region)
+        write_raw_s3_metadata(bucket, page_key, html_bytes, url, "text/html", region)
+        return page_key, True
+    held = _read_s3_bytes(bucket, page_key, region)
+    if held is not None and statement_digest(parse_qbcs_page(held)) == digest:
+        return page_key, False
+    capture_key = raw_icco_qbcs_summary_key(
+        release_date, _CAPTURE_PAGE_TEMPLATE.format(digest=digest[:16]))
+    if s3_object_exists(bucket, capture_key, region):
+        return capture_key, False
+    upload_bytes_to_s3(html_bytes, bucket, capture_key, region)
+    write_raw_s3_metadata(bucket, capture_key, html_bytes, url, "text/html", region)
+    return capture_key, True
 
 
 def _process_ewg(
@@ -1351,7 +1048,7 @@ def main() -> None:
     # Process QBCS bulletins
     # ------------------------------------------------------------------
     counters: dict[str, int] = {
-        "uploaded": 0, "skipped": 0, "missing": 0, "error": 0,
+        "uploaded": 0, "unchanged": 0, "skipped": 0, "missing": 0, "error": 0,
         "parse_error": 0, "dry_run": 0,
     }
     outcomes: list[FetchOutcome] = []
@@ -1382,8 +1079,9 @@ def main() -> None:
     # Summary
     # ------------------------------------------------------------------
     logger.info(
-        "Done. uploaded=%d  skipped=%d  missing=%d  parse_error=%d  error=%d  dry_run=%d",
+        "Done. uploaded=%d  unchanged=%d  skipped=%d  missing=%d  parse_error=%d  error=%d  dry_run=%d",
         counters.get("uploaded", 0),
+        counters.get("unchanged", 0),
         counters.get("skipped", 0),
         counters.get("missing", 0),
         counters.get("parse_error", 0),

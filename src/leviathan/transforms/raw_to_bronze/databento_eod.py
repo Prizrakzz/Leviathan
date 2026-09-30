@@ -664,6 +664,66 @@ def dedupe_ice_bars(df: pd.DataFrame, *, rule: str = ICE_BAR_RULE) -> tuple[pd.D
 
 
 # ---------------------------------------------------------------------------
+# DATA REPAIRS 0929 / FUT-1 -- THE ZERO-BAR LOCATOR (a count, never a rule)
+# ---------------------------------------------------------------------------
+# 462 stored rows carried a 0 in a price column, every one on IFUS.IMPACT; the March-2026 cocoa bar
+# of 2026-01-12 read open 5,330 / high 5,455 / low 0 / close 0 on 28,750 lots. From silver alone it is
+# NOT provable whether that 0 is the on-venue bar's own value or the ICE double-bar rule keeping a
+# degenerate bar over a priced twin (the P3 note above measured "some XOFF closes zero/undefined").
+# This locator answers it on the next run from raw, per unit, in the unit's stats line: how many bars
+# arrived with a price <= 0, how many the dedupe KEPT, and how many of the kept ones had a DROPPED twin
+# on the same (raw_symbol, trade_date) whose four prices were all > 0. It changes no row and decides
+# nothing: a kept 0 is stored MISSING with its reason by the guard at the write seam
+# (futures_eod_contracts.guard_prices), and the choice of bar stays ICE_BAR_RULE's -- an XOFF bar is
+# a different market (block / EFP), so substituting its price would be a mislabel, not a repair.
+NONPOSITIVE_BAR_EXAMPLES = 5
+
+
+def _bar_price_columns(frame: pd.DataFrame) -> list[str]:
+    """The four bar prices the frame carries (the same inline set build_ohlcv_bronze scales)."""
+    return [c for c in ("open", "high", "low", "close") if c in frame.columns]
+
+
+def _nonpositive_mask(frame: pd.DataFrame) -> pd.Series:
+    cols = _bar_price_columns(frame)
+    if frame.empty or not cols:
+        return pd.Series(False, index=frame.index)
+    return frame[cols].apply(pd.to_numeric, errors="coerce").le(0).any(axis=1)
+
+
+def probe_nonpositive_bars(pre: pd.DataFrame, kept: pd.DataFrame) -> dict:
+    """``pre`` = the scaled bars BEFORE the ICE dedupe (for GLBX the same frame as ``kept``)."""
+    m_pre = _nonpositive_mask(pre)
+    m_kept = _nonpositive_mask(kept)
+    rec = {"bars_in": int(len(pre)), "bars_in_nonpositive": int(m_pre.sum()),
+           "bars_kept": int(len(kept)), "bars_kept_nonpositive": int(m_kept.sum()),
+           "bars_kept_nonpositive_with_positive_twin": 0, "examples": []}
+    if not m_kept.any():
+        return rec
+    key = ["raw_symbol", "trade_date"]
+    cols = _bar_price_columns(pre)
+    pub = ["publisher_id"] if "publisher_id" in pre.columns else []
+    all_pos = pre[cols].apply(pd.to_numeric, errors="coerce").gt(0).all(axis=1)
+    twins = pre.loc[all_pos, key + pub + ["close"]].drop_duplicates(subset=key, keep="last")
+    hit = kept.loc[m_kept, key + pub + cols].merge(twins, on=key, how="inner",
+                                                    suffixes=("", "_twin"))
+    rec["bars_kept_nonpositive_with_positive_twin"] = int(len(hit))
+    shown = hit if len(hit) else kept.loc[m_kept, key + pub + cols]
+    for r in shown.head(NONPOSITIVE_BAR_EXAMPLES).to_dict("records"):
+        ex = {"raw_symbol": str(r["raw_symbol"]), "trade_date": str(r["trade_date"])[:10],
+              "kept": {c: (None if pd.isna(r[c]) else float(r[c])) for c in cols}}
+        if pub:
+            ex["kept_publisher_id"] = None if pd.isna(r["publisher_id"]) else int(r["publisher_id"])
+        if "close_twin" in r:
+            ex["twin_close"] = None if pd.isna(r["close_twin"]) else float(r["close_twin"])
+            if pub:
+                ex["twin_publisher_id"] = (None if pd.isna(r["publisher_id_twin"])
+                                           else int(r["publisher_id_twin"]))
+        rec["examples"].append(ex)
+    return rec
+
+
+# ---------------------------------------------------------------------------
 # ohlcv-1d -> bronze
 # ---------------------------------------------------------------------------
 _OHLCV_REQUIRED = ("ts_event", "instrument_id", "symbol", "open", "high", "low", "close", "volume")
@@ -761,6 +821,7 @@ def build_ohlcv_bronze(
 
     dedupe_stats = None
     ice_probe = None
+    pre_dedupe = work
     if dataset in ICE_DATASETS:
         # PROBE P3 runs on the PRE-dedupe frame -- probing the deduped output is self-blinding
         # (dup_keys is 0 by construction after the collapse; that exact mistake shipped and
@@ -768,6 +829,14 @@ def build_ohlcv_bronze(
         # collapsing ~40% of ICE rows).
         ice_probe = probe_ice_bar_rule(work)
         work, dedupe_stats = dedupe_ice_bars(work, rule=ice_bar_rule)
+    # DATA REPAIRS 0929 / FUT-1 -- the zero-bar LOCATOR, pre-dedupe vs kept (a count; no row moves).
+    nonpositive_bars = probe_nonpositive_bars(pre_dedupe, work)
+    if nonpositive_bars["bars_kept_nonpositive"]:
+        logger.warning("databento ohlcv %s/%s: %d kept bar(s) carry a price <= 0 (%d with a fully "
+                       "positive dropped twin) -- stored MISSING with a reason by the write guard "
+                       "(futures_eod_contracts.guard_prices)", root, request_year,
+                       nonpositive_bars["bars_kept_nonpositive"],
+                       nonpositive_bars["bars_kept_nonpositive_with_positive_twin"])
 
     out = work[BRONZE_COLUMNS].sort_values(["raw_symbol", "trade_date"], kind="mergesort")
     out = out.reset_index(drop=True)
@@ -775,7 +844,7 @@ def build_ohlcv_bronze(
              "outright_symbols": len(keep), "dropped_symbols": len(drop),
              "ice_dedupe": dedupe_stats, "ice_probe": ice_probe, "root": root,
              "dataset": dataset, "year": int(request_year),
-             "anchor_fallbacks": anchor_fallbacks}
+             "anchor_fallbacks": anchor_fallbacks, "nonpositive_bars": nonpositive_bars}
     logger.info("databento ohlcv %s/%s: %d rows, %d outright symbols, %d dropped",
                 root, request_year, len(out), len(keep), len(drop))
     return out, stats

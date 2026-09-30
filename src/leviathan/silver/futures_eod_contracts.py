@@ -49,6 +49,28 @@ from datetime import date
 # settlement series was not purchased (ICE via Databento ohlcv-1d).
 SETTLE_KINDS: frozenset[str] = frozenset({"settlement", "mark_to_market", "cash_index", "close"})
 
+# DATA REPAIRS 0929 / FUT-2 -- WHAT EACH settle_kind MEANS, as DATA a reader can name the figure from.
+# The store already carries settle_kind on every row (580,628 of 580,628, 1:1 with source); what was
+# missing is the definition in a place a reader of the TABLE finds it: the generated declaration
+# listed the four values and never said that a ``close`` is not a settlement. These definitions are
+# the single source: the table declaration's notes are rendered from them by the generator
+# (gen_registry_from_baseline.py, the integrator's curation), and the serving label reads the row's
+# settle_kind against them (HANDOFF). Asserted complete against SETTLE_KINDS at import.
+SETTLE_KIND_DEFINITIONS: dict[str, str] = {
+    "settlement": ("the exchange's own daily settlement price for the delivery month, as the venue "
+                   "published it (CME/CBOT: the GLBX.MDP3 statistics settlement, stat_type 3; CZCE, "
+                   "DCE, MIAX and Euronext/MATIF: the settlement column of the venue's daily file)"),
+    "mark_to_market": ("the JSE/SAFEX daily mark-to-market price from the exchange's MTM sheet -- a "
+                       "clearing mark, not a traded settlement"),
+    "cash_index": ("a CEPEA cash-market reference price (BRL per 60-kg bag) -- not a futures "
+                   "contract: instrument_kind cash_index, no delivery month"),
+    "close": ("the last-trade CLOSE of the session from the vendor's daily bar (Databento "
+              "ohlcv-1d, the on-venue publisher's bar), written into settle because the venue's "
+              "settlement series was not purchased -- it is NOT the exchange settlement price and can "
+              "differ from it. Every ICE US and ICE Europe row carries it"),
+}
+assert set(SETTLE_KIND_DEFINITIONS) == SETTLE_KINDS, "SETTLE_KIND_DEFINITIONS must define every settle_kind"
+
 # The ten publication sources (plan line 131). Databento datasets are named by their dataset id so
 # `source` alone identifies the exact feed; free-first venues are named by the exchange.
 SOURCES: frozenset[str] = frozenset({
@@ -484,3 +506,299 @@ def lint_frame(df) -> list[str]:
                         f"CONTRACT_MAP -- unit/currency/settle_kind/source are map-derived, never "
                         f"source-parsed")
     return errs
+
+
+# ---------------------------------------------------------------------------
+# DATA REPAIRS 0929 / FUT-1 -- THE PRICE DOMAIN, DECLARED PER CONTRACT, AND THE GUARD AT THE WRITE.
+#
+# THE DEFECT, MEASURED ON THE CANONICAL BYTES (read-only copy of 2026-09-29, 580,628 rows, 26 slugs):
+# 462 rows carried a 0 in settle / open / high / low / close -- 219 of them a settle of 0.0 -- every
+# one on IFUS.IMPACT (arabica 170, cotton 98, raw sugar 83, cocoa 66, FCOJ 39, canola 6), in 43
+# (leviathan_slug, trade_year) partitions; not one price below zero anywhere. All five 2026 cocoa
+# deliveries on 2026-01-12 read open > 0, high > 0, low 0, close 0, settle 0 on real volume, and a
+# served 63-session change on July-2026 cocoa read "+3,630, rising" for a contract that fell ~1,841.
+#
+# WHERE IT ENTERS: the vendor's ohlcv-1d bar carries a fixed-point 0 (NOT the UNDEF sentinel);
+# ``raw_to_bronze.databento_eod.scale_fixed_price`` masks only UNDEF, so 0 -> 0.0; ``apply_ice_settle``
+# copies the 0.0 close into ``settle``; ``bronze_to_silver`` passes it through; ``lint_frame`` has no
+# positivity rule. The one guard that existed (``build_settlement_bronze``) nulls <= 0 marks on the
+# CPO settlement tape only. Whether the 0 is the on-venue bar's own value or a degenerate bar the
+# ICE double-bar rule kept is NOT provable from silver; ``probe_nonpositive_bars`` in the raw ->
+# bronze module now measures it on the next run from raw (a count, never a rule).
+#
+# THE RULE (a fact per contract, never a slug list and never an inference from the unit): every
+# contract DECLARES its price domain here, and the declaration is asserted COMPLETE against
+# CONTRACT_MAP at import (a slug with no domain fails closed). A value of settle / open / high /
+# low / close that is not finite, or lies outside its contract's domain, is stored as NaN WITH A
+# REASON -- the row, its volume and its open interest stay (a zero volume and a zero open interest
+# are real: 3,785 and 1,406 rows of them; neither column is ever touched). The guard runs at the ONE
+# write seam (``jobs/batch/futures_eod_task.py`` publish) on the frame being written, i.e. AFTER
+# ``merge_with_canonical``, so a canonical prior carrying a zero is repaired by the same pass.
+#
+# THE DOMAINS: ``positive`` = finite and > 0 (every exchange-listed outright on a physical commodity
+# and both CEPEA cash references in this map: 0 of 580,628 stored rows is below zero, and a 0 has
+# only ever been a non-price); ``signed`` = any finite value, for a contract whose price can
+# legitimately print at or below zero (none today; the vocabulary exists so a declaration, not this
+# code, decides -- a deck pins that a ``signed`` contract keeps a negative settle).
+#
+# The domain is kept OUTSIDE the CONTRACT_MAP records on purpose: lint_map refuses any extra field
+# in a record and config_check binds the records by name, so a sibling declaration moves neither.
+# ---------------------------------------------------------------------------
+PRICE_COLUMNS: tuple[str, ...] = ("settle", "open", "high", "low", "close")
+PRICE_DOMAINS: frozenset[str] = frozenset({"positive", "signed"})
+PRICE_DOMAIN: dict[str, str] = {
+    # CME / CBOT via GLBX.MDP3 (exchange settlements; the CPO settlement tape nulls its own 0 marks
+    # upstream as well -- deepest-month placeholders, build_settlement_bronze)
+    "corn_cbot": "positive",
+    "soybeans_cbot": "positive",
+    "soft_red_winter_wheat_cbot": "positive",
+    "hard_red_winter_wheat_kcbt": "positive",
+    "soybean_oil_cbot": "positive",
+    "soybean_meal_cbot": "positive",
+    "rough_rice_cbot": "positive",
+    "malaysian_crude_palm_oil_cme": "positive",
+    # ICE US / ICE Europe via Databento (session closes, settle_kind=close)
+    "arabica_coffee": "positive",
+    "raw_sugar": "positive",
+    "cocoa": "positive",
+    "cotton": "positive",
+    "frozen_orange_juice": "positive",
+    "canola_ice": "positive",
+    "robusta_coffee": "positive",
+    "white_sugar": "positive",
+    # CZCE, DCE, JSE/SAFEX, MIAX, Euronext/MATIF (exchange settlements / MTM)
+    "rapeseed_meal_zce": "positive",
+    "rapeseed_oil_zce": "positive",
+    "palm_olein_dce": "positive",
+    "soybean_meal_dce": "positive",
+    "soybean_oil_dce": "positive",
+    "soybeans_no_1_dce": "positive",
+    "soybeans_no_2_dce": "positive",
+    "south_african_white_maize_jse": "positive",
+    "south_african_yellow_maize_jse": "positive",
+    "hard_red_spring_wheat_mgex": "positive",
+    "french_wheat_matif": "positive",
+    "french_maize_matif": "positive",
+    "french_rapeseed_matif": "positive",
+    # CEPEA cash references (BRL per 60-kg bag)
+    "brazilian_arabica_coffee": "positive",
+    "campinas_corn_reference_bmf": "positive",
+}
+
+# THE REASON (O-1 default): ONE additive nullable string column, written by the WRITE SEAM and never
+# by a producer (the producers' SILVER_COLUMNS projection is unchanged, so the seven other bronze ->
+# silver legs need no edit). NULL iff all five prices are present; otherwise one ``<column>:<cause>``
+# token per missing price column, ';'-joined in PRICE_COLUMNS order. A cause names what the CODE
+# SAW, never a guessed origin:
+#   nonpositive_value  -- a value <= 0 under a ``positive`` domain, nulled by this guard;
+#   nonfinite_value    -- +/-inf, nulled by this guard;
+#   absent_on_arrival  -- the value reached the write seam already missing; the seam cannot see why
+#                         (no bar, no settlement statistic, a settlement-tape row with no bar, a mark
+#                         an upstream stage nulled). Not named "absent_in_source": for the CPO zero
+#                         marks nulled in bronze the source DID carry a value.
+# A token already on an arriving row (a canonical prior the guard wrote before) is CARRIED for a
+# column that is still missing, so a second pass never downgrades nonpositive_value to
+# absent_on_arrival. The column is declared by the table declaration (generator-owned); the write
+# seam stages it only when the declaration carries it (futures_eod_task.write_columns).
+PRICE_NULL_REASON_COLUMN = "price_null_reason"
+WRITE_SEAM_COLUMNS: tuple[str, ...] = (PRICE_NULL_REASON_COLUMN,)
+PRICE_NULL_CAUSES: frozenset[str] = frozenset(
+    {"nonpositive_value", "nonfinite_value", "absent_on_arrival"})
+# The denominators a declared failing share may name (O-6): the whole frame being written, one
+# slug inside it, or one (slug, trade_date) inside it.
+PRICE_GUARD_DENOMINATORS: tuple[str, ...] = ("run", "slug", "slug_day")
+
+
+def lint_price_domain() -> list[str]:
+    """PRICE_DOMAIN is complete against CONTRACT_MAP (both directions) and inside the vocabulary."""
+    errs: list[str] = []
+    missing = sorted(set(CONTRACT_MAP) - set(PRICE_DOMAIN))
+    extra = sorted(set(PRICE_DOMAIN) - set(CONTRACT_MAP))
+    if missing:
+        errs.append(f"PRICE_DOMAIN declares no domain for {missing} -- every contract must declare "
+                    f"one of {sorted(PRICE_DOMAINS)}; a missing declaration is never defaulted")
+    if extra:
+        errs.append(f"PRICE_DOMAIN names slug(s) absent from CONTRACT_MAP: {extra}")
+    bad = sorted(f"{s}={d!r}" for s, d in PRICE_DOMAIN.items() if d not in PRICE_DOMAINS)
+    if bad:
+        errs.append(f"PRICE_DOMAIN value(s) outside {sorted(PRICE_DOMAINS)}: {bad}")
+    return errs
+
+
+assert not lint_price_domain(), "futures_eod_contracts.PRICE_DOMAIN is malformed: " + "; ".join(
+    lint_price_domain())
+
+
+def parse_price_null_reason(value) -> dict[str, str]:
+    """``'settle:nonpositive_value;close:nonpositive_value'`` -> ``{column: cause}``. FAIL CLOSED on a
+    token outside the vocabulary (the only writer is :func:`guard_prices`; an unknown token means the
+    vocabulary moved without a migration)."""
+    if _is_blank(value):
+        return {}
+    out: dict[str, str] = {}
+    for tok in str(value).split(";"):
+        col, sep, cause = tok.partition(":")
+        if not sep or col not in PRICE_COLUMNS or cause not in PRICE_NULL_CAUSES or col in out:
+            raise ValueError(f"{PRICE_NULL_REASON_COLUMN} token {tok!r} in {value!r} is not "
+                             f"'<{'|'.join(PRICE_COLUMNS)}>:<{'|'.join(sorted(PRICE_NULL_CAUSES))}>' "
+                             f"(or repeats a column)")
+        out[col] = cause
+    return out
+
+
+def guard_prices(df):
+    """THE WRITE GUARD (FUT-1): null every price outside its contract's declared domain, WITH a reason.
+
+    Returns ``(frame, record)``. The frame is a copy of ``df`` whose five price columns carry NaN where
+    a value was non-finite or outside the domain, plus the ``price_null_reason`` column (see above).
+    NOTHING ELSE MOVES: no row is removed, no other column is read for a decision or written, and a
+    value inside its domain is returned bit-identical. The record counts what the guard did -- per
+    column and cause, per slug, and per (slug, trade_date) -- which is the census the declared failing
+    share (:func:`price_guard_breaches`) is judged on and what the run log stamps.
+
+    Imports pandas lazily so this module stays stdlib-only at import (the producers and config_check
+    import it)."""
+    import numpy as np
+    import pandas as pd
+
+    rec: dict = {"rows": 0, "rows_nulled": 0, "cells_nulled": {}, "reason_tokens_carried": 0,
+                 "by_slug": {}, "slug_days": [], "examples": []}
+    if df is None:
+        raise ValueError("guard_prices: no frame")
+    out = df.copy()
+    if len(out) == 0:
+        if PRICE_NULL_REASON_COLUMN not in out.columns:
+            out[PRICE_NULL_REASON_COLUMN] = pd.Series([], dtype=object)
+        return out, rec
+    need = ("leviathan_slug", "trade_date", *PRICE_COLUMNS)
+    missing = [c for c in need if c not in out.columns]
+    if missing:
+        raise ValueError(f"guard_prices: frame is missing {missing}")
+    n = len(out)
+    slugs = out["leviathan_slug"].astype("object").to_numpy()
+    unknown = sorted({str(s) for s in slugs if _is_blank(s) or s not in PRICE_DOMAIN})
+    if unknown:
+        raise ValueError(f"guard_prices: slug(s) {unknown} have no declared PRICE_DOMAIN -- refusing "
+                         f"to write a price whose domain is not declared")
+    positive = np.fromiter((PRICE_DOMAIN[s] == "positive" for s in slugs), dtype=bool, count=n)
+
+    # Tokens a prior pass wrote (a canonical row read back by the merge). Only a cause the seam could
+    # NOT re-derive is worth carrying -- absent_on_arrival is what a NaN re-derives to anyway.
+    carried_pos: dict[str, list[int]] = {c: [] for c in PRICE_COLUMNS}
+    carried_cause: dict[str, list[str]] = {c: [] for c in PRICE_COLUMNS}
+    if PRICE_NULL_REASON_COLUMN in out.columns:
+        for pos, val in enumerate(out[PRICE_NULL_REASON_COLUMN].astype("object").to_numpy()):
+            for col, cz in parse_price_null_reason(val).items():
+                if cz != "absent_on_arrival":
+                    carried_pos[col].append(pos)
+                    carried_cause[col].append(cz)
+
+    nulled_any = np.zeros(n, dtype=bool)
+    reason = np.full(n, "", dtype=object)
+    for col in PRICE_COLUMNS:
+        vals = pd.to_numeric(out[col], errors="coerce").astype("float64").to_numpy(copy=True)
+        arrived_missing = np.isnan(vals)
+        nonfinite = np.isinf(vals)
+        with np.errstate(invalid="ignore"):
+            nonpositive = ~arrived_missing & ~nonfinite & positive & (vals <= 0.0)
+        kill = nonfinite | nonpositive
+        if kill.any():
+            vals[kill] = np.nan
+            out[col] = vals
+            nulled_any |= kill
+            by_cause = {}
+            if nonpositive.any():
+                by_cause["nonpositive_value"] = int(nonpositive.sum())
+            if nonfinite.any():
+                by_cause["nonfinite_value"] = int(nonfinite.sum())
+            rec["cells_nulled"][col] = by_cause
+        cause = np.full(n, None, dtype=object)
+        cause[arrived_missing] = "absent_on_arrival"
+        if carried_pos[col]:
+            cp = np.asarray(carried_pos[col], dtype=np.int64)
+            cc = np.asarray(carried_cause[col], dtype=object)
+            still = arrived_missing[cp]
+            cause[cp[still]] = cc[still]
+            rec["reason_tokens_carried"] += int(still.sum())
+        cause[nonpositive] = "nonpositive_value"
+        cause[nonfinite] = "nonfinite_value"
+        has = np.fromiter((c is not None for c in cause), dtype=bool, count=n)
+        if has.any():
+            tok = np.full(n, "", dtype=object)
+            tok[has] = [f"{col}:{c}" for c in cause[has]]
+            both = has & (reason != "")
+            reason = np.where(both, reason + ";" + tok, np.where(has, tok, reason))
+    out[PRICE_NULL_REASON_COLUMN] = pd.Series(
+        np.where(reason == "", None, reason), index=out.index, dtype=object)
+
+    rec["rows"] = int(n)
+    rec["rows_nulled"] = int(nulled_any.sum())
+    if rec["rows_nulled"]:
+        work = pd.DataFrame({
+            "slug": slugs,
+            "day": pd.to_datetime(out["trade_date"], errors="coerce").dt.strftime("%Y-%m-%d").to_numpy(),
+            "nulled": nulled_any})
+        per_slug = work.groupby("slug")["nulled"].agg(["size", "sum"])
+        rec["by_slug"] = {str(s): {"rows": int(r["size"]), "rows_nulled": int(r["sum"])}
+                          for s, r in per_slug.iterrows() if int(r["sum"])}
+        hit = work[work["nulled"]][["slug", "day"]].drop_duplicates()
+        per_day = work.merge(hit, on=["slug", "day"]).groupby(["slug", "day"])["nulled"].agg(
+            ["size", "sum"])
+        rec["slug_days"] = [
+            {"leviathan_slug": str(s), "trade_date": str(d), "rows": int(r["size"]),
+             "rows_nulled": int(r["sum"]), "share": round(int(r["sum"]) / int(r["size"]), 6)}
+            for (s, d), r in per_day.iterrows()]
+        ex = out.loc[nulled_any]
+        for row in ex.head(10).itertuples(index=False):
+            rec["examples"].append({
+                "leviathan_slug": str(getattr(row, "leviathan_slug")),
+                "contract_month": str(getattr(row, "contract_month", "")),
+                "trade_date": str(getattr(row, "trade_date"))[:10],
+                PRICE_NULL_REASON_COLUMN: str(getattr(row, PRICE_NULL_REASON_COLUMN))})
+    return out, rec
+
+
+def price_guard_rule(contract: dict):
+    """The DECLARED failing share, read from the table declaration's ``range_rules.price_domain_guard``
+    (generator-owned; never a number typed in code). ``None`` when the declaration carries none -- the
+    guard then still nulls and reports, it only has no share to fail on. FAIL CLOSED on a malformed
+    declaration."""
+    rules = (contract or {}).get("range_rules") or {}
+    rule = rules.get("price_domain_guard")
+    if rule is None:
+        return None
+    if not isinstance(rule, dict):
+        raise ValueError(f"range_rules.price_domain_guard must be a mapping, got {rule!r}")
+    den = rule.get("denominator")
+    share = rule.get("max_nulled_share")
+    if den not in PRICE_GUARD_DENOMINATORS:
+        raise ValueError(f"range_rules.price_domain_guard.denominator {den!r} not in "
+                         f"{list(PRICE_GUARD_DENOMINATORS)}")
+    if isinstance(share, bool) or not isinstance(share, (int, float)) or not 0 < float(share) <= 1:
+        raise ValueError(f"range_rules.price_domain_guard.max_nulled_share {share!r} must be a "
+                         f"fraction in (0, 1]")
+    return {"denominator": den, "max_nulled_share": float(share)}
+
+
+def price_guard_breaches(rec: dict, rule) -> list[str]:
+    """Every group whose share of guard-nulled rows EXCEEDS the declared share, named. Pure."""
+    if not rule:
+        return []
+    den, cap = rule["denominator"], float(rule["max_nulled_share"])
+    out: list[str] = []
+    if den == "run":
+        rows, hit = int(rec.get("rows") or 0), int(rec.get("rows_nulled") or 0)
+        if rows and hit / rows > cap:
+            out.append(f"run: {hit} of {rows} rows carried a price outside its declared domain "
+                       f"({hit / rows:.4f} > {cap})")
+    elif den == "slug":
+        for slug, r in sorted((rec.get("by_slug") or {}).items()):
+            if r["rows"] and r["rows_nulled"] / r["rows"] > cap:
+                out.append(f"{slug}: {r['rows_nulled']} of {r['rows']} rows "
+                           f"({r['rows_nulled'] / r['rows']:.4f} > {cap})")
+    else:
+        for r in rec.get("slug_days") or []:
+            if r["share"] > cap:
+                out.append(f"{r['leviathan_slug']} {r['trade_date']}: {r['rows_nulled']} of "
+                           f"{r['rows']} rows ({r['share']:.4f} > {cap})")
+    return out

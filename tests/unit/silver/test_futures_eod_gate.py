@@ -561,6 +561,7 @@ class TestGate8ChainHooks:
         fails, rec = G.gate8_chain_hooks(_REPO)
         assert fails == [], fails
         assert rec["row_validator_wired"] is True
+        assert rec["price_guard_wired"] is True    # DATA REPAIRS 0929 / FUT-1
         assert rec["partition_mode"] == "registered" and rec["projection"] == "forbidden"
         # Both chains that publish this table are checked, not just the paid vendor one.
         assert set(rec["descriptors"]) == set(G._DAG_SCHEDULES)
@@ -593,6 +594,9 @@ class TestGate8ChainHooks:
         fails, rec = G.gate8_chain_hooks(repo)
         assert rec["row_validator_wired"] is False
         assert any("row_validator=FC.lint_frame" in f for f in fails)
+        # the same mirror has no write-seam price guard either -- named, never inferred
+        assert rec["price_guard_wired"] is False
+        assert any("price guard" in f for f in fails)
 
     def test_fires_when_the_descriptor_is_missing(self, tmp_path):
         import shutil
@@ -605,6 +609,81 @@ class TestGate8ChainHooks:
                     repo / "jobs/batch/futures_eod_task.py")
         fails, _ = G.gate8_chain_hooks(repo)
         assert any("DAG descriptor" in f and "missing" in f for f in fails)
+
+
+class TestGate10PriceDomain:
+    """DATA REPAIRS 0929 / FUT-1: 462 stored rows carried a 0 in a price column (all IFUS.IMPACT) and
+    no gate could see it. Gate 10 re-proves the write guard on the STORED bytes."""
+
+    def test_passes_on_a_clean_frame(self, eod):
+        fails, rec = G.gate10_price_domain(eod)
+        assert fails == [] and rec["rows_outside_domain"] == 0
+        assert rec["rows_without_reason_column"] == len(eod)     # written before the guard
+
+    def test_fires_on_a_stored_zero_and_names_the_slug(self, eod):
+        bad = eod.copy()
+        i = bad.index[bad["leviathan_slug"] == "robusta_coffee"][0]
+        bad.loc[i, ["low", "close", "settle"]] = 0.0
+        fails, rec = G.gate10_price_domain(bad)
+        assert rec["rows_outside_domain"] == 1
+        assert rec["cells_outside_domain"]["settle"] == 1 and rec["cells_outside_domain"]["open"] == 0
+        assert rec["outside_by_slug"] == {"robusta_coffee": 1}
+        assert any("outside the contract's declared domain" in f for f in fails)
+
+    def test_a_signed_contract_may_store_a_negative(self, eod, monkeypatch):
+        monkeypatch.setitem(FC.PRICE_DOMAIN, "corn_cbot", "signed")
+        neg = eod.copy()
+        neg.loc[neg.index[0], "settle"] = -5.0
+        fails, _ = G.gate10_price_domain(neg)
+        assert fails == []
+
+    def test_the_reason_must_name_exactly_the_missing_prices(self, eod):
+        good = eod.copy()
+        good[FC.PRICE_NULL_REASON_COLUMN] = None
+        i = good.index[0]
+        good.loc[i, ["low", "close", "settle"]] = np.nan
+        good.loc[i, FC.PRICE_NULL_REASON_COLUMN] = ("settle:nonpositive_value;low:nonpositive_value;"
+                                                    "close:nonpositive_value")
+        fails, rec = G.gate10_price_domain(good)
+        assert fails == [] and rec["reason_census"]["close:nonpositive_value"] == 1
+        wrong = good.copy()
+        wrong.loc[i, FC.PRICE_NULL_REASON_COLUMN] = "settle:nonpositive_value"
+        fails, rec = G.gate10_price_domain(wrong)
+        assert rec["reason_incoherent"] == 1 and fails
+        garbled = good.copy()
+        garbled.loc[i, FC.PRICE_NULL_REASON_COLUMN] = "settle:vendor_glitch"
+        fails, rec = G.gate10_price_domain(garbled)
+        assert rec["reason_malformed"] == 1 and fails
+
+    def test_a_partition_written_before_the_guard_is_judged_on_values_only(self, tmp_path, eod):
+        """A table mid-repair: one partition object carries the reason column, one does not. The
+        loader marks each row by its OWN object, so the older rows' NULL reason is not read as a claim
+        that every price is present."""
+        body = eod[[c for c in eod.columns if c not in ("leviathan_slug", "trade_year")]]
+        corn = body[eod["leviathan_slug"] == "corn_cbot"].copy()
+        corn.loc[corn.index[0], "close"] = np.nan          # absent on arrival, no column to say so
+        old = tmp_path / "leviathan_slug=corn_cbot" / "trade_year=2026"
+        old.mkdir(parents=True)
+        corn.to_parquet(old / "part-000.parquet", index=False)
+        rob = body[eod["leviathan_slug"] == "robusta_coffee"].copy()
+        rob[FC.PRICE_NULL_REASON_COLUMN] = None
+        new = tmp_path / "leviathan_slug=robusta_coffee" / "trade_year=2026"
+        new.mkdir(parents=True)
+        rob.to_parquet(new / "part-000.parquet", index=False)
+        got = G.load_eod_frame(str(tmp_path))
+        fails, rec = G.gate10_price_domain(got)
+        assert fails == [], fails
+        assert rec["rows_with_reason_column"] == len(rob)
+        assert rec["rows_without_reason_column"] == len(corn)
+
+    def test_half_nulled_and_traded_unsettled_rows_are_reported_never_failed(self, eod):
+        rep = eod.copy()
+        rep.loc[rep.index[0], "settle"] = np.nan                 # traded (volume 1000), no settle
+        rep.loc[rep.index[1], "low"] = rep.loc[rep.index[1], "close"] + 5   # an inconsistent bar
+        fails, rec = G.gate10_price_domain(rep)
+        assert fails == []
+        assert rec["bar_inconsistent_rows"] == 1
+        assert rec["traded_without_settle_by_slug"] == {"corn_cbot": 1}
 
 
 class TestEvaluate:
@@ -626,7 +705,11 @@ class TestEvaluate:
                  "dropped_count": 15} for r in G.ROOT_MAP]
         art = G.evaluate(eod=eod, manifests=mans, flat=flat, repo=_REPO)
         statuses = {k: v["status"] for k, v in art["gates"].items()}
-        assert set(statuses) == {"1", "2", "3", "4", "5", "6", "7", "8", "9"}
+        # PIN MOVED (DATA REPAIRS 0929 / FUT-1): gate 10 (price domain) joined the harness because
+        # 462 stored rows carried a 0 price and no gate could see it. The claim is kept: EVERY gate
+        # the harness declares runs together on one structurally complete frame and passes.
+        assert set(statuses) == {str(g) for g in G.GATE_IDS} == {
+            "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
         assert art["verdict"] == "PASS", art["failures"]
         G.render_report(art).encode("ascii")
 
@@ -637,11 +720,15 @@ class TestEvaluate:
         assert any("SKIPPED" in f for f in art["failures"])
 
     def test_an_explicit_waiver_is_recorded_and_does_not_fail(self):
+        # PIN MOVED (DATA REPAIRS 0929 / FUT-1): gate 10 needs the eod frame like 1/3-7/9, so a run
+        # with no frame must waive it too or it SKIPS and fails closed. The claim is kept: every
+        # frame-dependent gate waived + gate 8 green = a recorded, passing verdict.
         art = G.evaluate(eod=None, manifests=None, flat=None, repo=_REPO,
-                         skip={1, 2, 3, 4, 5, 6, 7, 9})
+                         skip={1, 2, 3, 4, 5, 6, 7, 9, 10})
         assert art["gates"]["1"]["status"] == "WAIVED"
         assert art["gates"]["9"]["status"] == "WAIVED"
-        assert art["waived"] == [1, 2, 3, 4, 5, 6, 7, 9]
+        assert art["gates"]["10"]["status"] == "WAIVED"
+        assert art["waived"] == [1, 2, 3, 4, 5, 6, 7, 9, 10]
         assert art["verdict"] == "PASS"
 
     def test_the_shadow_waiver_set_leaves_the_local_gates_armed(self, eod, monkeypatch):

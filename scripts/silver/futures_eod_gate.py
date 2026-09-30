@@ -27,6 +27,12 @@ plan + gate 9, the V2-4 month-continuity gate).
     8. The W1a-style CHAIN HOOKS: registered/forbidden layout, the mandatory ``lint_frame`` row
        validator wiring, ``config_check`` (futures_eod + futures_roll), the DAG descriptor and its
        byte-identical render, and the emitted ``silver_rebuild_gate`` / ``numbers_parity`` commands.
+       Since DATA REPAIRS 0929 also the write-seam PRICE GUARD wiring (``guard_for_write(``).
+   10. PRICE DOMAIN (DATA REPAIRS 0929 / FUT-1): no STORED settle / open / high / low / close outside
+       its contract's declared domain (``futures_eod_contracts.PRICE_DOMAIN``) -- 462 rows carried a
+       0 before the write guard -- and, where a partition carries ``price_null_reason``, the reason
+       names exactly the missing price columns. The half-nulled bars (T-FUT-6) and the traded rows
+       with no settle (N-9) are REPORTED, never failed.
 
 NO ATHENA (INV-3, and the plan's post-ship verification says so in as many words): every frame is
 read straight from parquet via boto3 / pyarrow, and every data-plane call goes through a read-only
@@ -195,8 +201,18 @@ PARITY_MEDIAN_FLOOR = 0.005     # median |relative diff| away from rolls must be
 _DAG_SCHEDULES: tuple[str, ...] = ("futures_eod_databento", "futures_eod_free")
 _PRODUCER_TASK = "jobs/batch/futures_eod_task.py"
 _ROW_VALIDATOR_TOKEN = "row_validator=FC.lint_frame"
+# DATA REPAIRS 0929 / FUT-1: the write seam's price guard (futures_eod_task.publish ->
+# guard_for_write -> futures_eod_contracts.guard_prices). Wired, not merely intended.
+_PRICE_GUARD_TOKEN = "guard_for_write("
 
-GATE_IDS = (1, 2, 3, 4, 5, 6, 7, 8, 9)
+# --- gate 10 ------------------------------------------------------------------------------------
+GATE10_EXAMPLES = 20
+# load_eod_frame stamps, per row, whether the row's OWN partition object carries the reason column:
+# a partition written before the guard has no column, and after a concat its rows would read NULL --
+# indistinguishable from "every price present" without this mark.
+_REASON_PRESENT_MARK = "_price_null_reason_present"
+
+GATE_IDS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 _FORBIDDEN_REPORT_PREFIXES = ("raw/", "bronze/", "silver/", "gold/")
 _ALLOWLIST = frozenset({"get_object", "list_objects_v2", "head_object", "get_paginator"})
 
@@ -276,6 +292,7 @@ def load_eod_frame(uri: str, s3=None) -> pd.DataFrame:
             for k, v in _hive_values(f.as_posix()).items():
                 if k not in df.columns:
                     df[k] = v
+            df[_REASON_PRESENT_MARK] = FC.PRICE_NULL_REASON_COLUMN in df.columns
             frames.append(df)
     else:
         bucket, key = split_s3_uri(uri)
@@ -288,6 +305,7 @@ def load_eod_frame(uri: str, s3=None) -> pd.DataFrame:
             for pk, pv in _hive_values(k).items():
                 if pk not in df.columns:
                     df[pk] = pv
+            df[_REASON_PRESENT_MARK] = FC.PRICE_NULL_REASON_COLUMN in df.columns
             frames.append(df)
     if not frames:
         raise ValueError(f"no parquet objects under {uri}")
@@ -861,6 +879,10 @@ def gate8_chain_hooks(repo: Path = _REPO) -> tuple[list[str], dict]:
         rec["uses_partitioned_publish"] = "build_partitioned_publish" in text
         if not rec["uses_partitioned_publish"]:
             fails.append(f"(8) {_PRODUCER_TASK} does not go through build_partitioned_publish")
+        rec["price_guard_wired"] = _PRICE_GUARD_TOKEN in text
+        if not rec["price_guard_wired"]:
+            fails.append(f"(8) {_PRODUCER_TASK} does not run the write-seam price guard "
+                         f"({_PRICE_GUARD_TOKEN}...) -- a vendor 0 would be stored as a price")
 
     # (c) the unit three-way lint + the D8 roll lint.
     from leviathan.graphrag import config_check as cc
@@ -929,13 +951,120 @@ def gate8_chain_hooks(repo: Path = _REPO) -> tuple[list[str], dict]:
 
 
 # ---------------------------------------------------------------------------
+# gate 10 -- PRICE DOMAIN (DATA REPAIRS 0929 / FUT-1)
+# ---------------------------------------------------------------------------
+def _reason_written_mask(df: pd.DataFrame) -> np.ndarray:
+    """Per row: did the row's own partition object carry ``price_null_reason``? (See
+    :data:`_REASON_PRESENT_MARK`.) A synthetic frame with the column and no mark counts as written."""
+    if FC.PRICE_NULL_REASON_COLUMN not in df.columns:
+        return np.zeros(len(df), dtype=bool)
+    if _REASON_PRESENT_MARK in df.columns:
+        return df[_REASON_PRESENT_MARK].fillna(False).astype(bool).to_numpy()
+    return np.ones(len(df), dtype=bool)
+
+
+def gate10_price_domain(df: pd.DataFrame) -> tuple[list[str], dict]:
+    """The write guard's claim, re-proven on the STORED bytes -- the table, not a producer frame.
+
+    FAILS on (a) any settle / open / high / low / close outside its contract's declared domain
+    (``FC.PRICE_DOMAIN``; ``positive`` = finite and > 0) -- a zero is not a price, and 462 of them
+    were stored before the guard (all IFUS.IMPACT); (b) a slug with no declared domain; (c) on the
+    rows whose partition carries ``price_null_reason``, a reason that does not name EXACTLY the
+    missing price columns, or a token outside the vocabulary.
+
+    REPORTS, never fails: the reason census by (column, cause); the rows whose four bar prices are
+    all present but internally inconsistent (T-FUT-6 -- a half-nulled bar is reported, never nulled
+    further); the traded rows (volume > 0) with no settle, per slug (N-9); and how many rows sit in a
+    partition written before the guard (no reason column: judged by (a) only)."""
+    need = {"leviathan_slug", "trade_date", *FC.PRICE_COLUMNS}
+    if need - set(df.columns):
+        return [f"(10) frame is missing {sorted(need - set(df.columns))}"], {}
+    fails: list[str] = []
+    slugs = df["leviathan_slug"].astype(str)
+    undeclared = sorted(set(slugs) - set(FC.PRICE_DOMAIN))
+    if undeclared:
+        fails.append(f"(10) slug(s) {undeclared} have no declared price domain (FC.PRICE_DOMAIN)")
+    positive = slugs.map(FC.PRICE_DOMAIN).eq("positive").to_numpy()
+    bad_any = np.zeros(len(df), dtype=bool)
+    by_col: dict[str, int] = {}
+    for col in FC.PRICE_COLUMNS:
+        v = pd.to_numeric(df[col], errors="coerce").to_numpy(dtype="float64", na_value=np.nan)
+        with np.errstate(invalid="ignore"):
+            bad = np.isinf(v) | (positive & (v <= 0))
+        by_col[col] = int(bad.sum())
+        bad_any |= bad
+    outside = df.loc[bad_any]
+    rec: dict = {
+        "rows": int(len(df)), "rows_outside_domain": int(bad_any.sum()),
+        "cells_outside_domain": by_col,
+        "outside_by_slug": {str(k): int(n) for k, n in
+                            outside["leviathan_slug"].astype(str).value_counts().items()},
+        "outside_examples": [
+            {"leviathan_slug": str(r["leviathan_slug"]), "trade_date": str(r["trade_date"])[:10],
+             "contract_month": str(r.get("contract_month")),
+             **{c: (None if pd.isna(r[c]) else float(r[c])) for c in FC.PRICE_COLUMNS}}
+            for _i, r in outside.head(GATE10_EXAMPLES).iterrows()],
+    }
+    if len(outside):
+        fails.append(f"(10) {len(outside)} row(s) store a price outside the contract's declared "
+                     f"domain {rec['outside_by_slug']} -- a zero is not a price; the write guard "
+                     f"stores it MISSING with a reason (futures_eod_task.publish -> guard_for_write)")
+
+    written = _reason_written_mask(df)
+    rec["rows_with_reason_column"] = int(written.sum())
+    rec["rows_without_reason_column"] = int((~written).sum())
+    census: dict[str, int] = {}
+    incoherent = malformed = 0
+    examples: list[dict] = []
+    if written.any():
+        vals = df[FC.PRICE_NULL_REASON_COLUMN].astype("object").to_numpy()
+        missing_by_col = {c: pd.to_numeric(df[c], errors="coerce").isna().to_numpy()
+                          for c in FC.PRICE_COLUMNS}
+        for pos in np.flatnonzero(written):
+            try:
+                toks = FC.parse_price_null_reason(vals[pos])
+            except ValueError:
+                malformed += 1
+                continue
+            missing = {c for c in FC.PRICE_COLUMNS if missing_by_col[c][pos]}
+            if set(toks) != missing:
+                incoherent += 1
+                if len(examples) < GATE10_EXAMPLES:
+                    r = df.iloc[pos]
+                    examples.append({"leviathan_slug": str(r["leviathan_slug"]),
+                                     "trade_date": str(r["trade_date"])[:10],
+                                     "reason": None if pd.isna(vals[pos]) else str(vals[pos]),
+                                     "missing": sorted(missing)})
+            for c, cause in toks.items():
+                census[f"{c}:{cause}"] = census.get(f"{c}:{cause}", 0) + 1
+    rec.update({"reason_census": dict(sorted(census.items())), "reason_incoherent": incoherent,
+                "reason_malformed": malformed, "reason_incoherent_examples": examples})
+    if incoherent or malformed:
+        fails.append(f"(10) {incoherent} row(s) whose {FC.PRICE_NULL_REASON_COLUMN} does not name "
+                     f"exactly the missing price columns, {malformed} malformed")
+
+    # REPORT ONLY -- T-FUT-6 (bar-internal consistency on fully priced rows) and N-9.
+    o, h, lo, c = (pd.to_numeric(df[x], errors="coerce") for x in ("open", "high", "low", "close"))
+    priced = o.notna() & h.notna() & lo.notna() & c.notna()
+    rec["bar_inconsistent_rows"] = int((priced & ((lo > o) | (lo > c) | (h < o) | (h < c))).sum())
+    if "volume" in df.columns:
+        vol = pd.to_numeric(df["volume"], errors="coerce")
+        traded = ((vol > 0) & pd.to_numeric(df["settle"], errors="coerce").isna())
+        traded = traded.fillna(False).astype(bool)
+        rec["traded_without_settle_by_slug"] = {
+            str(k): int(n) for k, n in df.loc[traded, "leviathan_slug"].astype(str)
+            .value_counts().items()}
+    return fails, rec
+
+
+# ---------------------------------------------------------------------------
 # evaluate + render
 # ---------------------------------------------------------------------------
 def evaluate(*, eod: pd.DataFrame = None, manifests: list[dict] = None,
              flat: pd.DataFrame = None, skip: set = frozenset(), repo: Path = _REPO,
              eod_uri: str = "", manifest_uri: str = "", flat_uri: str = "",
              ice_raw_counts: dict = None, continuity_slugs=None) -> dict:
-    """Run all nine gates and build the artifact. PURE apart from the generated_at stamp and
+    """Run all ten gates and build the artifact. PURE apart from the generated_at stamp and
     gate 8's repo reads. ``continuity_slugs`` scopes gate 9 (STEP-12 F7) and is stamped into the
     artifact as ``continuity_scope`` (None = every Databento root)."""
     results: dict = {}
@@ -965,10 +1094,12 @@ def evaluate(*, eod: pd.DataFrame = None, manifests: list[dict] = None,
     _run(7, lambda: gate7_front_month_parity(eod, flat), has_eod and flat is not None)
     _run(8, lambda: gate8_chain_hooks(repo), True)
     _run(9, lambda: gate9_month_continuity(eod, slugs=continuity_slugs), has_eod)
+    _run(10, lambda: gate10_price_domain(eod), has_eod)
 
     return {
         "gate": "futures_eod_gate",
-        "plan": "docs/private/PRICE_AND_PLAYBOOKS_PLAN.md W2 gates 1-8 + V2-4 gate 9",
+        "plan": ("docs/private/PRICE_AND_PLAYBOOKS_PLAN.md W2 gates 1-8 + V2-4 gate 9 + "
+                 "DATA REPAIRS 0929 gate 10"),
         "generated_at": datetime.now(tz=timezone.utc).isoformat(),
         "eod_uri": eod_uri, "manifest_uri": manifest_uri, "futures_prices_uri": flat_uri,
         # Stamped into every artifact: the F2 dedupe rule in force when these rows were built is
@@ -994,6 +1125,8 @@ _GATE_TITLES = {
     8: "chain hooks (byte-identity / F013 / unit lint / parity)",
     9: "month continuity per Databento root (no empty calendar month inside the banked span; "
        "scoped by --continuity-slug when a sitting names its slugs)",
+    10: "price domain (no stored price outside its contract's declared domain; the reason names "
+        "exactly the missing prices)",
 }
 
 
@@ -1053,6 +1186,17 @@ def render_report(art: dict) -> str:
             med = "n/a" if r.get("median_abs_rel") is None else format(r["median_abs_rel"], ".5f")
             L.append(f"  {r['leviathan_slug']:<28s} n={n:<4d} away={away:<4d} "
                      f"rolls={rolls:<3d} median={med}  [{r['status']}]")
+    d10 = (art["gates"].get("10") or {}).get("detail") or {}
+    if d10:
+        L.append("")
+        L.append(f"gate 10 detail: rows outside domain={d10.get('rows_outside_domain')} "
+                 f"cells={d10.get('cells_outside_domain')} rows with the reason column="
+                 f"{d10.get('rows_with_reason_column')} without={d10.get('rows_without_reason_column')}")
+        if d10.get("reason_census"):
+            L.append(f"  reason census: {d10['reason_census']}")
+        L.append(f"  REPORTED (not failed): fully priced bars internally inconsistent="
+                 f"{d10.get('bar_inconsistent_rows')}; traded rows with no settle by slug="
+                 f"{d10.get('traded_without_settle_by_slug')}")
     d8 = (art["gates"].get("8") or {}).get("detail") or {}
     if d8.get("emitted_commands"):
         L.append("")

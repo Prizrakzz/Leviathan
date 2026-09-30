@@ -1,0 +1,22 @@
+NOUS41 KWBC 131940
+PNSWSH
+
+Public Information Statement 26-05
+National Weather Service Headquarters Silver Spring MD
+240 PM EST Tue Jan 13, 2026
+
+Subject: Public Information Statement Implementing a Relative Oceanic
+Niño Index effective February 1, 2026
+
+The National Centers for Environmental Prediction (NCEP) Climate
+Prediction Center (CPC) informs the public of the shift to a Relative
+Oceanic Niño Index for the official monitoring and prediction of the El
+Niño-Southern Oscillation (ENSO) phenomenon, effective February 1, 2026.
+[...]
+Importantly, the legacy Niño 3.4 and Oceanic Niño Index files will
+continue to be updated for users that require that continuity.
+Therefore, there would be minimal impact expected, and no legacy data
+files or web links would be changed at the time of implementation.
+
+The following is a text file of the RONI:
+https://www.cpc.ncep.noaa.gov/data/indices/RONI.ascii.txt

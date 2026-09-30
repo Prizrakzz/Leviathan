@@ -262,7 +262,11 @@ _LINT = _REPO / "scripts" / "silver" / "f091_source_universe_lint.py"
 #     class, neither a collection literal; and transforms/gold/weather_z.py's new `AGGREGATE_RENAMES`
 #     is a 2-member dict, which the raw census FLOORS OUT at MIN_CARDINALITY = 3 -- a 2-member map is
 #     a pair of renames, not a universe (the same reading the 09-10 block gave `_CGROUP_PEAK_FILES`).
-PIN_RAW_LITERALS = 359          # 358 -> 359 on 2026-09-22: fetch_mpoc.DATA_RELEASE_TYPES (census B8/P11)
+PIN_RAW_LITERALS = 366          # 359 -> 366 on 2026-09-30, the data repairs (measured on a `git archive HEAD`
+                                # export and on the tree, per file): raw_to_bronze/icco_cocoa.py 2 -> 8,
+                                # bronze_to_silver/noaa_oni.py 3 -> 5, fetch_icco_qbcs_summary.py 5 -> 4 (its
+                                # positional parser left); the futures and weather files move nothing
+                                # 358 -> 359 on 2026-09-22: fetch_mpoc.DATA_RELEASE_TYPES (census B8/P11)
                                 # 356 = HEAD (29de55eb, and still 356 at 5ca2b785), measured off a
                                 # `git archive HEAD` export + 2 CHIRPS PRELIM
                                 # (chirps_weather._MERGE_KEYS and ._MELT_DROPNA_SUBSET); the ESR
@@ -272,13 +276,17 @@ PIN_RAW_FILES = 134             # 133 -> 134 on 2026-09-22: fetch_mpoc.py enters
                                 # 132 HEAD, measured + 1 CHIRPS PRELIM (chirps_weather.py declares a
                                 # module-level collection for the first time and so ENTERS the raw
                                 # census)
-PIN_UNIVERSE_LITERALS = 175     # 171 HEAD, measured + 4 ESR vintage-stream
+PIN_UNIVERSE_LITERALS = 178     # 175 -> 178 on 2026-09-30, the data repairs: RELEASES_COLUMNS, BALANCE_METRICS,
+                                # METRIC_ROW_LABELS and VINTAGE_COLUMNS enter, _METRIC_TO_COLUMN leaves
+                                # 171 HEAD, measured + 4 ESR vintage-stream
 PIN_UNIVERSE_FILES = 97         # 95 HEAD, measured + 2 ESR vintage-stream (both batch files enter
                                 # the universe census)
 PIN_COVERED_FILES = 13          # 13 HEAD, measured + 0 ESR vintage-stream -- UNCHANGED, and
                                 # deliberately so: neither file is given a refusal to buy coverage
 PIN_DOCKET_FILES = 84           # 82 HEAD, measured + 2 ESR vintage-stream
-PIN_DOCKET_LITERALS = 145       # 141 HEAD, measured + 4 ESR vintage-stream
+PIN_DOCKET_LITERALS = 148       # 145 -> 148 on 2026-09-30, the data repairs: the same net three, in files
+                                # already on the docket (no file enters or leaves: 134 / 97 / 13 / 84 stand)
+                                # 141 HEAD, measured + 4 ESR vintage-stream
 
 # The written refusals the estate holds today: (file, literal). The plan text said FOUR; the 08-25
 # measurement said SEVEN in code plus one in config; the C-2 change added TWO more in usda_nass.py

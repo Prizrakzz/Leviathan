@@ -6,7 +6,18 @@ gold/weather_z/{slug}.parquet. The compute core lives in leviathan.transforms.go
 (pure, unit-tested on synthetic frames); this file is only the S3 I/O + orchestration shell.
 
   * nasa_power (silver/weather/source=nasa_power/commodity={slug}/...): tmax/tmin -> heat/gdd/tmax/frost.
-  * chirps     (silver/weather/source=chirps/commodity={slug}/...):     precip    -> drought.
+  * chirps     (silver/weather/source=chirps/commodity={slug}/...):     precip    -> drought, and the
+                 origin tier's rainfall against its normal (WX-1, 2026-09-29).
+  * production (silver/production/commodity={slug}/year=*/..., FAOSTAT QCL): the origin tier's
+                 production weights ONLY (WX-1). Read-only, per commodity, trailing-slash prefix.
+  * configs/datasets/source_contracts.yaml (baked into the image): the DECLARED FAOSTAT publication lag
+                 that dates a weight year. Undeclared -> no weights, and the log line says why.
+
+THE ORIGIN TIER IS ADDITIVE BY CONSTRUCTION. ``compute_weather_z`` runs exactly as before and its frame
+is written first in the object; ``compute_origin_rows`` only READS that frame and appends rows under
+new metric names. If the origin tier raises, the served rows are still written and the failure is an
+ERROR log line -- a new, not-yet-served tier must never cost the family its served table, and must
+never fail the weather chain (the chain's gate/promote would stop behind it).
 
 The gold table is NON-PROJECTED and NON-PARTITIONED (Glue DDL sql/athena/ddl/gold_weather_z.sql), so there
 is no per-partition ADD on refresh and no LIST-storm enumeration surface -- the DDL registration + a
@@ -27,6 +38,7 @@ import io
 import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 import pandas as pd
 import pyarrow.parquet as pq
@@ -44,6 +56,11 @@ from leviathan.transforms.gold.weather_z import (
     _PRELIM_COL,
     _TMAX,
     _TMIN,
+    ALL_METRICS,
+    DERIVED_METRICS,
+    METRIC_SOURCES,
+    SOURCE_FAOSTAT,
+    compute_origin_rows,
     compute_weather_z,
     metric_tip_ym,
     months_behind,
@@ -138,6 +155,95 @@ def _read_long(bucket: str, source: str, commodity: str, aws_region: str) -> pd.
 
 
 # ---------------------------------------------------------------------------
+# THE ORIGIN TIER's two extra inputs (WX-1, 2026-09-29)
+# ---------------------------------------------------------------------------
+_SOURCE_CONTRACTS = Path(__file__).resolve().parents[2] / "configs" / "datasets" / "source_contracts.yaml"
+
+
+def _production_prefix(commodity: str) -> str:
+    # TRAILING SLASH: commodity=cocoa/ must never LIST commodity=cocoa_<anything>/ (T-X-4).
+    return f"silver/production/commodity={commodity}/"
+
+
+def _read_production(bucket: str, commodity: str, aws_region: str) -> pd.DataFrame | None:
+    """This commodity's silver_production (FAOSTAT QCL) rows, with ``year`` from the hive key.
+
+    ALL OR NOTHING: a year file that fails to read would silently move the weight year to an older
+    release, so any per-file failure returns None (the weights are then ABSENT with a reason), never a
+    partial frame. The prefix is projected-quarantined for ATHENA; this is a plain S3 LIST + GET of one
+    commodity's ~64 objects, which is not the LIST-storm surface."""
+    try:
+        keys = list_s3_keys(bucket, _production_prefix(commodity), suffix=".parquet",
+                            aws_region=aws_region)
+    except Exception as exc:  # noqa: BLE001 -- a new input must not cost the served rows
+        logger.warning("silver_production LIST failed for commodity=%s (%s: %s) -- origin tier emits "
+                       "no weights", commodity, type(exc).__name__, str(exc)[:200])
+        return None
+    if not keys:
+        logger.info("no silver_production for commodity=%s -- origin tier emits no weights", commodity)
+        return None
+    s3 = get_thread_local_s3_client(aws_region)
+    frames: list[pd.DataFrame] = []
+    for key in sorted(keys):
+        year = parse_hive_key(key, "year")
+        try:
+            frame = pq.read_table(io.BytesIO(s3_download_with_retry(bucket, key, s3))).to_pandas()
+        except Exception as exc:  # noqa: BLE001 -- all or nothing, see the docstring
+            logger.warning("silver_production %s unreadable (%s: %s) -- origin tier emits no weights "
+                           "for commodity=%s", key, type(exc).__name__, str(exc)[:200], commodity)
+            return None
+        if year is None or not str(year).isdigit():
+            logger.warning("silver_production key %s carries no year= partition -- origin tier emits "
+                           "no weights for commodity=%s", key, commodity)
+            return None
+        frames.append(frame.assign(year=int(year)))
+    return pd.concat(frames, ignore_index=True) if frames else None
+
+
+def _declared_source_lags(path: Path = _SOURCE_CONTRACTS) -> dict[str, int | None]:
+    """``{source_key: publication_lag_days}`` for every source weather_z names, from the DECLARED
+    source contracts. ``None`` is UNDECLARED (never 0). An unreadable file returns all-None and logs --
+    the only consumer today is the FAOSTAT weight year, which then stays absent with its reason."""
+    wanted = sorted({s for sources in METRIC_SOURCES.values() for s in sources})
+    out: dict[str, int | None] = {s: None for s in wanted}
+    try:
+        import yaml
+
+        with open(path, encoding="utf-8") as fh:
+            doc = yaml.safe_load(fh) or {}
+        for src in doc.get("sources") or []:
+            key = src.get("source_key")
+            if key in out and src.get("publication_lag_days") is not None:
+                out[key] = int(src["publication_lag_days"])
+    except Exception as exc:  # noqa: BLE001 -- an unreadable declaration is an absence, logged
+        logger.warning("source contracts unreadable at %s (%s: %s) -- every source lag UNDECLARED",
+                       path, type(exc).__name__, str(exc)[:200])
+    return out
+
+
+def _with_origin_tier(commodity: str, gold: pd.DataFrame, chirps: pd.DataFrame | None,
+                      production: pd.DataFrame | None, lags: dict[str, int | None]) -> pd.DataFrame:
+    """``gold`` with the origin tier appended AFTER it. On any failure of the origin tier the frame
+    comes back UNCHANGED and the failure is an ERROR line (see the module docstring)."""
+    try:
+        origin, absences = compute_origin_rows(commodity, gold=gold, chirps=chirps,
+                                               production=production,
+                                               production_lag_days=lags.get(SOURCE_FAOSTAT))
+    except Exception as exc:  # noqa: BLE001 -- the served rows must not depend on the new tier
+        logger.error("origin tier NOT written for commodity=%s (%s: %s) -- the served rows are "
+                     "written unchanged", commodity, type(exc).__name__, str(exc)[:300])
+        return gold
+    for a in absences:
+        logger.info("origin tier ABSENT  commodity=%s basin=%s metric=%s months=%d  reason: %s",
+                    a["commodity"], a["basin"], a["metric"], a["months"], a["reason"])
+    logger.info("origin tier  commodity=%s  rows=%d  metrics=%s", commodity, len(origin),
+                sorted(origin["metric"].unique()) if len(origin) else [])
+    if origin.empty:
+        return gold
+    return pd.concat([gold, origin], ignore_index=True)
+
+
+# ---------------------------------------------------------------------------
 # THE FRESHNESS TRIPWIRE (2026-09-11) -- a report and a counter, never a behaviour change.
 #
 # WHAT IT EXISTS FOR. On 2026-09-11 this job rewrote gold/weather_z/corn_cbot.parquet at 09:19:50Z and
@@ -213,6 +319,37 @@ def _claimed_ym(metric: str = "") -> int | None:
     return _ym_lagged_asof_ym(datetime.now(timezone.utc).date().isoformat(), lag)
 
 
+def _declared_metrics() -> frozenset:
+    """The metric names the gold_weather_z CARD declares. RAISES when the card cannot be read (the
+    caller falls back to the producer's card-bound vocabulary, ALL_METRICS + DERIVED_METRICS)."""
+    from leviathan.graphrag.numbers.registry import load_registry
+
+    metrics = getattr(load_registry().get("gold_weather_z"), "metrics", None)
+    if not isinstance(metrics, dict):
+        raise TypeError(f"gold_weather_z card metrics is {type(metrics).__name__}, not a dict")
+    return frozenset(str(m) for m in metrics)
+
+
+def _tip_scope(tips: dict) -> tuple[dict, list[str]]:
+    """``(tips the card declares, undeclared names)`` -- T-WX-11 / N-12 (2026-09-29).
+
+    The origin tier (WX-1) writes metrics the card does not declare yet. ``registry.lag_days_for``
+    falls back to the card DEFAULT (5, the NASA figure) for an undeclared name, so a CHIRPS-fed
+    ``precip_pct_normal`` would be reported ~one month "behind" every month, and every new name would
+    also mint a new CloudWatch custom metric per commodity. A metric the card does not serve owes no
+    promise, so it is neither published nor judged here; the names are logged. When the card cannot be
+    read at all, the scope is the producer's own card-bound vocabulary (ALL_METRICS + DERIVED_METRICS,
+    the roster tests/unit/test_contract_check.py binds to the card), so the tip still ships."""
+    try:
+        declared = _declared_metrics()
+    except Exception as exc:  # noqa: BLE001 -- the card's absence costs the scope, never the tip
+        logger.warning("freshness tripwire: card metrics unreadable (%s: %s) -- scoping the tip to the "
+                       "producer's card-bound vocabulary", type(exc).__name__, str(exc)[:200])
+        declared = frozenset(ALL_METRICS) | frozenset(DERIVED_METRICS)
+    return ({m: v for m, v in tips.items() if m in declared},
+            sorted(m for m in tips if m not in declared))
+
+
 def _emit_freshness_tripwire(commodity: str, gold: pd.DataFrame) -> None:
     """Log + publish the per-metric data-month tip and its distance from the card's promise.
 
@@ -226,7 +363,10 @@ def _emit_freshness_tripwire(commodity: str, gold: pd.DataFrame) -> None:
     was never about the card. So the card read is fenced on its own and its failure only makes
     ``months_behind`` ABSENT; the tip still ships."""
     try:
-        tips = metric_tip_ym(gold)
+        tips, undeclared = _tip_scope(metric_tip_ym(gold))
+        if undeclared:
+            logger.info("freshness  commodity=%s  %d metric(s) present but NOT declared by the card -- "
+                        "no tip published, no promise judged: %s", commodity, len(undeclared), undeclared)
         if not tips:
             return
         try:
@@ -275,7 +415,8 @@ def _emit_freshness_tripwire(commodity: str, gold: pd.DataFrame) -> None:
         )
 
 
-def _process_commodity(bucket: str, commodity: str, aws_region: str, force_overwrite: bool) -> int:
+def _process_commodity(bucket: str, commodity: str, aws_region: str, force_overwrite: bool,
+                       lags: dict[str, int | None] | None = None) -> int:
     s3 = get_thread_local_s3_client(aws_region)
     gold_key = _gold_key(commodity)
     if not force_overwrite:
@@ -296,6 +437,10 @@ def _process_commodity(bucket: str, commodity: str, aws_region: str, force_overw
     if gold.empty:
         logger.warning("commodity=%s produced 0 gold rows (thin history?)", commodity)
         return 0
+    # THE ORIGIN TIER (WX-1): appended AFTER the served rows, never mixed into them.
+    production = _read_production(bucket, commodity, aws_region)
+    gold = _with_origin_tier(commodity, gold, chirps, production,
+                             lags if lags is not None else _declared_source_lags())
 
     buf = io.BytesIO()
     gold.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
@@ -328,11 +473,13 @@ def main() -> None:
     else:
         commodities = [c.strip() for c in args.commodity.split(",") if c.strip()]
     logger.info("gold_weather_z: %d commodities", len(commodities))
+    lags = _declared_source_lags()      # read ONCE per run; None = undeclared, never zero
+    logger.info("declared source lags (configs/datasets/source_contracts.yaml): %s", lags)
 
     total, failures = 0, []
     for commodity in commodities:
         try:
-            total += _process_commodity(bucket, commodity, aws_region, force)
+            total += _process_commodity(bucket, commodity, aws_region, force, lags)
         except Exception as exc:  # noqa: BLE001 — one commodity's failure must not kill the rest
             logger.error("[%s] FAILED: %s: %s", commodity, type(exc).__name__, str(exc)[:300])
             failures.append(commodity)

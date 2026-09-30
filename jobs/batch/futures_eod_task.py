@@ -114,6 +114,16 @@ equality against ``CONTRACT_MAP``. The F010 contract can only express UNCONDITIO
 without this a producer that dropped the delivery month would write N rows collapsing to ONE
 natural key and ``duplicate_check: full`` could not see it (SQL treats each NULL as distinct).
 
+THE PRICE GUARD IS AT THE WRITE (DATA REPAIRS 0929 / FUT-1)
+-----------------------------------------------------------
+462 stored rows carried a 0 in settle / open / high / low / close (all IFUS.IMPACT; the five 2026
+cocoa deliveries of 2026-01-12 among them) because nothing on the path fenced a vendor 0.
+:func:`publish` now runs :func:`guard_for_write` on EVERY frame before staging -- after the canonical
+merge, so the stored zeros are repaired by the next write of their partition. A price outside its
+contract's declared domain (``futures_eod_contracts.PRICE_DOMAIN``) is stored NaN with a
+``price_null_reason`` (staged where the declaration carries the column), no row is ever removed, and
+a declared failing share (``range_rules.price_domain_guard``) refuses the write, naming the groups.
+
 MODES OF OPERATION
 ------------------
 ``--mode backfill``  one or more units read from the raw prefix (Databento: ``(root, year)``; the
@@ -126,6 +136,10 @@ MODES OF OPERATION
     current-year partition of every slug to five days, and nothing in the chain would notice:
     vintage_retention is latest-only, ``silver_rebuild_gate`` is a consumer-sync dispatcher that
     checks no row counts, and the standalone W2 gate script is never invoked by the DAG.
+``--mode reguard`` (DATA REPAIRS 0929 / FUT-3) an OPERATOR repair, never in a chain: each
+    ``--partition <leviathan_slug>/<YYYY>`` names a STORED object, which is read whole and written
+    back through :func:`publish` -- i.e. through the price guard -- with no raw read and no
+    re-derivation, so only the out-of-domain prices move (:func:`read_canonical_partitions`).
 
 TWO UNIQUENESS ASSERTIONS RUN BEFORE ANY STAGING
 ------------------------------------------------
@@ -1446,6 +1460,131 @@ def assert_no_duplicates(df: pd.DataFrame) -> None:
             )
 
 
+def write_columns(contract: dict) -> list[str]:
+    """The columns the write seam stages: the producers' ``SILVER_COLUMNS`` plus every write-seam
+    column (``FC.WRITE_SEAM_COLUMNS``) that the table declaration DECLARES.
+
+    DERIVED FROM THE DECLARATION, never assumed: the declaration is generator-owned and the reason
+    column reaches it only when the generator's curation carries it (additive, hidden from Glue until
+    the owner's gated ADD COLUMNS). Before that, the seam stages the seventeen registered columns
+    exactly as today -- the guard still nulls, and the reason is recorded in the PRICE_GUARD log line
+    only -- so this code can land before, with or after the regenerated declaration without a red
+    fire in between."""
+    declared = {c.get("name") for c in contract.get("physical_columns", [])}
+    return SILVER_COLUMNS + [c for c in FC.WRITE_SEAM_COLUMNS if c in declared]
+
+
+def guard_for_write(df: pd.DataFrame, contract: dict) -> tuple[pd.DataFrame, dict]:
+    """DATA REPAIRS 0929 / FUT-1 -- THE GUARD AT THE WRITE, on the frame being written.
+
+    Called by :func:`publish` (the ONE write seam of all ten producers), i.e. AFTER
+    :func:`merge_with_canonical` on an incremental run, so a canonical prior that still carries a zero
+    is repaired by the same pass that re-writes it (T-FUT-3); a backfill unit is guarded whole.
+
+      1. ``FC.guard_prices``: every settle / open / high / low / close outside its contract's
+         DECLARED domain (``FC.PRICE_DOMAIN``) or non-finite is stored NaN with its reason; no row is
+         removed, volume and open interest are never touched.
+      2. The DECLARED failing share (``range_rules.price_domain_guard`` in the table declaration,
+         read by ``FC.price_guard_rule``; never a number typed here): a group above it REFUSES the
+         write, naming every group. No declaration = report only.
+      3. ONE machine-readable ``PRICE_GUARD {json}`` line per write -- the counts per column and
+         cause, per slug, and the slug-days -- the census an alarm or the owner's check can read.
+      4. Projection onto :func:`write_columns`: the reason column is staged only where the
+         declaration carries it; otherwise it is dropped here, loudly."""
+    guarded, rec = FC.guard_prices(df)
+    rule = FC.price_guard_rule(contract)
+    breaches = FC.price_guard_breaches(rec, rule)
+    cols = write_columns(contract)
+    unpersisted = [c for c in FC.WRITE_SEAM_COLUMNS if c not in cols]
+    slug_days = sorted(rec["slug_days"], key=lambda r: (-r["share"], r["leviathan_slug"],
+                                                        r["trade_date"]))
+    logger.info("PRICE_GUARD %s", json.dumps({
+        "rows": rec["rows"], "rows_nulled": rec["rows_nulled"],
+        "cells_nulled": rec["cells_nulled"], "reason_tokens_carried": rec["reason_tokens_carried"],
+        "by_slug": rec["by_slug"], "slug_days_with_a_null": len(slug_days),
+        "slug_days_top": slug_days[:25], "examples": rec["examples"],
+        "rule": rule, "breaches": breaches, "reason_column_persisted": not unpersisted,
+    }, sort_keys=True, default=str))
+    if unpersisted and rec["rows_nulled"]:
+        logger.warning("PRICE_GUARD the table declaration does not carry %s: the %d guarded row(s) "
+                       "are written MISSING, but their reason lives in this log line only until "
+                       "the generator's curation adds the column", unpersisted, rec["rows_nulled"])
+    if breaches:
+        raise ValueError(
+            f"{contract.get('table_name')}: {len(breaches)} group(s) carry a share of prices outside "
+            f"their declared domain above the declared {rule['max_nulled_share']} "
+            f"(denominator {rule['denominator']}, range_rules.price_domain_guard) -- refusing to "
+            f"stage: " + "; ".join(breaches[:20]))
+    return guarded[cols], rec
+
+
+def parse_reguard_partition(value: str) -> tuple[str, int]:
+    """``'cocoa/2022'`` -> ``('cocoa', 2022)``. FAIL CLOSED on an unmapped slug or a non-year."""
+    slug, sep, year = str(value).partition("/")
+    if not sep or slug not in FC.CONTRACT_MAP or not year.isdigit() or len(year) != 4:
+        raise ValueError(f"--partition {value!r} is not '<leviathan_slug>/<YYYY>' with a mapped slug "
+                         f"(CONTRACT_MAP)")
+    return slug, int(year)
+
+
+def read_canonical_partitions(pairs: list[tuple[str, int]], contract: dict, s3_client
+                              ) -> tuple[pd.DataFrame, dict]:
+    """``--mode reguard`` -- read each NAMED canonical ``(leviathan_slug, trade_year)`` object WHOLE.
+
+    DATA REPAIRS 0929 / FUT-3. The rows already stored are repaired by writing them back through
+    :func:`publish` (and so :func:`guard_for_write`) and NOTHING ELSE: no raw is read and nothing is
+    re-derived, so every value inside its domain is re-staged bit-identical -- the offline drive over
+    all 580,628 stored rows showed exactly the 462 out-of-domain rows move. A re-derivation from raw
+    (``--mode backfill``) would instead replace every row of the unit with whatever TODAY's transform
+    derives from the bytes -- never proven equal to what the image that wrote the stored rows
+    derived -- and on the current year it truncates the partition to the backfill payload (N-8). The
+    object is read whole, so the partition cannot shrink; a missing object is an error, never a
+    silent skip; the shape check is the merge's (write-seam columns tolerated, any other drift
+    refused)."""
+    if not pairs:
+        raise ValueError("--mode reguard needs at least one --partition <leviathan_slug>/<YYYY>")
+    if s3_client is None:
+        raise ValueError("--mode reguard reads the canonical objects and needs a live S3 client")
+    import io
+
+    import pyarrow.parquet as pq
+    from leviathan.silver.partitioned_producer import (
+        DEFAULT_OBJECT_NAME,
+        partition_object_key,
+        partition_value_str,
+    )
+
+    bucket, prefix = contract["s3_bucket"], contract["s3_prefix"]
+    types = {pk["name"]: pk.get("glue_type") for pk in contract.get("partition_keys", [])}
+    cols = write_columns(contract)
+    frames: list[pd.DataFrame] = []
+    rows_by_partition: dict[str, int] = {}
+    for slug, year in sorted(set(pairs)):
+        rendered = [partition_value_str(c, v, types.get(c))
+                    for c, v in zip(_PARTITION_COLS, (slug, year))]
+        key = partition_object_key(prefix, _PARTITION_COLS, rendered, filename=DEFAULT_OBJECT_NAME)
+        body = _get(s3_client, bucket, key)
+        if body is None:
+            raise FileNotFoundError(f"--mode reguard: no canonical object s3://{bucket}/{key} -- a "
+                                    f"reguard re-writes a STORED partition and never creates one")
+        prior = pq.read_table(io.BytesIO(body)).to_pandas()
+        prior["leviathan_slug"] = slug
+        prior["trade_year"] = year
+        extra = sorted(set(prior.columns) - set(cols))
+        missing = sorted(set(SILVER_COLUMNS) - set(prior.columns))
+        if extra or missing:
+            raise ValueError(f"canonical object s3://{bucket}/{key} does not carry the contract "
+                             f"shape (missing={missing}, extra={extra}) -- refusing to reguard it")
+        rows_by_partition[f"{slug}/{year}"] = int(len(prior))
+        frames.append(prior.reindex(columns=cols))
+    df = pd.concat(frames, ignore_index=True)
+    df["trade_year"] = pd.to_numeric(df["trade_year"], errors="coerce").astype("int64")
+    rec = {"partitions": len(rows_by_partition), "rows": int(len(df)),
+           "rows_by_partition": rows_by_partition}
+    logger.info("REGUARD read %s", json.dumps(rec, sort_keys=True))
+    return df, rec
+
+
 def merge_with_canonical(df: pd.DataFrame, contract: dict, s3_client) -> tuple[pd.DataFrame, dict]:
     """Union a PARTIAL frame with whatever is already canonical in each partition it touches.
 
@@ -1482,6 +1621,7 @@ def merge_with_canonical(df: pd.DataFrame, contract: dict, s3_client) -> tuple[p
     bucket = contract["s3_bucket"]
     prefix = contract["s3_prefix"]
     types = {pk["name"]: pk.get("glue_type") for pk in contract.get("partition_keys", [])}
+    cols = write_columns(contract)
     priors: list[pd.DataFrame] = []
     prior_rows_by_partition: dict[tuple, int] = {}
     partitions = 0
@@ -1500,7 +1640,10 @@ def merge_with_canonical(df: pd.DataFrame, contract: dict, s3_client) -> tuple[p
         # from the group's own values, so the round trip is exact.
         for col, val in zip(_PARTITION_COLS, values):
             prior[col] = val
-        extra = sorted(set(prior.columns) - set(SILVER_COLUMNS))
+        # The contract shape = the producers' SILVER_COLUMNS plus the write-seam column(s) the
+        # declaration carries (write_columns). A write-seam column may be ABSENT from a prior (it
+        # predates the column); anything else missing, and anything undeclared present, is refused.
+        extra = sorted(set(prior.columns) - set(cols))
         missing = sorted(set(SILVER_COLUMNS) - set(prior.columns))
         if extra or missing:
             raise ValueError(
@@ -1508,20 +1651,25 @@ def merge_with_canonical(df: pd.DataFrame, contract: dict, s3_client) -> tuple[p
                 f"(missing={missing}, extra={extra}) -- refusing to merge against it"
             )
         prior_rows_by_partition[tuple(rendered)] = len(prior)
-        priors.append(prior[SILVER_COLUMNS])
+        # DATA REPAIRS 0929 / FUT-1 (T-FUT-4): a write-seam column the declaration carries is
+        # CARRIED from a prior that has it (the guard's reason survives the next nightly) and FILLED
+        # on a prior written before it existed (every stored partition today); the guard recomputes
+        # it before the publish. reindex, never a positional slice: the prior may lack it.
+        priors.append(prior.reindex(columns=cols))
     if not priors:
         logger.info("merge: %d partition(s) touched, none exists canonically yet -- nothing to "
                     "merge", partitions)
         return df, {**empty_rec, "partitions": partitions, "rows_out": int(len(df))}
 
     # NEW rows LAST so keep='last' resolves a natural-key collision in favour of this run (a
-    # corrected settlement, a preliminary->final revision).
-    merged = pd.concat(priors + [df[SILVER_COLUMNS]], ignore_index=True)
+    # corrected settlement, a preliminary->final revision). A producer frame never carries the
+    # write-seam column, so a new row arrives with it NULL and the guard derives it from the value.
+    merged = pd.concat(priors + [df.reindex(columns=cols)], ignore_index=True)
     ck = merged["contract_month"].astype("object").where(merged["contract_month"].notna(), "\x00")
     merged = merged.assign(_ck=ck).drop_duplicates(
         subset=["leviathan_slug", "_ck", "trade_date"], keep="last").drop(columns=["_ck"])
     merged["trade_year"] = pd.to_numeric(merged["trade_year"], errors="coerce").astype("int64")
-    merged = merged[SILVER_COLUMNS].sort_values(
+    merged = merged[cols].sort_values(
         ["leviathan_slug", "trade_year", "contract_month", "trade_date"], kind="mergesort"
     ).reset_index(drop=True)
 
@@ -1553,7 +1701,12 @@ def publish(df: pd.DataFrame, contract: dict, auth, s3_client, glue_client, *,
     """Stage + run the registered-partition publish. ``row_validator`` is NOT optional here.
 
     ``job`` is a manifest FIELD and never part of an object key, so a per-source label
-    (``futures_eod_czce``, ...) buys auditability for free and changes no address."""
+    (``futures_eod_czce``, ...) buys auditability for free and changes no address.
+
+    DATA REPAIRS 0929 / FUT-1: every frame is guarded HERE, the one seam every source and both modes
+    pass through -- :func:`guard_for_write` stores a price outside its declared domain as MISSING with
+    its reason, before a single byte is staged."""
+    df, _guard = guard_for_write(df, contract)
     plan = build_partitioned_publish(
         df=df,
         contract=contract,
@@ -1761,7 +1914,12 @@ def main(argv: Optional[list[str]] = None) -> int:
                          "way to publish a shipped-root REPAIR backfill over a real vendor-outage "
                          "month (the 15 roots' continuity has never been measured). The default "
                          "stays enforce, which is what a settlement-tape backfill runs under")
-    ap.add_argument("--mode", choices=["backfill", "incremental"], default="backfill")
+    ap.add_argument("--mode", choices=["backfill", "incremental", "reguard"], default="backfill",
+                    help="reguard (DATA REPAIRS 0929 / FUT-3): re-write the NAMED stored partitions "
+                         "(--partition) through the write-seam price guard, reading the canonical "
+                         "objects only -- no raw, no re-derivation")
+    ap.add_argument("--partition", action="append", dest="partitions", default=None,
+                    help="reguard only: one stored partition as <leviathan_slug>/<YYYY>; repeatable")
     ap.add_argument("--root", action="append", dest="roots", default=None, choices=sorted(ROOT_MAP))
     ap.add_argument("--year", action="append", type=int, dest="years", default=None)
     ap.add_argument("--since", default=None, help="incremental: inclusive first trade date")
@@ -1821,6 +1979,29 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.publish_mode == "canonical":
         import boto3
         glue = boto3.client("glue", region_name=aws_region)
+
+    if args.mode == "reguard":
+        # DATA REPAIRS 0929 / FUT-3 -- the stored rows through the guard, and nothing else: no unit
+        # is loaded, no floor or continuity gate applies (nothing is derived), the frame is exactly
+        # the named canonical objects.
+        try:
+            pairs = [parse_reguard_partition(p) for p in (args.partitions or [])]
+            df, reguard_rec = read_canonical_partitions(pairs, contract, s3)
+        except (ValueError, FileNotFoundError) as exc:
+            logger.error("REGUARD refused: %s", exc)
+            return 1
+        assert_no_duplicates(df)
+        manifest = publish(df, contract, auth, publish_s3, glue, job=spec.job,
+                           run_id=args.run_id, shadow_prefix=args.shadow_prefix)
+        logger.info("publish %s: source=%s mode=reguard state=%s rows=%d partitions=%d",
+                    auth.mode.value, spec.name, manifest.state.value, len(df),
+                    reguard_rec["partitions"])
+        # an operator repair reports its own failure: a FAILED / ROLLED_BACK manifest is exit 1
+        return 1 if str(manifest.state.value) in ("FAILED", "ROLLED_BACK") else 0
+    if args.partitions:
+        logger.error("--partition is a --mode reguard argument; refusing it under --mode %s",
+                     args.mode)
+        return 1
 
     units = select_units(args, s3, bucket, spec)
     if not units:

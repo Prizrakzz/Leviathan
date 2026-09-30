@@ -117,8 +117,22 @@ in the emitted rows said so. ``<metric>_cells`` says it: ``tmax_anomaly_cells``=
 ``drought_z_cells``=8 IS the disclosure, per metric, per month, at both grains, and a member whose
 metric has no cells at all simply has NO country-tier row for that metric -- absence that a present
 sibling metric makes legible instead of silent.
+
+THE ORIGIN TIER (WX-1, data repairs 2026-09-29) -- see the block of that name below
+``compute_weather_z``. BY ORIGIN COUNTRY, PRODUCTION-WEIGHTED, AND RAINFALL AS A SHARE OF NORMAL, as
+NEW ROWS UNDER NEW METRIC NAMES produced by a SEPARATE pure function (``compute_origin_rows``) that
+reads the finished frame of ``compute_weather_z`` and never edits it: every row this module emitted
+before stays byte-identical because the function that emits it is not touched at all.
+
+THE KNOWN DATE (WX-2, same repair) -- ``METRIC_SOURCES`` / ``known_date`` below: a row's (year, month)
+is the DATA month; the date it became known is the month's last day plus the declared publication lag
+of the source product behind the metric.
 """
 from __future__ import annotations
+
+import calendar
+from collections import Counter
+from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
@@ -625,6 +639,458 @@ def compute_weather_z(
     if not basin_extra.empty:
         gold = pd.concat([gold, basin_extra], ignore_index=True)
     return gold
+
+
+# ── THE ORIGIN TIER (WX-1, data repairs 2026-09-29) ────────────────────────────────────────────────
+# WHAT WAS WRONG, MEASURED (data_repairs_0929/checks/chk_wx.py). The cocoa page read "wetter than
+# usual" off the West Africa basin's August-2026 drought_z of -0.92: the EQUAL-WEIGHT mean of 11 cells
+# (4 of them in Cameroon and Nigeria) of a dry-spell LENGTH z. In our own CHIRPS silver, Cote d'Ivoire
+# -- the origin that sets the main crop -- had 50.0 % of its 1991-2020 July rainfall and 75.5 % of
+# August's, while Ghana had 136.0 % of August's. The two largest origins moved opposite ways and the
+# mean hid both, and the store held no per-country mean, no rainfall metric and no production weight.
+#
+# WHAT IS ADDED -- ROWS UNDER NEW METRIC NAMES; the 7-column shape, the grain and every existing row
+# are unchanged (compute_weather_z above is not edited; this block reads its finished frame):
+#   CELL tier    (region = the cell token; EVERY CHIRPS cell of EVERY commodity, complete months only)
+#     precip_total_mm        the month's rainfall total
+#     precip_normal_mm       the mean total of that calendar month over the NORMAL PERIOD (below)
+#     precip_pct_normal      100 x precip_total_mm / precip_normal_mm (only where the normal is > 0)
+#     precip_is_preliminary  1.0 if ANY day of the month came from CHIRPS PRELIM bytes -- the drought
+#                            stamp's asymmetry, emitted only when the frame carries the provenance column
+#   COUNTRY tier (region = <member>_country, under the member's own PSD surface; basin members only)
+#     <z>_country_mean       the equal-weight mean of THAT country's cells, for each of the four z metrics
+#     precip_pct_normal_country  100 x the country's summed cell rainfall / its summed cell normals
+#     precip_pct_normal_cells    the cells behind that ratio
+#     precip_preliminary_share   the share of those cells whose month is preliminary
+#     production_share       the member's share of the basin members' FAOSTAT production (0-1)
+#     production_share_year  the FAOSTAT year that share was taken from
+#   BASIN tier   (region = <basin>_basin, under the basin surface)
+#     <z>_prod_weighted      sum over members of production_share x <z>_country_mean
+#     precip_pct_normal_prod_weighted  sum over members of production_share x precip_pct_normal_country
+#     precip_pct_normal_basin  100 x the basin's summed cell rainfall / summed cell normals
+#     precip_pct_normal_cells, precip_preliminary_share   as at the country tier
+#
+# THE NAME RULE (T-WX-1 / T-WX-2). The serving leg aggregates a commodity's rows by COUNTRY with no
+# region filter, so (a) no country-tier name may be a name a cell row carries -- a per-country
+# ``tmax_anomaly`` under "Ghana" would be averaged with Ghana's own three cells -- and (b) no new basin
+# name may be an existing basin name -- a weighted ``drought_z`` under "West Africa" would be averaged
+# with the equal-weight one. Every new aggregate therefore carries a suffix no other grain carries
+# (``_country_mean``, ``_prod_weighted``, ``_country``, ``_basin``). The deck asserts the name sets.
+#
+# NOT IN ALL_METRICS / DERIVED_METRICS, ON PURPOSE. Those two tuples are the CARD'S contract:
+# tests/unit/test_contract_check.py binds them to the gold_weather_z card in BOTH directions, and the
+# card is the serving side's to edit. These names are emitted into the store and stay invisible to
+# serving -- the pg loader mirrors a TALL table's DECLARED metrics only -- until the card declares them
+# (with their lags) and the binding folds ``ORIGIN_METRICS`` into its roster in the same edit.
+#
+# THE WEIGHTS (T-WX-3..5). FAOSTAT QCL ``production_quantity`` for the gold row's OWN commodity slug
+# (silver_production, read by the task), members joined on the SAME snake token the geographies file
+# carries (``country_key``). That join is a string identity, so it is a TRIPWIRE, never a guess: a
+# member that resolves to no FAOSTAT row, or to two areas, fails the whole basin's weights closed and
+# the reason is returned. The shares are over the members PRESENT in the commodity's frame and sum to
+# one; a weighted row is emitted only when EVERY present member has a value that month -- never
+# renormalised over the members that happen to have one (a drought mean over two of four EU members is
+# not the EU). The weight year (O-4) is the latest FAOSTAT year whose DECLARED publication lag has
+# elapsed by the month's last day, so a weight is always known before the weather row it weights; no
+# declared lag -> no weight year can be dated -> no weights at all, and the reason says so.
+#
+# THE NORMAL (O-5 default, T-WX-6). The WMO 30-year period IN FORCE at the month: the latest 30-year
+# period ending in a year divisible by ten and strictly before the month's year -- 1991-2020 for months
+# from 2021, 1981-2010 for 2011-2020, and for earlier months the CHIRPS-truncated 1981-2000 / 1981-1990.
+# At least ``NORMAL_MIN_YEARS`` years of complete months are required, else the month has no normal.
+# PIT-safe by construction (the period ends before the month's year) and it reproduces the measured
+# 50.0 / 75.5 / 136.0. The country ratio is a RATIO OF SUMS (the mean of cell ratios reads 51 / 71 / 140
+# on the same bytes, and differs by up to 30 points elsewhere): a country's rainfall against its normal,
+# not the average of its cells' percentages.
+METRIC_PRECIP_TOTAL = "precip_total_mm"
+METRIC_PRECIP_NORMAL = "precip_normal_mm"
+METRIC_PRECIP_PCT = "precip_pct_normal"
+METRIC_PRECIP_PRELIM = "precip_is_preliminary"
+METRIC_PRECIP_PCT_COUNTRY = "precip_pct_normal_country"
+METRIC_PRECIP_PCT_BASIN = "precip_pct_normal_basin"
+METRIC_PRECIP_PRELIM_SHARE = "precip_preliminary_share"
+METRIC_PRODUCTION_SHARE = "production_share"
+METRIC_PRODUCTION_SHARE_YEAR = "production_share_year"
+COUNTRY_MEAN_SUFFIX = "_country_mean"
+PROD_WEIGHTED_SUFFIX = "_prod_weighted"
+METRIC_PRECIP_PCT_CELLS = f"{METRIC_PRECIP_PCT}{CELLS_SUFFIX}"
+METRIC_PRECIP_PCT_WEIGHTED = f"{METRIC_PRECIP_PCT}{PROD_WEIGHTED_SUFFIX}"
+
+ORIGIN_CELL_METRICS: tuple[str, ...] = (
+    METRIC_PRECIP_TOTAL, METRIC_PRECIP_NORMAL, METRIC_PRECIP_PCT, METRIC_PRECIP_PRELIM)
+ORIGIN_COUNTRY_METRICS: tuple[str, ...] = (
+    tuple(f"{m}{COUNTRY_MEAN_SUFFIX}" for m in Z_METRICS)
+    + (METRIC_PRECIP_PCT_COUNTRY, METRIC_PRECIP_PCT_CELLS, METRIC_PRECIP_PRELIM_SHARE,
+       METRIC_PRODUCTION_SHARE, METRIC_PRODUCTION_SHARE_YEAR)
+)
+ORIGIN_BASIN_METRICS: tuple[str, ...] = (
+    tuple(f"{m}{PROD_WEIGHTED_SUFFIX}" for m in Z_METRICS)
+    + (METRIC_PRECIP_PCT_WEIGHTED, METRIC_PRECIP_PCT_BASIN, METRIC_PRECIP_PCT_CELLS,
+       METRIC_PRECIP_PRELIM_SHARE)
+)
+ORIGIN_METRICS: tuple[str, ...] = tuple(dict.fromkeys(
+    ORIGIN_CELL_METRICS + ORIGIN_COUNTRY_METRICS + ORIGIN_BASIN_METRICS))
+
+# The WMO standard-normal convention: 30-year periods, re-based every 10 years (1961-1990 ... 1991-2020).
+NORMAL_PERIOD_YEARS = 30
+NORMAL_PERIOD_STEP_YEARS = 10
+NORMAL_MIN_YEARS = BASELINE_MIN_YEARS
+# The ONE FAOSTAT element the weights read -- the physical metric name silver_production carries
+# (the numbers card's `production_quantity`, unit t).
+FAOSTAT_PRODUCTION_METRIC = "production_quantity"
+
+
+def normal_period(year: int) -> tuple[int, int]:
+    """The WMO 30-year normal period in force for a month of ``year``: ``(first, last)`` year.
+
+    The latest period of ``NORMAL_PERIOD_YEARS`` ending in a multiple of ``NORMAL_PERIOD_STEP_YEARS``
+    and strictly before ``year`` -- 2026 -> (1991, 2020), 2021 -> (1991, 2020), 2020 -> (1981, 2010).
+    The caller intersects it with the years it holds (CHIRPS starts 1981)."""
+    last = ((int(year) - 1) // NORMAL_PERIOD_STEP_YEARS) * NORMAL_PERIOD_STEP_YEARS
+    return last - NORMAL_PERIOD_YEARS + 1, last
+
+
+def _month_end(year: int, month: int) -> date:
+    return date(int(year), int(month), calendar.monthrange(int(year), int(month))[1])
+
+
+def _precip_cells(chirps: pd.DataFrame | None, *, complete_months: bool,
+                  normal_min_years: int) -> pd.DataFrame:
+    """One row per COMPLETE cell-month: [country, region, year, month, total, normal, prelim].
+
+    ``normal`` is NaN where the normal period holds fewer than ``normal_min_years`` complete months of
+    that calendar month; ``prelim`` is NaN for every row when the frame carries no provenance column
+    (and then no stamp is emitted), else the month's max over its days (ANY prelim day -> 1.0)."""
+    cols = ["country", "region", "year", "month", "total", "normal", "prelim"]
+    precip = _slice(chirps, _PRECIP)
+    if complete_months:
+        precip = _complete_months_only(precip)
+    if precip is None or precip.empty:
+        return pd.DataFrame(columns=cols)
+    monthly = (precip.groupby(_KEYS, as_index=False)["value"].sum()
+               .rename(columns={"value": "total"}))
+    if _PRELIM_COL in precip.columns:
+        flags = (precip.groupby(_KEYS, as_index=False)[_PRELIM_COL].max()
+                 .rename(columns={_PRELIM_COL: "prelim"}))
+        monthly = monthly.merge(flags, on=_KEYS, how="left")
+    else:
+        monthly["prelim"] = np.nan
+    normal = pd.Series(np.nan, index=monthly.index, dtype=float)
+    for _key, grp in monthly.groupby(["country", "region", "month"], sort=False):
+        by_year = grp.set_index("year")["total"].astype(float)
+        for idx, year in zip(grp.index, grp["year"]):
+            lo, hi = normal_period(int(year))
+            base = by_year[(by_year.index >= lo) & (by_year.index <= hi)]
+            if len(base) >= normal_min_years:
+                normal.loc[idx] = float(base.mean())
+    monthly["normal"] = normal
+    return monthly[cols].reset_index(drop=True)
+
+
+def _member_production(production: pd.DataFrame | None,
+                       members: list[str]) -> tuple[dict | None, list[int], str]:
+    """``({member: {year: tonnes}}, held_years, "")`` or ``(None, [], reason)``.
+
+    Each member (the geographies file's snake token) must resolve to EXACTLY ONE FAOSTAT area through
+    ``country_key`` and carry at most one production row per year; anything else fails the basin's
+    weights closed with the reason, never a partial basin (T-WX-4)."""
+    if production is None or len(production) == 0:
+        return None, [], "no silver_production (FAOSTAT) rows were read for this commodity"
+    need = {"country", "country_key", "metric", "value", "year"}
+    if not need <= set(production.columns):
+        return None, [], f"the silver_production frame lacks {sorted(need - set(production.columns))}"
+    prod = production[production["metric"] == FAOSTAT_PRODUCTION_METRIC]
+    years = sorted({int(y) for y in pd.to_numeric(prod["year"], errors="coerce").dropna()})
+    table: dict[str, dict[int, float]] = {}
+    problems: list[str] = []
+    for member in members:
+        rows = prod[prod["country_key"] == member]
+        if rows.empty:
+            problems.append(f"'{member}' matches no FAOSTAT country_key")
+            continue
+        areas = sorted({str(a) for a in rows["country"].dropna()})
+        if len(areas) != 1:
+            problems.append(f"'{member}' matches {len(areas)} FAOSTAT areas {areas}")
+            continue
+        yr = pd.to_numeric(rows["year"], errors="coerce").astype(int)
+        if yr.duplicated().any():
+            problems.append(f"'{member}' carries more than one production row for a year")
+            continue
+        table[member] = {int(y): float(v) for y, v in
+                         zip(yr, pd.to_numeric(rows["value"], errors="coerce"))}
+    if problems:
+        return None, [], "member resolution failed: " + "; ".join(problems)
+    return table, years, ""
+
+
+def _weights_for_month(year: int, month: int, table: dict, held_years: list[int],
+                       lag_days: int) -> tuple[int, dict[str, float]] | str:
+    """``(weight_year, {member: share})`` for a data month, or the reason there is none.
+
+    weight_year = the latest held FAOSTAT year Y whose declared release (Dec 31 of Y + ``lag_days``)
+    falls on or before the month's last day, so the weight is known before any weather row of that
+    month (O-4). Every member must carry a finite, non-negative value for that year and the total must
+    be positive; the shares then sum to one (asserted, 1e-9)."""
+    horizon = _month_end(year, month)
+    known = [y for y in held_years if date(y, 12, 31) + timedelta(days=int(lag_days)) <= horizon]
+    if not known:
+        return f"no FAOSTAT year is released by {horizon.isoformat()} at the declared lag {lag_days} d"
+    wy = max(known)
+    vals = {m: table[m].get(wy, float("nan")) for m in table}
+    bad = sorted(m for m, v in vals.items() if not (np.isfinite(v) and v >= 0.0))
+    if bad:
+        return f"FAOSTAT {wy} carries no production value for {bad}"
+    total = float(sum(vals.values()))
+    if not total > 0.0:
+        return f"FAOSTAT {wy} production over the members sums to {total}"
+    shares = {m: v / total for m, v in vals.items()}
+    if abs(sum(shares.values()) - 1.0) > 1e-9:          # arithmetic guard, never expected to fire
+        return f"FAOSTAT {wy} shares sum to {sum(shares.values())!r}, not 1"
+    return wy, shares
+
+
+def _origin_aggregate_rows(commodity: str, gold: pd.DataFrame, cells: pd.DataFrame,
+                           basins: dict[str, dict], production: pd.DataFrame | None,
+                           production_lag_days: int | None, absent: Counter) -> list[tuple]:
+    """The COUNTRY and BASIN tiers of the origin block. The basin membership test and the cell gates
+    are the ones ``_basin_rows`` applies, read off the same cell rows, so an origin aggregate exists
+    for exactly the (commodity, basin) pairs the legacy basin exists for."""
+    rows: list[tuple] = []
+    seen: set[tuple] = set()
+    weight_owner: dict[str, str] = {}           # member surface -> the basin that printed its weights
+    # CELL rows only: the cell-grain vocabulary under a member surface. Basin rows carry a basin
+    # surface (never a member surface -- deck-pinned) and country-tier rows carry DERIVED names.
+    cell_gold = gold[gold["metric"].isin(ALL_METRICS)] if not gold.empty else gold
+    if not cells.empty:
+        cells = cells.assign(surface=cells["country"].map(to_psd_surface))
+
+    def _country_row(surface: str, member: str, year: int, month: int, metric: str, value: float):
+        key = (commodity, surface, f"{member}{COUNTRY_TIER_SUFFIX}", int(year), int(month))
+        if (key, metric) in seen:               # a member in two basins is emitted once (legacy rule)
+            return
+        seen.add((key, metric))
+        rows.append((*key, metric, float(value)))
+
+    for basin, spec in basins.items():
+        member_by_surface = {to_psd_surface(m): m for m in spec["members"]}
+        sub = cell_gold[cell_gold["country"].isin(set(member_by_surface))] if not cell_gold.empty \
+            else cell_gold
+        if sub.empty or sub["country"].nunique() < BASIN_MIN_COUNTRIES:
+            continue
+        present = sorted(sub["country"].unique())
+        bkey = (commodity, spec["surface"], f"{basin}_basin")
+
+        # (a) the per-country z means, on the legacy country tier's exact gate
+        zsub = sub[sub["metric"].isin(Z_METRICS)]
+        bcount = {(m, int(y), int(mo)): int(n) for (m, y, mo), n in
+                  zsub.groupby(["metric", "year", "month"])["value"].count().items()}
+        means: dict[tuple[str, int, int], dict[str, float]] = {}
+        cagg = zsub.groupby(["country", "metric", "year", "month"])["value"].agg(["mean", "count"])
+        for (surface, metric, y, mo), r in cagg.iterrows():
+            if bcount.get((metric, int(y), int(mo)), 0) < BASIN_MIN_CELLS or int(r["count"]) < COUNTRY_MIN_CELLS:
+                continue
+            means.setdefault((metric, int(y), int(mo)), {})[surface] = float(r["mean"])
+            _country_row(surface, member_by_surface[surface], y, mo,
+                         f"{metric}{COUNTRY_MEAN_SUFFIX}", float(r["mean"]))
+
+        # (b) rainfall against its normal: ratio of sums, basin and country, on the same cell gates
+        pct_by_month: dict[tuple[int, int], dict[str, float]] = {}
+        psub = cells[cells["surface"].isin(set(member_by_surface)) & cells["normal"].notna()] \
+            if not cells.empty else cells
+        for (y, mo), grp in (psub.groupby(["year", "month"]) if not psub.empty else ()):
+            if len(grp) < BASIN_MIN_CELLS:
+                continue
+            stamped = bool(grp["prelim"].notna().all())
+            normal_sum = float(grp["normal"].sum())
+            if normal_sum > 0.0:
+                rows.append((*bkey, int(y), int(mo), METRIC_PRECIP_PCT_BASIN,
+                             100.0 * float(grp["total"].sum()) / normal_sum))
+            rows.append((*bkey, int(y), int(mo), METRIC_PRECIP_PCT_CELLS, float(len(grp))))
+            if stamped:
+                rows.append((*bkey, int(y), int(mo), METRIC_PRECIP_PRELIM_SHARE,
+                             float(grp["prelim"].astype(float).mean())))
+            for surface, cg in grp.groupby("surface"):
+                if len(cg) < COUNTRY_MIN_CELLS:
+                    continue
+                member = member_by_surface[surface]
+                c_normal = float(cg["normal"].sum())
+                if c_normal > 0.0:
+                    pct = 100.0 * float(cg["total"].sum()) / c_normal
+                    pct_by_month.setdefault((int(y), int(mo)), {})[surface] = pct
+                    _country_row(surface, member, y, mo, METRIC_PRECIP_PCT_COUNTRY, pct)
+                _country_row(surface, member, y, mo, METRIC_PRECIP_PCT_CELLS, float(len(cg)))
+                if stamped:
+                    _country_row(surface, member, y, mo, METRIC_PRECIP_PRELIM_SHARE,
+                                 float(cg["prelim"].astype(float).mean()))
+
+        # (c) + (d) the production weights and the weighted basin rows
+        families: list[tuple[str, str, dict]] = [
+            (f"{z}{PROD_WEIGHTED_SUFFIX}", f"{z}{COUNTRY_MEAN_SUFFIX}",
+             {(y, mo): v for (m, y, mo), v in means.items() if m == z}) for z in Z_METRICS]
+        families.append((METRIC_PRECIP_PCT_WEIGHTED, METRIC_PRECIP_PCT_COUNTRY, pct_by_month))
+        reason = ""
+        table: dict | None = None
+        held: list[int] = []
+        if production_lag_days is None:
+            reason = ("the FAOSTAT publication lag is UNDECLARED (configs/datasets/source_contracts.yaml "
+                      "production:faostat carries no publication_lag_days), so no weight year can be dated")
+        else:
+            table, held, reason = _member_production(production, [member_by_surface[s] for s in present])
+        owner = sorted({weight_owner[s] for s in present if s in weight_owner})
+        if not reason and owner:
+            reason = f"a member already carries production_share from basin(s) {owner}"
+        if reason:
+            for out_metric, _stem, by_month in families:
+                if by_month:
+                    absent[(commodity, basin, out_metric, reason)] += len(by_month)
+            continue
+        cache: dict[tuple[int, int], tuple[int, dict[str, float]] | str] = {}
+        used: dict[tuple[int, int], tuple[int, dict[str, float]]] = {}
+        for out_metric, stem, by_month in families:
+            for (y, mo), vals in sorted(by_month.items()):
+                if (y, mo) not in cache:
+                    cache[(y, mo)] = _weights_for_month(y, mo, table, held, int(production_lag_days))
+                w = cache[(y, mo)]
+                if isinstance(w, str):
+                    absent[(commodity, basin, out_metric, w)] += 1
+                    continue
+                missing = [s for s in present if s not in vals]
+                if missing:
+                    absent[(commodity, basin, out_metric,
+                            f"member(s) {missing} carry no {stem} that month")] += 1
+                    continue
+                wy, shares = w
+                value = sum(shares[member_by_surface[s]] * vals[s] for s in present)
+                rows.append((*bkey, int(y), int(mo), out_metric, float(value)))
+                used[(y, mo)] = w
+        for (y, mo), (wy, shares) in sorted(used.items()):
+            for s in present:
+                _country_row(s, member_by_surface[s], y, mo, METRIC_PRODUCTION_SHARE,
+                             shares[member_by_surface[s]])
+                _country_row(s, member_by_surface[s], y, mo, METRIC_PRODUCTION_SHARE_YEAR, float(wy))
+        if used:
+            for s in present:
+                weight_owner[s] = basin
+    return rows
+
+
+def compute_origin_rows(
+    commodity: str,
+    *,
+    gold: pd.DataFrame,
+    chirps: pd.DataFrame | None = None,
+    production: pd.DataFrame | None = None,
+    production_lag_days: int | None = None,
+    basins: dict[str, dict] | None = None,
+    enforce_month_completeness: bool = True,
+    normal_min_years: int = NORMAL_MIN_YEARS,
+) -> tuple[pd.DataFrame, list[dict]]:
+    """The origin tier (WX-1) for ONE commodity: ``(rows, absences)``.
+
+    ``gold`` is the FINISHED frame of :func:`compute_weather_z` for the same commodity and is only
+    read; ``chirps`` is the same long CHIRPS frame it was given; ``production`` is that commodity's
+    silver_production (FAOSTAT) frame with a ``year`` column; ``production_lag_days`` is the DECLARED
+    FAOSTAT publication lag (``None`` = undeclared -> no weights). Returns ONLY the new rows, in
+    ``GOLD_COLUMNS``, every metric in :data:`ORIGIN_METRICS`; the caller appends them to ``gold``.
+
+    ``absences`` lists every weighted series that could NOT be emitted, one dict per
+    (basin, metric, reason) with the count of months -- a missing figure is never silent."""
+    absent: Counter = Counter()
+    cells = _precip_cells(chirps, complete_months=enforce_month_completeness,
+                          normal_min_years=normal_min_years)
+    rows: list[tuple] = []
+    for r in cells.itertuples(index=False):
+        key = (commodity, to_psd_surface(r.country), r.region, int(r.year), int(r.month))
+        rows.append((*key, METRIC_PRECIP_TOTAL, float(r.total)))
+        if np.isfinite(r.normal):
+            rows.append((*key, METRIC_PRECIP_NORMAL, float(r.normal)))
+            if r.normal > 0.0:
+                rows.append((*key, METRIC_PRECIP_PCT, 100.0 * float(r.total) / float(r.normal)))
+        if np.isfinite(r.prelim):
+            rows.append((*key, METRIC_PRECIP_PRELIM, float(r.prelim)))
+    rows += _origin_aggregate_rows(commodity, gold, cells, BASINS if basins is None else basins,
+                                   production, production_lag_days, absent)
+    absences = [{"commodity": c, "basin": b, "metric": m, "reason": why, "months": n}
+                for (c, b, m, why), n in sorted(absent.items())]
+    return _emit(rows), absences
+
+
+# ── THE KNOWN DATE (WX-2, data repairs 2026-09-29) ─────────────────────────────────────────────────
+# WHAT WAS WRONG. gold_weather_z declares ``knowledge_semantics: year_month`` with no knowledge column
+# and no lag, and its notes said nothing about when a month becomes known -- so an as-of-2026-04-15
+# page printed APRIL 2026's basin max-temperature tail share (0.0909), a figure that could not exist
+# until the month had ended and NASA POWER had published it. The (year, month) of a row is the DATA
+# month; the store must say when that month became known.
+#
+# THE RULE: known date = the last day of (year, month) + the publication lag of the SOURCE PRODUCT
+# behind the metric, as DECLARED per source in configs/datasets/source_contracts.yaml (the task reads
+# it; nothing is typed here). An aggregate takes the MAX over its weather inputs. The FAOSTAT weight
+# never moves a row later: its year is chosen released by the month's last day. A metric fed by
+# FAOSTAT alone (the weight rows) is therefore known at the month's last day. The map is built from
+# the SAME expressions that build the names, so a new family cannot arrive without a source: the deck
+# asserts it covers every name this module emits.
+#
+# CHIRPS PRELIM, stated rather than hidden: a month whose ``*_is_preliminary`` stamp is 1 was stored
+# earlier (the prelim month completes ~+2 d past month-end, worst +4, documented in
+# source_contracts.yaml but NOT declared as a field) and is RECOMPUTED when the FINAL block lands
+# (+11..+16 observed). The declared ``weather:chirps`` lag (25) is the final's horizon, so a read that
+# bounds on it is late, never early, and by then the stored value is the final.
+SOURCE_NASA_POWER = "weather:nasa_power"
+SOURCE_CHIRPS = "weather:chirps"
+SOURCE_FAOSTAT = "production:faostat"
+
+_CELL_METRIC_SOURCES: dict[str, tuple[str, ...]] = {
+    METRIC_TMAX_ANOMALY: (SOURCE_NASA_POWER,),
+    METRIC_GDD_Z: (SOURCE_NASA_POWER,),
+    METRIC_HEAT_STRESS_Z: (SOURCE_NASA_POWER,),
+    METRIC_FROST_FLAG: (SOURCE_NASA_POWER,),
+    METRIC_DROUGHT_Z: (SOURCE_CHIRPS,),
+    METRIC_DROUGHT_PRELIM: (SOURCE_CHIRPS,),
+    METRIC_PRECIP_TOTAL: (SOURCE_CHIRPS,),
+    METRIC_PRECIP_NORMAL: (SOURCE_CHIRPS,),
+    METRIC_PRECIP_PCT: (SOURCE_CHIRPS,),
+    METRIC_PRECIP_PRELIM: (SOURCE_CHIRPS,),
+}
+
+
+def _build_metric_sources() -> dict[str, tuple[str, ...]]:
+    src = dict(_CELL_METRIC_SOURCES)
+    for stem in Z_METRICS:
+        src[f"{stem}{TAIL_SHARE_SUFFIX}"] = src[stem]
+        src[f"{stem}{COUNTRY_MEAN_SUFFIX}"] = src[stem]
+        src[f"{stem}{PROD_WEIGHTED_SUFFIX}"] = src[stem] + (SOURCE_FAOSTAT,)
+    for stem in ALL_METRICS:
+        src[f"{stem}{CELLS_SUFFIX}"] = src[stem]
+    for stem, renamed in AGGREGATE_RENAMES.items():
+        src[renamed] = src[stem]
+    for name in (METRIC_PRECIP_PCT_COUNTRY, METRIC_PRECIP_PCT_BASIN, METRIC_PRECIP_PCT_CELLS,
+                 METRIC_PRECIP_PRELIM_SHARE):
+        src[name] = src[METRIC_PRECIP_PCT]
+    src[METRIC_PRECIP_PCT_WEIGHTED] = src[METRIC_PRECIP_PCT] + (SOURCE_FAOSTAT,)
+    src[METRIC_PRODUCTION_SHARE] = (SOURCE_FAOSTAT,)
+    src[METRIC_PRODUCTION_SHARE_YEAR] = (SOURCE_FAOSTAT,)
+    return src
+
+
+METRIC_SOURCES: dict[str, tuple[str, ...]] = _build_metric_sources()
+
+
+def known_date(metric: str, year: int, month: int, lag_days_by_source: dict) -> date | None:
+    """The date the row ``(metric, year, month)`` became known: the month's last day plus the max
+    DECLARED lag over the metric's weather sources (``lag_days_by_source``: source_key -> days).
+
+    ``None`` when any of those lags is undeclared -- unknown, never zero. RAISES ``KeyError`` for a
+    metric with no declared source: a name without an entry has no known date, and that is a defect
+    of this map, not a row to guess about."""
+    sources = METRIC_SOURCES[metric]
+    horizon = _month_end(year, month)
+    weather = [s for s in sources if s != SOURCE_FAOSTAT]
+    if not weather:
+        return horizon
+    lags = [lag_days_by_source.get(s) for s in weather]
+    if any(lag is None for lag in lags):
+        return None
+    return horizon + timedelta(days=max(int(lag) for lag in lags))
 
 
 # ── freshness tripwire (2026-09-11) ─────────────────────────────────────────────────────────────────
