@@ -2034,6 +2034,22 @@ CYCLE_FALLBACK_NOTE = (
     "is not published for it yet, so this row is the nearest listed delivery that is not in its delivery "
     "month, {month} -- quote it as that delivery month and never as 'the front month' or 'the price'"
 )
+# FIX SITTING 4, LANE T (CONTRACT C4-14, R4-4 b by file -- THREAT_MODEL S4-C): the SAME fact in the desk's words. The
+# note above is TRUE (it fires only where the newest session's activity column is empty in the store) but it names
+# the MACHINE ("the front-month rule could not run"), and the writer repeated that on 7 of the 63 banked pages. The
+# desk variant states the store fact -- the activity figure for THAT session is not in the store yet -- and what the
+# row therefore is. Model-facing (the seat's `scope_note`), register-clean, served ONLY where the seat's own flag idiom
+# reads GRAPHRAG_DESK_REGISTER on (`agent._desk_register_on`); flag-off the seat reads HEAD's bytes above.
+# DECLARED DEVIATION from C4-14's literal: the contract typed "open interest" into the sentence; here it is `{metric}`,
+# filled exactly as HEAD fills it (the stamp's primary method, the rule module's own name) -- a venue whose rule reads
+# volume would otherwise be told a false metric (the ROLL_METHODS_FRONT docstring's own law: no second edit); and
+# "so this row is" -> "so this figure is for": `register.desk_register_hits` charges "row" (the machine's word) on the
+# contract's literal and on HEAD's note alike (measured), and the desk variant exists to say the fact without it.
+CYCLE_FALLBACK_NOTE_DESK = (
+    "{metric} for the {session} session is not in the store yet, so this figure is for the {month} delivery, the "
+    "nearest listed that is not in its delivery month -- quote it as that delivery month, never as 'the front month' "
+    "or 'the price'"
+)
 
 
 def _cycle_nearest_eligible(frame) -> Optional[str]:
@@ -2060,14 +2076,32 @@ def _month_words(ym: str) -> str:
     return f"{name} {str(ym)[:4]}" if name else ""
 
 
-def cycle_fallback_note(row: dict) -> str:
+def _day_words(iso: str) -> str:
+    """'2026-09-28' -> '28 September 2026' (the house's day words, `_month_words`' month table); '' when the label
+    is not an ISO day."""
+    s = str(iso or "").strip()[:10]
+    name = _MONTH_NUM_TO_NAME.get(s[5:7], "") if len(s) == 10 and s[4:5] == "-" and s[7:8] == "-" else ""
+    if not name or not s[8:10].isdigit() or not s[:4].isdigit():
+        return ""
+    return f"{int(s[8:10])} {name} {s[:4]}"
+
+
+def cycle_fallback_note(row: dict, *, desk: bool = False) -> str:
     """The model-facing words for ONE cycle-fallback row -- the month off the row, the metric off the
-    stamp. "" for any row the fallback did not serve, so a caller may append it unconditionally."""
+    stamp. "" for any row the fallback did not serve, so a caller may append it unconditionally.
+
+    FIX SITTING 4 (CONTRACT C4-14): ``desk=True`` (the seat passes it only where GRAPHRAG_DESK_REGISTER is lit) ->
+    :data:`CYCLE_FALLBACK_NOTE_DESK`, the session named off the row's own ``front_expiry_session`` stamp; a row that
+    carries no readable session keeps HEAD's words (never a guessed date). ``desk=False`` -> HEAD's bytes."""
     r = row or {}
     if str(r.get("roll_method") or "") != CYCLE_FALLBACK_METHOD:
         return ""
     month = _month_words(str(r.get("contract_month") or "")) or str(r.get("contract_month") or "")
     primary = str(r.get("roll_method_fallback") or "").split("->", 1)[0] or "an activity figure"
+    if desk:
+        session = _day_words(str(r.get("front_expiry_session") or ""))
+        if session:
+            return CYCLE_FALLBACK_NOTE_DESK.format(metric=primary.replace("_", " "), session=session, month=month)
     return CYCLE_FALLBACK_NOTE.format(metric=primary.replace("_", " "), month=month)
 
 

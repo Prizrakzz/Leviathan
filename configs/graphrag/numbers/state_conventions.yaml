@@ -500,8 +500,20 @@ quorum_words:
   # 09-27 SITTING 3 (lane R, CONTRACT Z10): the REASON a condition the walk leaves unread is unread, where the walk
   # names one (`walk.convergence_rows`' `unread_reason`, lane W) -- a policy condition read by its dated action and
   # a figure held only as last revised; each replaces `unread`'s words for its own members only. Count words only.
-  regime_action_unread: "named by the pattern as a dated policy action, and no action in the direction the pattern names stands on the record at this date, so not counted"
+  # 09-29 SITTING 4 (lane R, CONTRACT C4-12, R4-4 (a)): `regime_action_unread` now names ONLY a member whose link's
+  # dated actions WERE read and none of them in the pattern's direction is in force (the walk's `in_force` False);
+  # a member on whose link NOTHING dated was read (`in_force` None) is its own word, `regime_action_none_read` -- the
+  # smoke printed "no ... policy action ... stands on the record at this date" for links never read (7 block
+  # sentences on 7 of 9 pages, 2 writer copies on rice): an unread link said as an absent action.
+  regime_action_unread: "named by the pattern as a dated policy action; dated actions on this link were read, and none of them stands in the direction the pattern names at this date, so not counted"
   held_as_last_revised: "named by the pattern on a figure held only as last revised, which is no reading of the present, so not counted"
+  # the three reasons lane W appends (walk.QUORUM_UNREAD_REASONS, CONTRACT C4-12) -- each UNREAD by its reason, never absent
+  regime_action_none_read: "named by the pattern as a dated policy action, and no dated action on this link was read at this date, so it is unread rather than absent and not counted"
+  marker_orientation_undeclared: "named by the pattern on a series whose link declares no orientation for this condition, so the reading cannot say whether the condition holds and it is not counted"
+  regime_action_polarity_undeclared: "named by the pattern as a dated policy action whose record declares no direction, so it cannot be read toward or against the pattern and is not counted"
+  # a member the walk COUNTED by its dated action (`counted_by`, CONTRACT C4-12 / W4-2) is listed by that action,
+  # never "with its own [N] z" of the series the action moves: {date} the action's date in words
+  counted_by: "counted by its dated action of {date}"
   # the lead's parenthetical where every named condition is unread and at least one of them WAS read as a series
   # (HEAD's "none of those drivers has a series read here" would then be false of it)
   none_counted: "none of them reads here as the condition the pattern names"
@@ -569,9 +581,13 @@ panel_words:
 # `pair_relation` scalar, so the verifier holds a writer's standing word to the side the served spread's sign
 # gives (lane V). The side is COMPUTED off the calculator's own value and the line's own leg order, never declared.
 pair_standing_words:
-  under: [under, below, at a discount to, cheaper than]
-  over: [over, above, at a premium to, dearer than]
+  under: [under, below, at a discount to, cheaper than, cheaper]
+  over: [over, above, at a premium to, dearer than, dearer]
   level: [level with, even with]
+# 09-29 SITTING 4 (lane R, CONTRACT C4-3, V4-1): each "... than" phrase's ATTRIBUTIVE form is appended at its list's
+# TAIL -- the same comparative the book already declares, never a new lexeme -- so the verifier (lane V) can hold "corn
+# the dearer grain" to the spread's own sign (the corn/wheat smoke TL;DR, beside a spread that puts corn UNDER wheat).
+# APPEND-NEVER-SORT: `render.pair_relation` prints each list's FIRST word, so no printed byte moves.
 
 # THE PAIR RELATION LINE'S OWN WORDS (U-3, `render.sb_pair_relation`): the standing, and EACH declared
 # inter-commodity edge between the two legs with its own relation, sign words (rows.SIGN_WORDS) and lag
@@ -633,3 +649,95 @@ then_current_words:
 # rate's date, as the engine stated them (`stats.pair_level_spread`'s `converted`); the legs' own rows are untouched.
 fx_words:
   converted: "{leg} converted at {rate} {unit}, the exchange rate of {date}"
+
+# =====================================================================================================
+# THE 09-29 FIX SITTING 4's ROW WORDS (lane R) -- declared ONCE, read by state/render.py (`book_words`,
+# `book_list`, `_book`) or state/rows.py (`splice`, `display_unit`); every entry is graded in
+# tests/unit/test_fix0929s4_lane_r.py by clause 18's own grader (`lint._row_word_errs`: ASCII, digit-free,
+# underscore-free, register-clean on the four detectors and on the desk register). Every entry is a FACT's words
+# (what a served row IS, or why a reading is not counted), never a sentence a writer is told to copy (owner 09-27).
+# =====================================================================================================
+
+# THE SHORT NAME OF A SERIES (R4-1, CONTRACT C4-9). `reading_words` above is the row's NAME -- the long card
+# description the SB-1 line and the footer print ("the longest dry-day run in the month, as a z-score"). A
+# sentence that names the row inline needs the SERIES' OWN NOUN PHRASE, with its own head noun and no comma, so
+# the one splice producer (`rows.splice`) can set it IN the writer's slot ("the severe dry-day run z-score
+# reading for SE Asia Palm Belt") -- MEASURED on the 2026-09-29 smoke and probe: the name correction spliced the
+# long description into six sentences ("the severe reading (the longest dry-day run in the month, as a z-score for
+# SE Asia Palm Belt) [N13]", "US the longest dry-day run in the month, as a z-score for United States reads").
+# COMPLETE over `reading_words`' keys; each content word is the card's own (its `desc`, its `label` or its
+# `reading_words` entry -- the series named, never the driver routed to it; the lane R deck grades both);
+# PLAIN (words, hyphens and spaces only). An entry equal to its `reading_words` is a name that was short already.
+# Read by `render.series_short_words` (the one reader) into `RowIdentity.short`; the long name is untouched.
+reading_short:
+  gold_board_crush.crush_margin_usd_bu:                  "the board crush margin"
+  gold_futures_spreads.spread_value:                     "the front-month spread"
+  gold_weather_z.drought_z:                              "the dry-day run z-score"
+  gold_weather_z.frost_event_flag:                       "frost events"
+  gold_weather_z.gdd_z:                                  "the growing-degree-day anomaly"
+  gold_weather_z.heat_stress_z:                          "the heat-stress anomaly"
+  gold_weather_z.tmax_anomaly:                           "the maximum-temperature anomaly"
+  silver_cot.mm_net:                                     "the managed-money net position"
+  silver_esr.weekly_exports_1000mt:                      "weekly export shipments"
+  silver_fgis.exports_mt_weekly:                         "weekly export inspections"
+  silver_fred_fx.*:                                      "the local currency exchange rate"
+  silver_mpob.closing_stocks_palm_oil_mt:                "Malaysian closing palm oil stocks"
+  silver_noaa_iod.dmi_value:                             "the Indian Ocean dipole index"
+  silver_noaa_oni.oni_anom:                              "the tropical Pacific sea-surface temperature anomaly"
+  silver_noaa_oni.oni_lag6:                              "the tropical Pacific sea-surface temperature anomaly"
+  silver_pink_sheet.blended_npk_index_zscore_5yr:        "the blended fertilizer price z-score"
+  silver_pink_sheet.brent_crude_usd_bbl_zscore_5yr:      "the Brent crude price z-score"
+  silver_pink_sheet.dap_usd_mt_zscore_5yr:               "the DAP fertilizer price z-score"
+  silver_pink_sheet.fish_meal_usd_t_zscore_5yr:          "the fishmeal price z-score"
+  silver_pink_sheet.natural_gas_eu_usd_mmbtu_zscore_5yr: "the European natural gas price z-score"
+  silver_pink_sheet.natural_gas_us_usd_mmbtu_zscore_5yr: "the US natural gas price z-score"
+  silver_pink_sheet.potassium_usd_mt_zscore_5yr:         "the potash price z-score"
+  silver_pink_sheet.urea_usd_mt_zscore_5yr:              "the urea price z-score"
+  silver_production_livestock.live_animals:              "the live-animal head count"
+  silver_psd.area_harvested_1000ha:                      "harvested area"
+  silver_psd.beginning_stocks_mt:                        "carry-in stocks"
+  silver_psd.consumption_mt:                             "domestic consumption"
+  silver_psd.ending_stocks_mt:                           "ending stocks"
+  silver_psd.exports_mt:                                 "exports"
+  silver_psd.imports_mt:                                 "imports"
+  silver_psd.production_mt:                              "production"
+  silver_psd.su_ratio:                                   "the stocks-to-use ratio"
+  "silver_psd_attributes.Crush":                         "the crush volume"
+  "silver_psd_attributes.FSI Consumption":               "FSI use"
+  "silver_psd_attributes.Feed Dom. Consumption":         "domestic feed use"
+  "silver_psd_attributes.Feed Waste Dom. Cons.":         "domestic feed and waste use"
+  "silver_psd_attributes.Food Use Dom. Cons.":           "domestic food use"
+  "silver_psd_attributes.Industrial Dom. Cons.":         "domestic industrial use"
+  silver_sagis_cec.current_estimate_t:                   "the South African crop estimate"
+
+# THE DISPLAY WORDS OF A SCALED UNIT (R4-2, CONTRACT C4-10). A served unit that carries a SCALE NUMERAL is stored
+# as the source spells it ("1000 MT"), and the block printed that spelling beside the figure -- MEASURED: 95 "<n>
+# 1000 MT" on 32 of the 63 banked pages, 34 of them the writer's own copies ("1,900 1000 MT", "43.1 1000 MT").
+# Each entry is what a reader says for the unit, and each is a spelling the verifier ALREADY reads as that very
+# unit (`verify._row_unit_spellings(<unit>)` returns it; the lane R deck asserts it), so the display moves the
+# words and never the backing. COMPLETE over the cards' declared units whose scale the verifier can say in a word
+# (the deck derives that set from tables.yaml and fails closed); a unit whose scale no declared word says (the
+# two-numeral "1000 480 lb. Bales") has no entry and prints as stored. Read by `rows.display_unit`, the one reader.
+unit_words:
+  "1000 MT": "thousand tonnes"
+  "1000 HEAD": "thousand head"
+  "1000 boxes": "thousand boxes"
+  "1000 ha": "thousand ha"
+
+# THE DECLINED CHANGE OF A TAPE, BY ITS REASON (F4-1's print, CONTRACT C4-1). `feeders.tape_state` (lane W) declines a
+# same-contract change whose base or end session is not a price -- the store's settle there is zero, which the
+# settlement ingest's own law says is never a price (219 such settles on the ICE US bar path, MEASURED) -- with
+# `reason: base_not_a_price` and the session's date. The tape line says so in place of a figure: {date} the
+# session in words, {n} {noun} the window. A reason with no entry keeps HEAD's words.
+tape_decline_words:
+  base_not_a_price: "the settle the store holds for {date} is not a price, so no change is printed over {n} {noun}"
+
+# THE PRODUCT CLASS OF A CONTRACT, IN THE DESK'S WORDS (T4-2 (b), CONTRACT C4-15, OWNER DECISION O-S4-1). The keys
+# are commodity_hierarchy.yaml `groups` keys (the lane R deck asserts each); a contract's class is the ONE of these
+# groups that holds its node (`numbers.registry.product_class`, lane T). A spread between two legs of different
+# classes declines by naming them ("MATIF rapeseed is a seed and CME palm oil is an oil"), never by unit spelling.
+product_class_words:
+  oilseeds: "a seed"
+  vegetable_oils: "an oil"
+  oilseed_meals: "a meal"
+  grains: "a grain"

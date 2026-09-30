@@ -294,8 +294,21 @@ def fill_stage1(*, graph, sg, asof: str, mode: str, query: str = "", lane: str =
                      else f"lane_off:{off}")
             return bd
         _sub = _subject_payload(subject)
+        _seeds = [c for c in (getattr(sg, "seeds", None) or []) if c]
+        # 09-29 FIX SITTING 4 (CONTRACT C4-18, S4-2 -- the verifier's integration seam): THE CLASS THE QUESTION'S OWN
+        # WORDS NAME (``subject.named_product_class``, lane S), with the turn's own seats (the planner's seeds and the
+        # named markets) riding it, so ``walk.resolve_anchors`` (lane W) seats "rapeseed oil" on the oil's priced
+        # contract and never the seed. Board path only; None (no class, or no read) is HEAD's anchor pass exactly.
+        _qclass = None
+        try:
+            from leviathan.graphrag.state import subject as _SUBJ
+            _qclass = _SUBJ.named_product_class(query or "", graph,
+                                                seated=tuple(_seeds) + tuple(named or ()))
+        except Exception:                               # noqa: BLE001 -- no class read is HEAD's anchor pass
+            _qclass = None
+        _qkw = {"question_class": _qclass} if _qclass is not None else {}
         anchors = W.resolve_anchors(
-            contracts=[c for c in (getattr(sg, "seeds", None) or []) if c],
+            contracts=_seeds,
             named=tuple(named or ()), attached_event=attached_event,
             focus_driver=str(focus_driver or ""), graph=graph,
             max_contracts=max(0, int(max_contracts or 0)),
@@ -303,7 +316,7 @@ def fill_stage1(*, graph, sg, asof: str, mode: str, query: str = "", lane: str =
             # OMIT-WHEN-OFF ONE LAYER DOWN: with no subject this is `()` and `resolve_anchors` takes
             # the branch it took at S6, so the anchor set is the S6 build's own on every turn the
             # resolver did not reach.
-            subject=_sub["picked"])
+            subject=_sub["picked"], **_qkw)
         # THE LANE IS THREADED, not re-spelled. It was a literal `"run_hybrid"` here while the caller's
         # real lane arrived at :66 and was read only by the off-lane test above -- a threaded fact
         # overwritten by a constant, inert today only because `Board.trace()` carries no lane field and

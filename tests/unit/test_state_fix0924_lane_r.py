@@ -56,8 +56,12 @@ def test_K2_K3_K5_the_leaf_vocabularies_grow_only_at_their_tails():
     # its position
     # 09-25 (RT-2): `cell_rank` / `cell_extreme` are appended AFTER class_words -- every earlier field keeps
     # its position, and the round-2 tail is read one step further from the end
-    assert list(f)[-7:-2] == ["commodity_words", "cell_n", "stat_kind", "period_role", "class_words"]
-    assert list(f)[-2:] == ["cell_rank", "cell_extreme"]
+    # 09-29 FIX SITTING 4 (lane R, R4-1, CONTRACT C4-9) -- MOVED PIN, CAUSE: `short` (the series' short name) is
+    # appended AT THE TAIL after cell_extreme, so the earlier tails are read one step further from the end. The claim is
+    # unchanged: the identity grows only at its tail and every earlier field keeps its position.
+    assert list(f)[-8:-3] == ["commodity_words", "cell_n", "stat_kind", "period_role", "class_words"]
+    assert list(f)[-3:-1] == ["cell_rank", "cell_extreme"]
+    assert list(f)[-1:] == ["short"]
     assert "period_behind" in ROWS.StateRow.__dataclass_fields__
     assert ROWS.StateRow(key=ROWS.SeriesKey(ref="x")).period_behind == {}
 

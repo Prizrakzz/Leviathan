@@ -1419,3 +1419,171 @@ def check_wasde_line_map(reg: Optional[NumbersRegistry] = None) -> list[str]:
         if "" in by_unit:
             errs.append(f"wasde_line_map {table}: mapped metrics {sorted(by_unit[''])} declare no unit")
     return errs
+
+
+# ---------------------------------------------------------------------------------------------------
+# FIX SITTING 4, LANE T (CONTRACT C4-15, T4-2) -- THE SPREAD'S TWO LAWS, RULED TOGETHER
+# ---------------------------------------------------------------------------------------------------
+# (a) ONE QUANTITY, DECLARED ONCE. "t" and "metric ton" are the same tonne; the declaration lives where units are
+#     declared (tables.yaml `unit_spellings`, the "mt" class) and :func:`same_quantity` is its reader for a PRICE unit
+#     ("<currency>/<quantity>", the exchange convention the contract map spells). `stats.pair_level_spread` stays a
+#     pure leaf and takes this reader as an argument, never an import.
+# (b) ONE PRODUCT CLASS. A spread level is read only between two legs of ONE product class (OWNER DECISION O-S4-1,
+#     default). The classes are commodity_hierarchy.yaml `groups` keys; WHICH groups are product classes, and their
+#     reader words ("a seed", "an oil"), the conventions book declares ONCE in `product_class_words` (lane R's book,
+#     read through its one loader `state.lint.load_conventions`). :func:`product_class` walks contract -> node ->
+#     the ONE declared class group holding that node. REJECTED: a slug or word list ("oil" in the name), a class
+#     typed here, a class inferred from a unit.
+#: The conventions-book key that declares the product classes and their reader words.
+PRODUCT_CLASS_BOOK: str = "product_class_words"
+
+
+class ProductClass(str):
+    """A PRODUCT CLASS as :func:`product_class` returns it: the commodity hierarchy's group KEY ("oilseeds") -- so
+    equality, hashing and printing are the key's, and a reader that compares classes compares keys -- carrying the
+    conventions book's reader WORDS for it (``words``: "a seed"), so the calculator's refusal can say what the desk
+    says without reading a book of its own."""
+
+    def __new__(cls, key: str, words: str = ""):
+        obj = super().__new__(cls, str(key))
+        obj.words = str(words or "")
+        return obj
+
+    def __reduce__(self):
+        return (ProductClass, (str(self), self.words))
+
+
+def _product_class_words(class_words: Optional[dict] = None) -> dict:
+    """``{group key: reader words}`` as the book declares them (``class_words`` overrides the book -- the drive / deck
+    seam, the ``reg=`` precedent of every reader here). Blank keys or words are dropped. NEVER RAISES: no book, no
+    classes (every pair then takes HEAD's path)."""
+    src = class_words
+    if src is None:
+        try:
+            # the book's ONE loader, imported lazily (no import cycle)
+            from leviathan.graphrag.state import lint as _lint
+            src = (_lint.load_conventions() or {}).get(PRODUCT_CLASS_BOOK)
+        except Exception:  # noqa: BLE001 -- an unreadable book declares no class
+            src = None
+    out: dict = {}
+    for k, v in (src.items() if isinstance(src, dict) else ()):
+        key, words = str(k or "").strip(), " ".join(str(v or "").split())
+        if key and words:
+            out[key] = words
+    return out
+
+
+def _hierarchy_view(hierarchy: Optional[dict] = None) -> tuple:
+    """``(contracts, groups)`` off commodity_hierarchy.yaml (``hierarchy`` overrides the file -- the drive / deck
+    seam). NEVER RAISES: an unreadable file is two empty maps."""
+    h = hierarchy
+    if h is None:
+        try:
+            from leviathan.graphrag import hierarchy as _H
+            h = _H._hierarchy() or {}
+        except Exception:  # noqa: BLE001
+            h = {}
+    contracts = h.get("contracts") if isinstance(h, dict) else None
+    groups = h.get("groups") if isinstance(h, dict) else None
+    return (contracts if isinstance(contracts, dict) else {}), (groups if isinstance(groups, dict) else {})
+
+
+def product_class(slug: str, *, hierarchy: Optional[dict] = None,
+                  class_words: Optional[dict] = None) -> Optional[ProductClass]:
+    """FIX SITTING 4, LANE T (CONTRACT C4-15, T4-2 b): the PRODUCT CLASS of one contract -- contract -> its node
+    (commodity_hierarchy ``contracts``) -> the ONE group key of the book's ``product_class_words`` whose members hold
+    that node, returned as a :class:`ProductClass` (the key, carrying the book's words). ``None`` where the slug is
+    not a contract, its node sits in no declared class (cocoa, sugar, cotton) or in more than one (never a guess
+    between two), or the book declares no class. MATIF rapeseed -> rapeseed -> ``oilseeds`` ("a seed"); CME palm
+    oil -> palm_oil -> ``vegetable_oils`` ("an oil"). NEVER RAISES."""
+    s = str(slug or "").strip()
+    if not s:
+        return None
+    contracts, groups = _hierarchy_view(hierarchy)
+    spec = contracts.get(s)
+    node = str(spec.get("node") or "").strip() if isinstance(spec, dict) else ""
+    if not node:
+        return None
+    words = _product_class_words(class_words)
+    hits = [k for k in words if node in [str(m) for m in (groups.get(k) or ())]]
+    if len(hits) != 1:
+        return None
+    return ProductClass(hits[0], words[hits[0]])
+
+
+def same_quantity(unit_a, unit_b, *, path: Optional[str] = None) -> bool:
+    """FIX SITTING 4, LANE T (CONTRACT C4-15, T4-2 a): are two unit labels ONE quantity BY DECLARATION? Equal after
+    :func:`normalise_unit_phrase`; or -- for two PRICE units "<currency>/<quantity>" (the exchange convention the
+    contract map spells, split once at its first "/") -- the SAME currency and two quantities of ONE declared
+    ``unit_spellings`` class ("usd/t" and "usd/metric ton": "t" and "metric ton" are members of "mt"); or two plain
+    unit phrases of one declared class. Never a morphology rule, never a conversion: a short ton is not a tonne
+    ("short ton" is declared nowhere, so it equals only itself) and US cents are not dollars (two currencies).
+    NEVER RAISES (an unreadable vocabulary answers only exact equality)."""
+    a, b = normalise_unit_phrase(unit_a), normalise_unit_phrase(unit_b)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    try:
+        spell = unit_spellings(path) or {}
+    except Exception:  # noqa: BLE001
+        spell = {}
+    cls: dict = {}
+    for canon, members in spell.items():
+        for m in members or ():
+            cls.setdefault(m, canon)
+    ha, sa, ta = a.partition("/")
+    hb, sb, tb = b.partition("/")
+    if bool(sa) != bool(sb):
+        return False
+    if sa:
+        ha, hb, ta, tb = ha.strip(), hb.strip(), ta.strip(), tb.strip()
+        if not (ha and ta and tb) or ha != hb:
+            return False
+    else:
+        ta, tb = a, b
+    return cls.get(ta, ta) == cls.get(tb, tb)
+
+
+def check_product_classes(*, hierarchy: Optional[dict] = None, class_words: Optional[dict] = None) -> list[str]:
+    """THE BOOK KEY'S LINT (CONTRACT C4-15: "each key is a groups key there"), graded in ``config_check.main``. When
+    the conventions book declares ``product_class_words``: (1) every key is a commodity_hierarchy ``groups`` key;
+    (2) every entry carries reader words with no digit or underscore, and no two classes share their words (a
+    refusal must tell a seed from an oil); (3) no hierarchy contract's node sits in two declared classes (there
+    :func:`product_class` answers None and the decline would silently not fire -- named here instead). An ABSENT
+    key is clean: no class is declared and every pair takes HEAD's path. Empty == clean. NEVER RAISES."""
+    raw = class_words
+    if raw is None:
+        try:
+            from leviathan.graphrag.state import lint as _lint
+            raw = (_lint.load_conventions() or {}).get(PRODUCT_CLASS_BOOK)
+        except Exception as exc:  # noqa: BLE001
+            return [f"product_class_words: the conventions book did not load: {exc}"]
+    if raw is None:
+        return []
+    if not isinstance(raw, dict):
+        return [f"product_class_words: expected a mapping of hierarchy group -> reader words, got "
+                f"{type(raw).__name__}"]
+    contracts, groups = _hierarchy_view(hierarchy)
+    errs: list[str] = []
+    seen: dict = {}
+    for k, v in raw.items():
+        key, words = str(k or "").strip(), " ".join(str(v or "").split())
+        if key not in groups:
+            errs.append(f"product_class_words: {key!r} is not a commodity_hierarchy groups key")
+        if not words:
+            errs.append(f"product_class_words: {key!r} declares no reader words")
+        elif any(ch.isdigit() or ch == "_" for ch in words):
+            errs.append(f"product_class_words: {key!r} words {words!r} carry a digit or an underscore")
+        elif words.casefold() in seen:
+            errs.append(f"product_class_words: {key!r} and {seen[words.casefold()]!r} share the words {words!r}")
+        else:
+            seen[words.casefold()] = key
+    declared = [str(k or "").strip() for k in raw]
+    for slug, spec in sorted(contracts.items()):
+        node = str((spec or {}).get("node") or "").strip() if isinstance(spec, dict) else ""
+        hits = [k for k in declared if node and node in [str(m) for m in (groups.get(k) or ())]]
+        if len(hits) > 1:
+            errs.append(f"product_class_words: contract {slug!r} (node {node!r}) sits in {len(hits)} declared "
+                        f"classes {hits} -- a contract has ONE product class")
+    return errs

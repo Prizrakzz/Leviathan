@@ -1517,6 +1517,13 @@ def _claim_number_spans(s: str, *, cycle8: bool = True, units=None) -> list[tupl
     return _claim_scan(s, cycle8=cycle8, units=units)[0]
 
 
+#: 09-29 FIX SITTING 4, LANE V (CONTRACT C4-4, V4-2 / V4-6 V half): THE PUBLIC NAME of the one numeral grammar, so
+#: lane A's handle-clause read (`answer._figure_in_clause`) reads a clause's figures on EITHER side of a handle
+#: through the verifier's own extractor -- "the 3rd percentile" is 3 there exactly as it is here. An ALIAS, never a
+#: copy: the signature, the carve-outs and every byte of the grammar stay `_claim_number_spans`' own.
+claim_number_spans = _claim_number_spans
+
+
 def _claim_scan(s: str, *, cycle8: bool = True, units=None) -> tuple:
     """(start, end, value) per claim magnitude, positions into `s`. EXEMPT (never a claim): (a) a bare
     4-digit calendar year 1900-2099 with no decimal/comma ('2,021' and '2010.5' keep their punctuation and
@@ -2234,6 +2241,44 @@ def _apply_direction_edits(text: str, ctx, log=None) -> str:
 #   clause), capitalised where it opened the sentence.
 # REJECTED (lexical): a regex for "past the ... line"; a magnitude comparison of any number near the words; a
 #   synonym table for "dear" / "cheap" / "held"; striking or cutting the sentence; any word typed in this module.
+#
+# ══ 09-29 FIX SITTING 4, LANE V (V4-1 / V4-3 / V4-4 / V4-5, CONTRACT C4-3 / C4-5 / C4-6 / C4-7) ═══════════════
+# THE SAME ARMS, THREE MEASURED MISSES AND ONE REBUILD -- each still reads only a producer's registration and each
+# still corrects only a contradiction with that served fact; nothing below hands the writer a sentence.
+# V4-1 THE PAIR STANDING BOUND BY WHAT THE CLAUSE CITES (smoke 09-29 N-2, corn/wheat TL;DR): "with corn the dearer
+#   grain per bushel ([N63] 527.5 ... against [N69] 707 ..., a gap the record prints only as the spread [N13] of
+#   -179.5 US cents/bushel, corn under wheat)" was served beside the spread that says corn is UNDER wheat. HEAD's arm
+#   read it as unanchored twice over: "dearer" (no "than") is no declared phrase, and the legs' levels sat in two
+#   groups with the spread past a clause break inside the parenthetical. NOW: (a) the SUBJECT of a standing phrase is
+#   the nearest leg mention before it in its CLAUSE -- the sentence's clause break, a break INSIDE a parenthetical
+#   being part of its clause (`_clause_spans`); (b) the phrase is bound where that clause cites the spread's own
+#   handle, or BOTH legs' own LEVEL handles (each leg's price row: a `level` scalar of the leg's own row, the row
+#   identity's driver slot empty -- the tape), or by HEAD's rule. A phrase that TAKES AN OBJECT ("dearer than",
+#   "under") still needs the other leg as that object (HEAD's reading, so "corn under pressure" or "dearer than a
+#   year ago" is never a pair standing); only the ATTRIBUTIVE form the book declares -- a phrase that is a proper
+#   word-prefix of another phrase of its own standing list ("dearer" of "dearer than") -- binds with its subject
+#   alone. The correction is the book's word of the served standing at the SAME index (attributive for attributive).
+# V4-3 THE CITATION AFTER ITS NOUN PHRASE (smoke N-6): the CITE arm put the judged handle right after the label
+#   whenever the next word did not close the clause -- "past the severe [N14] line [N13]". NOW the point is after
+#   the noun phrase the threshold words form: the label + the HEAD NOUN the threshold clause's own producer declares
+#   on the scalar (`head_noun`, lane R) where that noun follows the label, after the label where the noun precedes
+#   it ("the line called severe"), else the end of the word run after the label (a clause break, a bracket, a
+#   handle or a terminator ends it; a FIGURE ending it places nothing -- never beside another figure). A handle group
+#   already at that point is JOINED ("line [N13, N14]", the canonical member list `answer._n_handle_token` writes),
+#   never doubled; a range or [E] group is followed, as HEAD did. The CORRECT arm's adjacency is HEAD's, unmoved.
+# V4-4 THE RELATION WITH ITS POLARITY: "not yet past the severe line" read as `past` and gained the judged
+#   citation. NOW the relation is read with the verifier's one negation grammar (`_BAR_NEGATOR`), clause-scoped by
+#   `_BAR_CLAUSE_EDGE`, over the threshold words' own run (the clause edge to the phrase, and the phrase to its
+#   label -- "past its record but not severe" negates the label's relation); an odd count reads the book's INVERSE
+#   relation. Agree -> the CITE arm; contradict -> the CORRECT arm only where every negator precedes the phrase and
+#   the judged handle is adjacent (the negator + phrase run -> the book word of the served relation); a conditional
+#   or a dated receipted clause (`_bar_speech_act`'s own two tests) is no present relation -> left and counted.
+# V4-5 THE VERDICT CHECK, REBUILT (sitting 3 MV-1): a verdict clause binds ONLY to a cell whose TWO legs the clause
+#   itself names (the pair arm's distinct-words leg rule over the legs' board labels, read against EVERY leg in play
+#   on the turn, so a third market's name is never split across two legs) -- never by proximity to a cited group --
+#   and a contradiction replaces ONLY the verdict run with the served verdict's own run of the line's words, never
+#   the clause. IT STAYS UNWIRED (`_VCtx.verd` is {}): the wiring is the verifier's call on the
+#   lane's drive (THREAT_MODEL V-45).
 _VW_RX = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)*")
 _MARKUP = " \t*_"
 
@@ -2254,6 +2299,23 @@ def _segment_spans(masked: str) -> list:
         out.append((at, m.start()))
         at = m.end()
     out.append((at, len(masked or "")))
+    return out
+
+
+def _clause_spans(masked: str) -> list:
+    """09-29 SITTING 4 (V4-1): the CLAUSES of one reader's sentence as (start, end) -- the segments of
+    :func:`_segment_spans`, where a clause break written INSIDE a parenthetical (an opened "(" not yet closed) is
+    part of its clause, so "corn the dearer grain ([N63] ..., a gap ... the spread [N13] ..., corn under wheat)"
+    is ONE clause with the spread's handle in it. The parenthesis depth is read off the text; nothing else moves."""
+    s = masked or ""
+    out, at = [], 0
+    for m in _SEGMENT_BREAK.finditer(s):
+        head = s[:m.start()]
+        if head.count("(") > head.count(")"):
+            continue                                      # inside a parenthetical: the clause goes on
+        out.append((at, m.start()))
+        at = m.end()
+    out.append((at, len(s)))
     return out
 
 
@@ -2309,16 +2371,26 @@ def _threshold_pool(served_scalars) -> tuple:
             continue
         seen.add(key)
         out.append({"row_id": rid, "label": label, "label_rx": rx, "relation": rel, "vocab": vocab,
-                    "judged_handle": jh, "judged": str(sc.get("judged") or "")})
+                    "judged_handle": jh, "judged": str(sc.get("judged") or ""),
+                    # 09-29 SITTING 4 (V4-3, C4-6): the noun the threshold clause's own producer prints after
+                    # the label (lane R's `head_noun`, read off the registration; "" where none is registered)
+                    "head_noun": " ".join(str(sc.get("head_noun") or "").split())})
     return tuple(out)
 
 
-def _threshold_insert_at(sentence: str, masked: str, lb: int, s1: int) -> int:
-    """Where the judged figure's citation goes: after the word that directly follows the label when that word
-    closes the clause ("past the severe line[ N25], which ..."), else directly after the label -- never beside
-    another figure, never inside markup; where a handle group already follows that point (the writer's own
-    citation of the clause), after that group, so the two sit together and nothing is written between a clause
-    and its own handle."""
+#: 09-29 SITTING 4 (V4-4): the relation a NEGATED threshold phrase states -- logic on the contract's two relation
+#: values (Z6: `past` where the reading crossed the line, `inside` where it did not), as `_STANDING_INVERSE` is on
+#: the pair's; a relation with no inverse here is never read negated.
+_RELATION_INVERSE = {"past": "inside", "inside": "past"}
+
+
+def _threshold_clause_end(sentence: str, masked: str, lb: int, s1: int) -> int:
+    """HEAD's (sitting 3) insertion point, kept BYTE FOR BYTE as the CORRECT arm's adjacency bound (a judged handle
+    group written right after the threshold clause): after the word that directly follows the label when that word
+    closes the clause, else directly after the label; after a handle group that already follows that point.
+    09-29 SITTING 4: the CITE arm's point is :func:`_threshold_insert_at`; this reading of "directly after the
+    clause" is unmoved so no contradicting clause is newly bound (a falsifier followed by its row's handle stays
+    left as written)."""
     m = _VW_RX.match(masked, lb + len(masked[lb:]) - len(masked[lb:].lstrip(_MARKUP)))
     at = lb
     if m and m.start() < s1 and not masked[m.end():s1].strip(_MARKUP + ".!?"):
@@ -2330,6 +2402,90 @@ def _threshold_insert_at(sentence: str, masked: str, lb: int, s1: int) -> int:
             at = grp[-1].end()
             break
     return at
+
+
+#: 09-29 SITTING 4 (V4-3): a FIGURE begins here -- a digit, after at most a sign and a currency mark (the figure
+#: grammar `_FIGCUT_SIGN` reads); the insertion point never lands in front of one.
+_THR_FIGURE_LEAD = re.compile(r"[-+" + chr(0x2212) + r"]?[$" + chr(0x20ac) + chr(0x00a3) + r"]?\d")
+
+
+def _threshold_point(sentence: str, masked: str, lb: int, s1: int, *, head_noun: str = "",
+                     pb=None, la=None) -> int:
+    """09-29 SITTING 4 (V4-3, C4-6): the END OF THE NOUN PHRASE the threshold words form, before any handle group:
+      * the head noun (`head_noun`, the threshold clause's own producer's noun, registered on the scalar) FOLLOWS
+        the label -- only blanks, markup or a hyphen between them ("severe line", "severe-line") -> after the noun;
+      * the head noun PRECEDES the label, between the relation phrase and the label ("past the line called
+        severe", "past the line the desk convention calls tight") -> after the label;
+      * otherwise (no head noun registered, or the writer's noun is another) -> the end of the word run after the
+        label: words joined by blanks, markup or a hyphen, ended by anything else (a clause break, a bracket, a
+        handle, a terminator) -- and -1 where a FIGURE ends it (the citation would sit beside another figure).
+    Never between two words of one noun phrase. Offsets into ``sentence`` (``masked`` is its handle-masked twin:
+    a masked handle is blanks, so every "what ends the run" test reads ``sentence``)."""
+    nrx = _phrase_rx(head_noun) if head_noun else None
+    if nrx is not None:
+        k = lb
+        while k < s1 and sentence[k] in _MARKUP + "-":
+            k += 1
+        mm = nrx.match(masked, k)
+        if mm and mm.end() <= s1:
+            return mm.end()
+        if pb is not None and la is not None and pb <= la and nrx.search(masked, pb, la):
+            return lb
+    at = lb
+    for m in _VW_RX.finditer(masked, lb, s1):
+        if sentence[at:m.start()].strip(_MARKUP + "-"):
+            break
+        at = m.end()
+    rest = sentence[at:s1].lstrip(_MARKUP)
+    if _THR_FIGURE_LEAD.match(rest):
+        return -1
+    return at
+
+
+def _threshold_insert_at(sentence: str, masked: str, lb: int, s1: int, *, head_noun: str = "",
+                         pb=None, la=None) -> int:
+    """Where the judged figure's citation goes (09-29 SITTING 4, V4-3, C4-6): after the noun phrase the threshold
+    words form (:func:`_threshold_point`), past any markup closing there; where a handle group already sits at that
+    point (the writer's own citation of the clause) the citation JOINS it -- the returned offset is then the
+    closing bracket of the group's last token, which is a canonical [N] member list (``"[N13]"``, ``"[N13, N14]"``,
+    the one form `answer._n_handle_token` renders); a range, an [E] or a non-canonical group is followed instead
+    (HEAD's placement). -1: no place (a figure ends the threshold words' run)."""
+    at = _threshold_point(sentence, masked, lb, s1, head_noun=head_noun, pb=pb, la=la)
+    if at < 0:
+        return -1
+    while at < len(sentence) and sentence[at] in "*_":
+        at += 1
+    for grp in _handle_groups(sentence):
+        if grp[0].start() >= at and not sentence[at:grp[0].start()].strip(_MARKUP):
+            last = grp[-1]
+            mem = _handle_members(last.group(0))
+            canon = "[" + ", ".join("N%d" % j for _k, j in mem) + "]"
+            if mem and all(k == "N" for k, _j in mem) and last.group(0) == canon:
+                return last.end() - 1
+            return grp[-1].end()
+        if grp[0].start() >= at:
+            break
+    return at
+
+
+def _threshold_negators(masked: str, s0: int, pa: int, pb: int, la: int) -> tuple:
+    """09-29 SITTING 4 (V4-4, C4-5): the NEGATORS of one threshold clause, read with the verifier's one negation
+    grammar (`_BAR_NEGATOR`) clause-scoped by `_BAR_CLAUSE_EDGE` (the `_bar_speech_act` scoping): ``(before,
+    between)`` -- the matches from the clause edge to the relation phrase, and those between the phrase and its
+    label ("past its record but not severe"). A negator INSIDE a declared phrase ("not yet at") is the phrase's own
+    word and is never counted."""
+    edges = [e.end() for e in _BAR_CLAUSE_EDGE.finditer(masked, s0, pa)]
+    lo = edges[-1] if edges else s0
+    return (list(_BAR_NEGATOR.finditer(masked, lo, pa)), list(_BAR_NEGATOR.finditer(masked, pb, la)))
+
+
+def _threshold_not_present(sentence: str, masked: str, s0: int, s1: int) -> bool:
+    """09-29 SITTING 4 (V4-4): is this clause something OTHER than a present relation -- a conditional frame, or a
+    dated receipted fact? `_bar_speech_act`'s own two tests (`_BAR_CONDITIONAL`; `_BAR_DATE` with a handle in the
+    sentence), clause-scoped. A negated relation in such a clause ("wrong if it is not yet past the line", "never
+    past the line in March 2019 [E2]") is left as written."""
+    clause = masked[s0:s1]
+    return bool(_BAR_CONDITIONAL.search(clause) or (_BAR_DATE.search(clause) and _HANDLE.search(sentence)))
 
 
 def _threshold_edits(sentence: str, ctx, log=None) -> list:
@@ -2387,21 +2543,55 @@ def _threshold_edits(sentence: str, ctx, log=None) -> list:
             if not jh_ok:
                 _dir_log(log, "threshold_unanchored")
                 continue
-            if w_rel == f["relation"]:
+            # 09-29 SITTING 4 (V4-4, C4-5): THE RELATION IS READ WITH ITS POLARITY -- an odd count of negators over
+            # the threshold words' own clause run states the book's INVERSE relation ("not yet past" = inside)
+            neg_pre, neg_mid = _threshold_negators(masked, s0, pa, pb, la)
+            negated = (len(neg_pre) + len(neg_mid)) % 2 == 1
+            rel_w = _RELATION_INVERSE.get(w_rel, "") if negated else w_rel
+            if negated and (not rel_w or _threshold_not_present(sentence, masked, s0, s1)):
+                _dir_log(log, "threshold_negated_unanchored")  # a conditional / a dated fact: no present relation
+                continue
+            if rel_w == f["relation"]:
+                if negated:
+                    _dir_log(log, "threshold_negated_agreed")
                 if jh in sent_hs or (f["row_id"], jh) in inserted:
                     _dir_log(log, "threshold_agreed")     # agrees, and the judged figure is cited: as written
                     continue
-                at = _threshold_insert_at(sentence, masked, lb, s1)
+                # 09-29 SITTING 4 (V4-3, C4-6): after the noun phrase, JOINING a handle group already there
+                at = _threshold_insert_at(sentence, masked, lb, s1, head_noun=f.get("head_noun") or "",
+                                          pb=pb, la=la)
+                if at < 0:
+                    _dir_log(log, "threshold_unanchored")  # a figure ends the threshold words: nothing placed
+                    continue
+                joined = any(m.end() - 1 == at and m.group("kind") == "N" for m in _HANDLE.finditer(sentence))
                 inserted.add((f["row_id"], jh))
-                out.append((at, at, " [N%d]" % jh, {"before": "", "after": "[N%d]" % jh, "handle": jh,
-                                                    "row_id": f["row_id"], "label": f["label"],
-                                                    "rule": "threshold_cited"}))
+                out.append((at, at, (", N%d" if joined else " [N%d]") % jh,
+                            dict({"before": "", "after": "[N%d]" % jh, "handle": jh, "row_id": f["row_id"],
+                                  "label": f["label"], "rule": "threshold_cited"},
+                                 **({"joined": True} if joined else {}))))
                 continue
-            clause_end = _threshold_insert_at(sentence, masked, lb, s1)
-            adjacent = any(jh in c[3] and ((c[1] <= pa and _only_glue(sentence[c[1]:pa], breaks=1))
+            clause_end = _threshold_clause_end(sentence, masked, lb, s1)
+            # (a negated relation's clause opens at its first negator: "[N25], not yet past the severe line")
+            p_open = neg_pre[0].start() if (negated and neg_pre) else pa
+            adjacent = any(jh in c[3] and ((c[1] <= p_open and _only_glue(sentence[c[1]:p_open], breaks=1))
                                            or (c[0] >= clause_end and _only_glue(sentence[clause_end:c[0]])))
                            for c in cites)
             own = f["vocab"].get(f["relation"]) or ()
+            if negated:
+                # a negated relation is corrected only where every negator precedes the phrase (the run from the
+                # first negator to the phrase end is replaced by the served relation's book word at the written
+                # phrase's own index) and the judged handle is written beside the clause; else left, counted
+                if neg_mid or not neg_pre or not adjacent or w_i >= len(own):
+                    _dir_log(log, "threshold_negated_unanchored")
+                    continue
+                ra = neg_pre[0].start()
+                repl = own[w_i]
+                if sentence[ra:ra + 1].isupper():
+                    repl = repl[:1].upper() + repl[1:]
+                out.append((ra, pb, repl, {"before": sentence[ra:pb], "after": repl, "handle": jh,
+                                           "row_id": f["row_id"], "label": f["label"],
+                                           "rule": "threshold_negated"}))
+                continue
             if not adjacent or w_i >= len(own):
                 _dir_log(log, "threshold_unanchored")
                 continue
@@ -2431,17 +2621,8 @@ def _pair_pool(served_scalars) -> tuple:
             hd = None
         if len(legs) != 2 or not all(legs) or legs[0] == legs[1] or standing not in vocab:
             continue
-        words = []
-        for slug in legs:
-            lab = ""
-            try:
-                from leviathan.graphrag.state import render as _rnd
-                lab = str(_rnd.board_label(slug) or "")
-            except Exception:  # noqa: BLE001 -- no label, no mention: the pair binds nothing
-                lab = ""
-            words.append(set(w.lower() for w in _VW_RX.findall(lab)))
-        dist = (words[0] - words[1], words[1] - words[0])
-        if not (dist[0] and dist[1]):
+        lf = _legs_fact(legs[0], legs[1])
+        if lf is None:
             continue
         # EACH DECLARED EDGE's own relation, in the words the relation line prints it (the graph's relation id
         # in reader spacing, lane R's `sb_pair_relation`) -- a segment carrying one reasons THROUGH the edge
@@ -2453,9 +2634,62 @@ def _pair_pool(served_scalars) -> tuple:
                 rx = _phrase_rx(p)
                 if rx is not None:
                     edge_rx.append(rx)
+        # 09-29 SITTING 4 (V4-1, C4-3): each leg's own LEVEL handles (the price row's `level` scalars) and the
+        # book's ATTRIBUTIVE phrases (a proper word-prefix of another phrase of the same standing list)
+        attr = set()
+        for std, phrases in vocab.items():
+            toks = [tuple(_VW_RX.findall(p)) for p in phrases]
+            for i, t in enumerate(toks):
+                if t and any(len(u) > len(t) and u[:len(t)] == t for u in toks):
+                    attr.add((std, i))
         out.append({"legs": legs, "handle": hd, "standing": standing, "vocab": vocab,
-                    "words": (words[0], words[1]), "dist": dist, "edge_rx": tuple(edge_rx)})
+                    "words": lf["words"], "dist": lf["dist"], "edge_rx": tuple(edge_rx),
+                    "levels": (_leg_price_handles(served_scalars, legs[0]),
+                               _leg_price_handles(served_scalars, legs[1])),
+                    "attributive": frozenset(attr)})
     return tuple(out)
+
+
+def _legs_fact(a: str, b: str):
+    """``{"words": (w_a, w_b), "dist": (d_a, d_b)}`` -- the two legs' MENTION words: each leg's own board label's
+    words (``render.board_label``, read defensively) and the words it does NOT share with the other's (the V-1
+    fan's distinct-words rule). None where either leg has no distinct word (a run naming both names neither).
+    One producer for the pair arm (U-3) and the rebuilt verdict arm (V4-5)."""
+    words = []
+    for slug in (a, b):
+        lab = ""
+        try:
+            from leviathan.graphrag.state import render as _rnd
+            lab = str(_rnd.board_label(slug) or "")
+        except Exception:  # noqa: BLE001 -- no label, no mention: the pair binds nothing
+            lab = ""
+        words.append(set(w.lower() for w in _VW_RX.findall(lab)))
+    dist = (words[0] - words[1], words[1] - words[0])
+    if not (dist[0] and dist[1]):
+        return None
+    return {"words": (words[0], words[1]), "dist": dist}
+
+
+def _leg_price_handles(served_scalars, slug: str) -> frozenset:
+    """09-29 SITTING 4 (V4-1, C4-3): the handles of ``slug``'s own PRICE LEVEL on the block -- every ``level`` scalar
+    registered with a handle under a row identity whose contract is ``slug`` and whose DRIVER SLOT IS EMPTY (the
+    tape's own row, `render.tape_row_id`: "the anchor's own price, never a driver row"). A driver row's level (a
+    stocks-to-use, an area) is never a leg's price, so a clause comparing two balance-sheet readings never binds a
+    price standing. frozenset() where none was registered."""
+    out = set()
+    for sc in served_scalars or ():
+        if not isinstance(sc, dict) or str(sc.get("kind") or "") != "level":
+            continue
+        parts = str(sc.get("row_id") or "").split("|")
+        if len(parts) < 2 or parts[0] != slug or parts[1]:
+            continue
+        try:
+            h = int(sc.get("handle")) if sc.get("handle") not in (None, "") else None
+        except (TypeError, ValueError):
+            h = None
+        if h:
+            out.add(h)
+    return frozenset(out)
 
 
 _STANDING_INVERSE = {"under": "over", "over": "under", "level": "level"}
@@ -2482,66 +2716,112 @@ def _leg_mentions(masked: str, lo: int, hi: int, fact: dict) -> list:
 
 
 def _pair_edits(sentence: str, ctx, log=None) -> list:
-    """(start, end, replacement, audit) for the U-3 arm (block note above)."""
+    """(start, end, replacement, audit) for the U-3 arm (block notes above: sitting 3, and sitting 4's V4-1).
+
+    Every declared standing phrase is read at its LONGEST match ("dearer than" over the attributive "dearer" it
+    carries). A phrase that takes an object binds by HEAD's reading -- the last leg named before it and the other
+    leg named after it in its segment, no figure or handle between -- where the segment carries the spread's
+    handle or one group covering both legs' rows with the leg its direct object (HEAD), OR where its CLAUSE
+    (:func:`_clause_spans`, parentheticals included) cites the spread's handle or both legs' own price levels. The
+    ATTRIBUTIVE form ("the dearer grain") binds with its subject alone -- the nearest leg named before it in its
+    clause -- where that clause cites the spread's handle or both legs' own price levels."""
     facts = getattr(ctx, "pairs", ()) or ()
     calls = getattr(ctx, "calls", None) or []
     if not facts or not sentence:
         return []
     masked = _mask_handles(sentence)
     cites = _cite_groups(sentence, calls)
+    segs = _segment_spans(masked)
+    clauses = _clause_spans(masked)
     out = []
     for f in facts:
         a_slug, b_slug = f["legs"]
+        lv = f.get("levels") or (frozenset(), frozenset())
+        attr = f.get("attributive") or frozenset()
 
         def _covers_legs(c) -> bool:
             heads = {r.split("|", 1)[0] for r in c[2]}
             return a_slug in heads and b_slug in heads
 
-        for s0, s1 in _segment_spans(masked):
-            ments = _leg_mentions(masked, s0, s1, f)
-            if len(ments) < 2:
+        occ = []                                           # (start, end, standing, index) -- longest matches
+        for std, phrases in f["vocab"].items():
+            for i, p in enumerate(phrases):
+                prx = _phrase_rx(p)
+                if prx is None:
+                    continue
+                for pm in prx.finditer(masked):
+                    occ.append((pm.start(), pm.end(), std, i))
+        occ = [o for o in occ if not any(x <= o[0] and o[1] <= y and (x, y) != (o[0], o[1])
+                                         for x, y, _s, _i in occ)]
+        for pa, pb, std, i in sorted(occ, key=lambda o: (o[0], o[1])):
+            s0, s1 = next(((a, b) for a, b in segs if a <= pa and pb <= b), (None, None))
+            c0, c1 = next(((a, b) for a, b in clauses if a <= pa and pb <= b), (None, None))
+            if s0 is None or c0 is None:
                 continue
-            for std, phrases in f["vocab"].items():
-                for i, p in enumerate(phrases):
-                    prx = _phrase_rx(p)
-                    if prx is None:
-                        continue
-                    for pm in prx.finditer(masked, s0, s1):
-                        before = [x for x in ments if x[1] <= pm.start()]
-                        after = [x for x in ments if x[0] >= pm.end()]
-                        if not before or not after or before[-1][2] == after[0][2]:
-                            continue
-                        gap = masked[pm.end():after[0][0]]
-                        if re.search(r"\d", gap) or _HANDLE.search(sentence[pm.end():after[0][0]]):
-                            continue                      # the phrase takes no leg as its object here
-                        x_leg = before[-1][2]
-                        seg_cites = [c for c in cites if s0 <= c[0] and c[1] <= s1]
-                        # BOUND by the spread's own handle in the segment; by one group covering both legs' rows
-                        # only where the other leg is the phrase's DIRECT object (blanks and markup between)
-                        tight = not gap.strip(_MARKUP)
-                        if not any((f["handle"] and f["handle"] in c[3]) or (tight and _covers_legs(c))
-                                   for c in seg_cites):
-                            _dir_log(log, "pair_standing_unanchored")
-                            continue
-                        if any(rx.search(masked, s0, s1) for rx in f["edge_rx"]):
-                            _dir_log(log, "pair_standing_in_inference")
-                            continue
-                        served = f["standing"] if x_leg == 0 else _STANDING_INVERSE.get(f["standing"], "")
-                        if std == served:
-                            _dir_log(log, "pair_standing_agreed")
-                            continue
-                        own = f["vocab"].get(served) or ()
-                        if i >= len(own):
-                            continue
-                        repl = own[i]
-                        if sentence[pm.start():pm.start() + 1].isupper():
-                            repl = repl[:1].upper() + repl[1:]
-                        if any(x < pm.end() and pm.start() < y for x, y, _v, _e in out):
-                            continue
-                        out.append((pm.start(), pm.end(), repl,
-                                    {"before": sentence[pm.start():pm.end()], "after": repl,
-                                     "handle": int(f["handle"] or 0), "legs": list(f["legs"]),
-                                     "rule": "pair_standing"}))
+            cl_hs = set().union(*(c[3] for c in cites if c0 <= c[0] and c[1] <= c1)) if cites else set()
+            by_spread = bool(f["handle"] and f["handle"] in cl_hs)
+            by_levels = bool(lv[0] and lv[1] and (cl_hs & lv[0]) and (cl_hs & lv[1]))
+            ments = _leg_mentions(masked, s0, s1, f)
+            before = [x for x in ments if x[1] <= pa]
+            after = [x for x in ments if x[0] >= pb]
+            inf_lo, inf_hi = s0, s1
+            if (std, i) in attr:
+                # THE ATTRIBUTIVE FORM: no object; its subject is the nearest leg named before it in its clause
+                cbefore = [x for x in _leg_mentions(masked, c0, c1, f) if x[1] <= pa]
+                if not cbefore:
+                    continue                              # no leg is its subject: not a pair standing
+                x_leg = cbefore[-1][2]
+                bound, how = (by_spread or by_levels), ("spread" if by_spread else "levels")
+                inf_lo, inf_hi = c0, c1
+            else:
+                if len(ments) < 2 or not before or not after or before[-1][2] == after[0][2]:
+                    continue
+                gap = masked[pb:after[0][0]]
+                if re.search(r"\d", gap) or _HANDLE.search(sentence[pb:after[0][0]]):
+                    continue                              # the phrase takes no leg as its object here
+                x_leg = before[-1][2]
+                seg_cites = [c for c in cites if s0 <= c[0] and c[1] <= s1]
+                # BOUND by the spread's own handle in the segment; by one group covering both legs' rows only
+                # where the other leg is the phrase's DIRECT object (blanks and markup between) -- HEAD; and
+                # (09-29 SITTING 4) by the spread's handle or both legs' own price levels in the phrase's CLAUSE
+                tight = not gap.strip(_MARKUP)
+                head_bound = any((f["handle"] and f["handle"] in c[3]) or (tight and _covers_legs(c))
+                                 for c in seg_cites)
+                bound = head_bound or by_spread or by_levels
+                how = "head" if head_bound else ("spread" if by_spread else "levels")
+                if not head_bound:
+                    inf_lo, inf_hi = c0, c1
+            # a standing bound only through its CLAUSE (never HEAD's binding) in a conditional frame -- the
+            # `_bar_speech_act` grammar's own test ("wrong if corn turns the dearer grain", "when corn was the cheaper
+            # ingredient") -- is no present standing: left as written, counted
+            if bound and how != "head" and _BAR_CONDITIONAL.search(masked, c0, c1):
+                bound = False
+            if not bound:
+                _dir_log(log, "pair_standing_unanchored")
+                continue
+            if any(rx.search(masked, inf_lo, inf_hi) for rx in f["edge_rx"]):
+                _dir_log(log, "pair_standing_in_inference")
+                continue
+            if (std, i) in attr:
+                _dir_log(log, "pair_standing_attributive")
+            if how == "levels":
+                _dir_log(log, "pair_standing_bound_by_levels")
+            served = f["standing"] if x_leg == 0 else _STANDING_INVERSE.get(f["standing"], "")
+            if std == served:
+                _dir_log(log, "pair_standing_agreed")
+                continue
+            own = f["vocab"].get(served) or ()
+            if i >= len(own):
+                continue
+            repl = own[i]
+            if sentence[pa:pa + 1].isupper():
+                repl = repl[:1].upper() + repl[1:]
+            if any(x < pb and pa < y for x, y, _v, _e in out):
+                continue
+            out.append((pa, pb, repl,
+                        dict({"before": sentence[pa:pb], "after": repl, "handle": int(f["handle"] or 0),
+                              "legs": list(f["legs"]), "rule": "pair_standing"},
+                             **({"bound": how} if how != "head" else {}))))
     return out
 
 
@@ -2603,62 +2883,140 @@ def _verdict_runs(text: str, lo: int, hi: int, mids: dict) -> list:
     return out
 
 
+def _market_words(slugs) -> dict:
+    """09-29 SITTING 4 (V4-5): ``{slug: (label words, required words)}`` for every market in play -- the words of its
+    board label (``render.board_label``, read defensively) and the words a mention must carry: the whole label but a
+    LEADING exchange code (an all-capitals first token of a label of two or more tokens -- the charity
+    `render._market_words` extends a reader naming a board: "soybean oil" names "CBOT soybean oil"). A slug with no
+    label words is absent."""
+    out = {}
+    for slug in sorted(str(s or "") for s in (slugs or ()) if s):
+        try:
+            from leviathan.graphrag.state import render as _rnd
+            lab = str(_rnd.board_label(slug) or "")
+        except Exception:  # noqa: BLE001 -- no label, no mention
+            lab = ""
+        toks = _VW_RX.findall(lab)
+        if not toks:
+            continue
+        need = toks[1:] if (len(toks) > 1 and toks[0].isupper()) else toks
+        out[slug] = ({w.lower() for w in toks}, {w.lower() for w in need})
+    return out
+
+
+def _market_mentions(masked: str, lo: int, hi: int, words_by: dict) -> list:
+    """09-29 SITTING 4 (V4-5): the market mentions inside ``masked[lo:hi]`` as (start, end, slug) -- a maximal run of
+    words of the markets' labels (joined by blanks or a hyphen, :func:`_leg_mentions`' joint) names the ONE market
+    whose label holds every word of the run AND whose required words the run carries: "CBOT soybean oil" and
+    "soybean oil" name soybean oil; "oil", "soybean", "palm" or "meal" alone name nothing (MEASURED by the drive's
+    flip probe: "raises soybean price" read as naming soybean oil bound a soybeans clause to the palm / soybean-oil
+    cell)."""
+    words_all = set().union(*(v[0] for v in words_by.values())) if words_by else set()
+    out, run = [], []
+    for m in list(_VW_RX.finditer(masked, lo, hi)) + [None]:
+        w = m.group(0).lower() if m is not None else None
+        joined = bool(run) and m is not None and not masked[run[-1].end():m.start()].strip(" \t-")
+        if m is not None and w in words_all and (not run or joined):
+            run.append(m)
+            continue
+        if run:
+            ws = {x.group(0).lower() for x in run}
+            hits = [s for s, (lw, need) in words_by.items() if ws <= lw and need <= ws]
+            if len(hits) == 1:
+                out.append((run[0].start(), run[-1].end(), hits[0]))
+        run = [m] if (m is not None and w in words_all) else []
+    return out
+
+
+def _verdict_line_run(mids: dict, verdict: str) -> str:
+    """09-29 SITTING 4 (V4-5): the served verdict's OWN RUN of its line's words -- the longest maximal run of the
+    words that verdict's line uses and the other's does not, as the line writes it (the same distinct-words
+    reading :func:`_verdict_runs` names a verdict by). "" where the line has no such run."""
+    other = "at_odds" if verdict == "aligned" else "aligned"
+    line = str(mids.get(verdict) or "")
+    dist = ({w.lower() for w in _VW_RX.findall(line)}
+            - {w.lower() for w in _VW_RX.findall(str(mids.get(other) or ""))})
+    best, run = (0, 0, 0), []
+    for m in list(_VW_RX.finditer(line)) + [None]:
+        if m is not None and m.group(0).lower() in dist and (not run or not line[run[-1].end():m.start()].strip()):
+            run.append(m)
+            continue
+        if run and len(run) > best[0]:
+            best = (len(run), run[0].start(), run[-1].end())
+        run = [m] if (m is not None and m.group(0).lower() in dist) else []
+    return line[best[1]:best[2]] if best[0] else ""
+
+
 def _verdict_edits(sentence: str, ctx, log=None) -> list:
-    """(start, end, replacement, audit) for the U-9 arm (block note above)."""
+    """(start, end, replacement, audit) for the U-9 arm -- REBUILT 09-29 SITTING 4 (V4-5, C4-7; block note above).
+
+    A VERDICT CLAUSE (a clause segment with no figure and no handle, naming exactly one verdict by a run of its
+    line's own distinct words) is bound ONLY to the cells whose TWO LEGS the clause itself names -- never to a cell
+    by the handle group nearest it (the sitting-3 MV-1 false fires: "the crush link into meal held" rewritten
+    against the one cited at-odds cell). A leg is named by the pair arm's distinct-words rule read over EVERY leg in
+    play on the turn (:func:`_market_mentions`): a run of label words names the one market whose board label holds
+    them all, so "CBOT soybean oil" names soybean oil and never palm (by "oil") and soybeans (by "CBOT") at once --
+    the flip probe measured exactly that split when distinctness was read against one cell's pair alone. Bound
+    cells reading two verdicts, or a clause naming its verdict by two runs, is left and counted
+    `verdict_ambiguous`. A contradiction replaces ONLY the written verdict's run with the served verdict's own run
+    of the line's words (:func:`_verdict_line_run`) -- the clause stays the writer's. `undetermined` corrects
+    nothing. UNWIRED: runs only where a caller hands `ctx.verd` cells (the verifier's wiring call)."""
     cells_by = getattr(ctx, "verd", None) or {}
     if not cells_by or not sentence:
         return []
     masked = _mask_handles(sentence)
-    groups = _cite_groups(sentence, getattr(ctx, "calls", None) or [])
+    cells = sorted({cell for cs in cells_by.values() for cell in cs}, key=str)
+    words_by = _market_words({s for cell in cells for s in (cell[0][0] if cell[0] else ())})
     out = []
     for s0, s1 in _segment_spans(masked):
         seg = masked[s0:s1]
         if re.search(r"\d", seg) or _HANDLE.search(sentence[s0:s1]):
             continue                                      # a verdict clause is words only
-        # THE CELL THE CLAUSE READS: the nearest cell-bearing handle group BEFORE it and the nearest AFTER it in
-        # the reader's sentence -- a verdict clause may follow its moves ("[N247]; the read: ...") or precede its
-        # handle ("... sat at odds with what the boards did, with soybean oil up +9.61 % [N68]"), so every cell of
-        # both neighbours must read the same verdict or the clause is left as written (measured: a clause bound
-        # to its PRECEDING group alone was "corrected" against the wrong cell on the 09-23 2024 page).
-        near = [c for c in groups if c[1] <= s0 and any(j in cells_by for j in c[3])][-1:]
-        near += [c for c in groups if c[0] >= s1 and any(j in cells_by for j in c[3])][:1]
-        if not near:
+        named = {slug for _a, _b, slug in _market_mentions(masked, s0, s1, words_by)}
+        bound = [cell for cell in cells if cell[0] and len(cell[0][0]) == 2
+                 and set(cell[0][0]) <= named]            # THE CLAUSE NAMES BOTH LEGS OF THIS CELL
+        if not bound or len({cell[2] for cell in bound}) != 1:
             continue
-        cells = {cell for c in near for j in c[3] for cell in cells_by.get(j, ())}
-        if not cells or len({cell[2] for cell in cells}) != 1:
-            continue
-        mids = dict(next(iter(cells))[2])
-        named = {k for k, _a, _b in _verdict_runs(masked, s0, s1, mids)}
+        mids = dict(bound[0][2])
+        runs = _verdict_runs(masked, s0, s1, mids)
+        named = {k for k, _a, _b in runs}
         if len(named) != 1:
             continue                                      # no verdict named here, or both: as written
-        if len({cell[1] for cell in cells}) != 1:
-            _dir_log(log, "verdict_ambiguous")            # a leg of cells the record reads differently
+        if len({cell[1] for cell in bound}) != 1:
+            _dir_log(log, "verdict_ambiguous")            # the clause names the legs of cells read differently
             continue
-        served = next(iter(cells))[1]
+        served = bound[0][1]
         if served not in ("aligned", "at_odds"):
             continue                                      # undetermined corrects nothing (V9-a)
         written = next(iter(named))
         if written == served:
             _dir_log(log, "verdict_agreed")
             continue
-        a = s0 + len(seg) - len(seg.lstrip(_MARKUP))
-        b = s0 + len(seg.rstrip(_MARKUP + ".!?"))
-        if b <= a:
+        wr = [r for r in runs if r[0] == written]
+        repl = _verdict_line_run(mids, served)
+        if len(wr) != 1 or not repl:
+            _dir_log(log, "verdict_ambiguous")
             continue
-        repl = mids[served]
+        _k, a, b = wr[0]
         if sentence[a:a + 1].isupper():
             repl = repl[:1].upper() + repl[1:]
         out.append((a, b, repl, {"before": sentence[a:b], "after": repl, "rule": "verdict",
-                                 "verdict": served}))
+                                 "verdict": served, "legs": list(bound[0][0][0])}))
     return out
 
 
 #: THE COUNTER each applied correction rule is counted under (the V-1 arms keep HEAD's ``corrected``).
+#: 09-29 SITTING 4 (APPENDED): a negated threshold relation's correction (V4-4) counts under its own key.
 _EDIT_COUNT_KEYS = {"threshold_cited": "threshold_cited", "threshold_corrected": "threshold_corrected",
-                    "pair_standing": "pair_standing_corrected", "verdict": "verdict_corrected"}
+                    "pair_standing": "pair_standing_corrected", "verdict": "verdict_corrected",
+                    "threshold_negated": "threshold_negated_corrected"}
 #: The LEFT-AS-WRITTEN counts an arm logs (read by the PASS-3 applier and reported, each only when non-zero).
+#: 09-29 SITTING 4 (APPENDED, C4-3 / C4-5): the negated threshold relations agreed / left, and the pair standings
+#: bound in their attributive form / through the legs' own price levels (agreed or corrected).
 _EDIT_LEFT_KEYS = ("unanchored", "fan_ambiguous", "threshold_unanchored", "pair_standing_unanchored",
-                   "pair_standing_in_inference", "verdict_ambiguous")
+                   "pair_standing_in_inference", "verdict_ambiguous",
+                   "threshold_negated_agreed", "threshold_negated_unanchored", "pair_standing_attributive",
+                   "pair_standing_bound_by_levels")
 
 
 def _strike_rejoin(text: str, a: int, b: int) -> tuple:
@@ -2867,6 +3225,9 @@ class _VCtx:
         # `episode_verdict` stamp (the fact) stays served; the check is DOCKETED with its structural remedy (bind a
         # verdict clause only to a cell whose legs the clause itself names, and correct the verdict run, never the
         # clause). `_verdict_cells` / `_verdict_edits` stay defined for that rebuild and are read by nothing.
+        # 09-29 SITTING 4 (V4-5, C4-7): THE REBUILD IS IN `_verdict_edits` (a clause binds only to a cell whose two
+        # legs it names; only the verdict run is replaced) AND IT STAYS UNWIRED HERE -- the wiring
+        # (`self.verd = _verdict_cells(self.calls)`) is the verifier's call on lane V's drive (THREAT_MODEL V-45).
         self.verd = {}
         # U-10 (a): a turn whose block reached the prompt (the pool was PASSED, even empty) -- the one fact the
         # strike's re-join keys on; None (every board-off turn) keeps HEAD's strike.
@@ -7951,9 +8312,13 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         if _dlog.get("fan_ambiguous"):
             report["fan_ambiguous"] = int(_dlog["fan_ambiguous"])
         # 09-29 SITTING 3 (U-4 / U-3 / U-9): each arm's applied and left-as-written counts, ONLY when non-zero
+        # 09-29 SITTING 4 (APPENDED, C4-3 / C4-5): the pair standings bound in their attributive form / through the
+        # legs' own price levels, and the negated threshold relations agreed / corrected / left
         for _rk in ("threshold_cited", "threshold_corrected", "threshold_unanchored", "pair_standing_corrected",
                     "pair_standing_unanchored", "pair_standing_in_inference", "verdict_corrected",
-                    "verdict_ambiguous"):
+                    "verdict_ambiguous",
+                    "pair_standing_attributive", "pair_standing_bound_by_levels", "threshold_negated_agreed",
+                    "threshold_negated_corrected", "threshold_negated_unanchored"):
             if _dlog.get(_rk):
                 report[_rk] = int(_dlog[_rk])
         # 09-23 (C15): the added keys, each ONLY when it has something to say.

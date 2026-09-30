@@ -1025,22 +1025,29 @@ def _seam_call(table, metric, period, value, unit, known, *, sb=True, commodity=
     return c
 
 
-@pytest.mark.parametrize("call,kind,age", [
+# MOVED 09-29 (fix sitting 4, lane A, A4-1 -- CONTRACT C4-13, declared): "a charge only for a SUPERSEDED row". The
+# CLAIM is kept -- each clock keys on the call's own period kind (the ONI MONTH clock fires, the ESR week's does not,
+# the crush is dated by its knowledge date, the ICCO season is annual) -- and each clock's charge now also reads the
+# row's supersession (`_seam_superseded`, the release calendar's next print): the ONI July reading known 2026-09-05
+# is the NEWEST print on 2026-09-16 (the table prints days 1-5), so the clock that fires charges nothing (`current`);
+# the ICCO season card declares no release rule (`calendar_unknown`, no charge); the daily crush read on 2026-08-21
+# was superseded by every session since. The `why` sink shows the clock fired and what the calendar decided.
+@pytest.mark.parametrize("call,kind,age,verdict", [
     # a BOARD ONI month: the label no longer prints "MY2026-07", and the MONTH clock still fires
     (_seam_call("silver_noaa_oni", "oni_anom", "2026-07-01", 1.8, "degC", "2026-09-05"), "month",
-     (47, "the 2026-07 reading, read 2026-09-05")),
+     (None, ""), "current"),
     # a BOARD ESR week (card period_words: week) is neither a month nor annual: fresh at twelve days
     (_seam_call("silver_esr", "weekly_exports_1000mt", "2026-08-27", 311.846, "1000 MT", "20260904"),
-     "week", (None, "")),
+     "week", (None, ""), None),
     # a DAILY crush row is dated by its knowledge date alone -- HEAD's prefix regex read "MY2026-08-21"
     # as the month 2026-08
     (_seam_call("gold_board_crush", "crush_margin_usd_bu", "2026-08-21", 2.6, "USD/bu", "2026-08-21"),
-     "day", (26, "read 2026-08-21")),
-    # an ICCO season ("2024/25 season", no MY prefix) is ANNUAL: a zero-day window, dated at six days
+     "day", (26, "read 2026-08-21"), "superseded"),
+    # an ICCO season ("2024/25 season", no MY prefix) is ANNUAL: a zero-day window -- its clock fires at six days
     (_seam_call("silver_icco_cocoa", "su_ratio", "2024/25", 0.26, "ratio", "2026-09-10", sb=False,
-                commodity="cocoa"), "crop_season", (6, "read 2026-09-10")),
+                commodity="cocoa"), "crop_season", (None, ""), "calendar_unknown"),
 ])
-def test_fix_0923_the_seam_clocks_key_on_the_calls_own_period_kind_never_a_label_prefix(call, kind, age):
+def test_fix_0923_the_seam_clocks_key_on_the_calls_own_period_kind_never_a_label_prefix(call, kind, age, verdict):
     """Lane C's D3 correction removed the "MY" prefix from month labels, so HEAD's prefix regexes silently
     stopped the month clock (41 served rows lost "the 2026-07 reading") and never saw "2024/25 season" as
     annual. The row index now carries `citations.printed_period` (token, kind) -- the card's own period
@@ -1048,4 +1055,6 @@ def test_fix_0923_the_seam_clocks_key_on_the_calls_own_period_kind_never_a_label
     r = an._seam_row_index([call])[1]
     assert r["period_kind"] == kind, r
     assert "MY20" not in r["head"], r["head"]
-    assert an._seam_row_age(r, an._seam_parse_iso("2026-09-16")) == age
+    why: dict = {}
+    assert an._seam_row_age(r, an._seam_parse_iso("2026-09-16"), why=why) == age
+    assert why.get("verdict") == verdict, why

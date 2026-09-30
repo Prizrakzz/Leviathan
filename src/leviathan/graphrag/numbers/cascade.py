@@ -1674,8 +1674,21 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     return sites for the walk's own stated reason (it runs after every other engine, so each existing
     line keeps its byte position) and at BOTH because the leg owns NO groups -- its input is a request
     dict, not a grounded node -- so it must not die on the early return.
+    FIX SITTING 4, LANE T (CONTRACT C4-16, T4-1 -- the cascade half of sitting 3's M-B): the ledger RIDES THE BOARD
+    REQUEST. Lane A puts it beside the display key (`board["numbers_ledger"]`, answer.py's request dict, outside the
+    g1x-hashed kwarg block), so this function reads it there where its own kwarg is None -- a caller's kwarg wins.
+    The key is then DROPPED from the local request (`board` is rebound to a copy without it) so no reader below can
+    stamp or serialise a ledger object. A base-wave call whose identity the ledger holds at another value keeps its
+    new handle and carries `identity_conflict` (both figures, the first handle) -- `_identity_conflict`.
+
     Never raises (R6 -- the seam also belts it)."""
     _set_headline(headline)
+    # FIX SITTING 4 (C4-16, T4-1): the board turn's numbers ledger off the board request (A4-5's key); the key never
+    # travels further than this line. `board` without the key is HEAD's request dict, key for key.
+    if isinstance(board, dict) and "numbers_ledger" in board:
+        if numbers_ledger is None:
+            numbers_ledger = board.get("numbers_ledger")
+        board = {k: v for k, v in board.items() if k != "numbers_ledger"}
     # STATE ENGINE PHASE 2 (design 3.9 item 3, D8): THE BOARD'S OWN `[N]` ROWS LAND FIRST, before the
     # base wave, so `base = len(extra_number_calls)` below counts them and every cascade mint CONTINUES
     # the numbering instead of colliding with it. The list is appended IN PLACE, which is this
@@ -1847,7 +1860,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # W1.1 basin tail lines: ungated -- the spec only exists for gold_weather_z z-rows, and only basin
     # surfaces return rows, so the blast radius is the basin nodes by construction; the serving deploy
     # is the rollout gate and the judged deck is the judge.
-    t_lines, t_trace = _tail_legs(records, kept, len(extra_number_calls), extra_number_calls)
+    t_lines, t_trace = _tail_legs(records, kept, len(extra_number_calls), extra_number_calls, **_dq)
     if t_trace:
         try:
             sg.trace["quantify_basin_tail"] = t_trace
@@ -2604,12 +2617,20 @@ def _pace_series(r: dict, table, *, expiry_col=None, commodity=None) -> tuple[li
     return vals, (collapse if multi else None)
 
 
-def _tail_legs(records: list, kept: list, base: int, calls: list) -> tuple:
+def _tail_legs(records: list, kept: list, base: int, calls: list, *, display=None) -> tuple:
     """W1.1: render the basin TAIL lines off the leg=('tail',*) sibling records -- one [N] line per
     basin weather-z node quoting the RAW share (0-1, the row's own value; the engine never multiplies).
     A silent/error/empty tail record renders NOTHING (non-basin countries have no tail metric by
     construction -- honest absence, the pace-leg discipline). Appends [N] calls IN PLACE (synthetic
-    rows are cap-free). Returns (lines, trace); trace non-empty IFF at least one tail line rendered."""
+    rows are cap-free). Returns (lines, trace); trace non-empty IFF at least one tail line rendered.
+
+    FIX SITTING 4, LANE T (CONTRACT C4-10, R4-3 by file -- THREAT_MODEL S4-B): the share's VALUE SLOT is the level
+    lines' own (`_level_value_text`): HEAD's `{pct:g} %` byte for byte unless the threaded display key is the analyst
+    key, and then the footer label's own precision producer (`citations.level_line_figure` -> `render.shown_figure`,
+    imported lazily there, never re-implemented here) prints it. MEASURED: the 2026-04-15 probe page's tail line
+    printed "9.09091 %" (six significant digits) while its footer printed "9.09 %" for the same [N76], and the writer
+    spelled the line's figure out ("Nine point zero nine zero nine one percent"). The bound magnitude (`shown`) is
+    NOT moved -- the verifier backs the printed figure at its own written precision."""
     rows_by_key = {g["specs"][0]["node_key"]: g["row"] for g in kept if g.get("specs")}
     lines, trace = [], []
     n = base
@@ -2634,7 +2655,8 @@ def _tail_legs(records: list, kept: list, base: int, calls: list) -> tuple:
         pct = _scaled_val(r, srow)
         q = r.get("query") or {}
         lines.append(f"- [N{n}] share of the basin's cells at or beyond +2 sigma in "
-                     f"{_metric_display(row)} (as-of {q.get('asof')}): {pct:g} %" + _series_tag(q, srow))
+                     f"{_metric_display(row)} (as-of {q.get('asof')}): {_level_value_text(r, srow, pct, '%', display)}"
+                     + _series_tag(q, srow))
         trace.append({"node": r.get("node_key"), "metric": tail_metric,
                       "share": round(share, 4)})
     return lines, trace
@@ -3026,6 +3048,98 @@ def _ledger_in_step(ledger, base: int) -> bool:
         return False
 
 
+#: FIX SITTING 4, LANE T (CONTRACT C4-16, T4-1): the key a base-wave call carries when the numbers ledger held its
+#: row identity at ANOTHER value -- {"with": <the first handle of that identity>, "values": [<its figure>, <this
+#: call's figure>], "row_id": "<the identity's words>"} -- so lane V's ledger note can print "the same series also
+#: reads {a} at [N{i}]" on the second handle's line. A FACT served beside the figure, never a merge and never a strike.
+IDENTITY_CONFLICT_KEY = "identity_conflict"
+
+
+def _ledger_conflicts(ledger) -> int:
+    """The ledger's own count of identities held at two values (``stamp()["identity_value_conflict"]``, its public
+    reader); 0 where it cannot answer."""
+    try:
+        return int((ledger.stamp() or {}).get("identity_value_conflict") or 0)
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _ledger_conflict_record(ledger, handle: int) -> dict | None:
+    """The ledger's own record of the conflict ``handle`` was issued under (``conflict_of``, CONTRACT C4-16's
+    V half, in the shape a call carries it), or None where the ledger keeps no record or has none for it. Read
+    defensively: a ledger without the reader (HEAD's) answers None and :func:`_identity_conflict` names it."""
+    fn = getattr(ledger, "conflict_of", None)
+    if not callable(fn):
+        return None
+    try:
+        rec = fn(int(handle))
+    except Exception:  # noqa: BLE001 -- an unreadable record is no record
+        return None
+    if not isinstance(rec, dict) or not isinstance(rec.get("values"), (list, tuple)):
+        return None
+    try:
+        return {"with": int(rec.get("with")), "values": list(rec.get("values")), "row_id": str(rec.get("row_id") or "")}
+    except (TypeError, ValueError):
+        return None
+
+
+def _sans_conflict(call):
+    """``call`` without :data:`IDENTITY_CONFLICT_KEY` -- the key is provenance this lane stamps AFTER the ledger
+    addressed the call, so an identity is always read on the call as the ledger saw it (never perturbed by it)."""
+    if isinstance(call, dict) and IDENTITY_CONFLICT_KEY in call:
+        return {k: v for k, v in call.items() if k != IDENTITY_CONFLICT_KEY}
+    return call
+
+
+def _headline_figure(call):
+    """The figure a call's line prints (its bound ``shown`` magnitude, else its headline row's value) as a float, or
+    the value's own text; ``None`` where the call carries none. Read off the call, never re-derived."""
+    try:
+        shown = (call or {}).get("shown")
+        if isinstance(shown, (list, tuple)) and shown:
+            return float(shown[0])
+    except (TypeError, ValueError):
+        pass
+    try:
+        v = (_headline_row(call) or {}).get("value")
+    except Exception:  # noqa: BLE001
+        v = None
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    try:
+        return float(str(v).replace(",", ""))
+    except (TypeError, ValueError):
+        return str(v)
+
+
+def _identity_conflict(ledger, call: dict, calls: list, handle: int) -> dict | None:
+    """FIX SITTING 4, LANE T (CONTRACT C4-16, T4-1): the served fact of ONE identity conflict -- the call about to take
+    ``handle`` has the row identity (the ledger's own ``identity``) of an EARLIER handle at another value. The earlier
+    handle is the FIRST position in ``calls`` (positional handles: ``[N<k>]`` is ``calls[k - 1]``, and the ledger is
+    in step with them -- ``_ledger_in_step``) whose identity is this call's; its figure and this call's are both
+    named. ``None`` where no earlier call carries the identity (nothing to name)."""
+    try:
+        ident = ledger.identity(_sans_conflict(call))
+    except Exception:  # noqa: BLE001
+        return None
+    if not ident:
+        return None
+    for i, prev in enumerate(calls[:max(0, int(handle) - 1)], start=1):
+        try:
+            if ledger.identity(_sans_conflict(prev)) != ident:
+                continue
+        except Exception:  # noqa: BLE001
+            continue
+        if _headline_figure(prev) is None:
+            continue                     # a blank read holds no value the ledger could have fenced against
+        rid = str((prev or {}).get("_row_id") or (call or {}).get("_row_id") or "").strip()
+        if not rid:
+            # the ledger's own first five named facts (card, commodity, scope, period, metric), its own order
+            rid = "|".join(str(x or "") for x in tuple(ident)[:5])
+        return {"with": i, "values": [_headline_figure(prev), _headline_figure(call)], "row_id": rid}
+    return None
+
+
 def _assemble(records: list, kept: list, base: int, calls: list, *, display=None,
               numbers_ledger=None) -> tuple:
     """Pre-scale + inject endpoint/delta/%-change [N] rows (continue-count), compute per-node CROSS-ERA
@@ -3053,17 +3167,26 @@ def _assemble(records: list, kept: list, base: int, calls: list, *, display=None
         nonlocal n
         led = _led[0]
         if led is not None:
+            c0 = _ledger_conflicts(led)
             try:
                 h, reused = led.address(call)
                 h = int(h)
             except Exception:  # noqa: BLE001 -- a ledger that cannot answer stops being asked
                 _led[0], h, reused = None, n + 1, False
             if reused:
-                if 1 <= h <= len(calls) and led.identity(calls[h - 1]) == led.identity(call):
+                if 1 <= h <= len(calls) and led.identity(_sans_conflict(calls[h - 1])) == led.identity(call):
                     return h
                 _led[0] = None                   # out of step: positional from here on (HEAD's rule)
             elif h != n + 1:
                 _led[0] = None
+            elif _ledger_conflicts(led) > c0:
+                # FIX SITTING 4 (C4-16, T4-1): the ledger held this identity at ANOTHER value -- never merged
+                # (its value fence), and now NAMED: the call carries both figures and the first handle. The
+                # ledger's OWN record of it where the ledger keeps one (lane V's `conflict_of`, read defensively --
+                # one producer for the stamp and the call), else this lane's reading of the same identity
+                conf = _ledger_conflict_record(led, h) or _identity_conflict(led, call, calls, h)
+                if conf:
+                    call[IDENTITY_CONFLICT_KEY] = conf
         n += 1
         calls.append(call)
         return n
@@ -5064,9 +5187,12 @@ def _rv_one_sided_rung(source: str, target: str, fired: dict, qfn, asof, calls: 
     lines.append(
         f"VERDICT ({vw}) on the {lbl} leg: its own balance-sheet move is set against its OWN price "
         f"move only. The pair verdict is ONE-SIDED: {reason}."
+        # FIX SITTING 4, LANE T (T4-3, PC-12, a declared correction of a false statement): the clause claimed the
+        # platform holds no exchange rate a ratio would need -- the exchange-rate card holds fourteen crosses
+        # (silver_fred_fx). The true fact, in the CW_XCCY_CLAUSE precedent's words: no rate is applied.
         + (f" The {eod[1]}'s own settle is shown above in its own currency; no cross-currency "
-           f"comparison is made between the two boards -- a difference needs one unit and a ratio "
-           f"would carry an exchange rate this platform does not hold." if eod_rendered else
+           f"comparison is made between the two boards -- a difference needs one unit, and no exchange "
+           f"rate is applied to either figure." if eod_rendered else
            " No cross-currency comparison is made between the two boards.")
         + " These are the sources' own published figures -- not exchange settles re-based, not a "
           "board level for the other contract. Render under '## Cross-commodity', after the "

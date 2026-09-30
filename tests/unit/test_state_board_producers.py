@@ -380,7 +380,10 @@ def test_g_and_k_the_like_state_absence_is_a_ROW_and_it_hands_over_the_word_EPIS
     assert R.classify(line) == ("SB-X",)
     assert not any(ch.isdigit() for ch in line), "SB-X is letters and ISO dates only"
     nr = R.sb_analog_leg_absence("", not_reached=True)
-    assert "the like-state leg was not entered on this turn" in nr
+    # 09-29 FIX SITTING 4 (lane R, R4-4 (c)) -- MOVED PIN, CAUSE: "the like-state leg was not entered on this turn"
+    # named the machine (the writer copied "No past state was tested on this turn"); the same fact now reads in the
+    # reader's objects. The claim is unchanged: a leg that was never entered says no past state was tested at all.
+    assert "no past state of these readings was tested for a likeness, so none was compared at all" in nr
 
 
 # ── (h) ONE SERIES, ONE CURRENT VALUE ───────────────────────────────────────────────────────────────
@@ -559,21 +562,33 @@ def test_M5_ONE_PAGE_ONE_PATTERN_ONE_COUNT_on_the_b40_fixture():
     action on the b40 fixture, and HEAD counted them by the Indonesian EXPORT series' reading. A regime member is
     now read by the walk's own regime reading of its dated action, so the fixture carries one realised,
     point-in-time action on each node (published before the as-of, in force at it) -- the claim is unchanged:
-    ONE page, ONE pattern, ONE count, the quorum and the watch reading the one producer."""
+    ONE page, ONE pattern, ONE count, the quorum and the watch reading the one producer.
+
+    RE-BANKED 09-29 FIX SITTING 4, LANE W (CONTRACT C4-12, W4-2; DECLARED in BUILD_W): an action in force is read by
+    the DIRECTION its record declares (``walk.REGIME_ACTION_POLARITY_FIELD``), and an in-force action whose record
+    declares none is named unread -- no record in the store declares one today, so the fixture's two actions now
+    carry a declared direction (``+``: each puts its node's condition in force) under a field the pin names for the
+    reader. The claim is unchanged."""
     from leviathan.graphrag.state import __main__ as H
     _walk = H.W.walk
+    _field = getattr(H.W, "REGIME_ACTION_POLARITY_FIELD", None)
     _acts = {("malaysian_crude_palm_oil_cme", d): [
         {"date": "2026-03-02", "source": "Indonesia Ministry of Trade", "tier": 1, "event_date": "2026-03-01",
-         "event_date_precision": "day", "text": "the %s took effect on the first of March" % w}]
+         "event_date_precision": "day", "text": "the %s took effect on the first of March" % w,
+         "declared_direction": "+"}]
         for d, w in (("export_ban", "palm oil export ban"), ("DMO", "domestic market obligation"))}
 
     def _with_actions(*a, receipts=None, **k):
         return _walk(*a, receipts={**dict(receipts or {}), **_acts}, **k)
     H.W.walk = _with_actions
+    if hasattr(H.W, "REGIME_ACTION_POLARITY_FIELD"):
+        H.W.REGIME_ACTION_POLARITY_FIELD = "declared_direction"
     try:
         ctx = H.build_scenario("b40_event")
     finally:
         H.W.walk = _walk
+        if hasattr(H.W, "REGIME_ACTION_POLARITY_FIELD"):
+            H.W.REGIME_ACTION_POLARITY_FIELD = _field
     bd, ana = ctx["board"], ctx["analogs"]
     quorum = [l for l in ctx["block"].lines if l.startswith("- policy-shock spike")]
     assert quorum, "the b40 fixture must carry the policy-shock quorum row"
@@ -674,8 +689,15 @@ def test_M10_the_quorum_does_NOT_COUNT_THE_OPPOSITE_PHASE_on_the_b40_fixture():
     join = [l for l in lines if l.startswith("BOARD JOIN El Nino and La Nina")]
     assert squeeze and join
     assert "the cool phase" in join[0], "the fixture's ONI reading is cool"
-    assert "four of the six conditions it names are showing here" in squeeze[0]
-    assert "five of the six" not in squeeze[0]
+    # RE-BANKED 09-29 FIX SITTING 4, LANE W (CONTRACT C4-12, W4-1; DECLARED in BUILD_W): ``ending_stocks`` is a
+    # ``state_marker`` whose series binding declares no orientation, so its tail is no reading of the condition -- it
+    # is NAMED with that reason and no longer counted ("four" was three readings plus the marker). The claim is
+    # unchanged: the phase opposite the one in force is stated by name and not counted.
+    assert "three of the six conditions it names are showing here" in squeeze[0]
+    assert "five of the six" not in squeeze[0] and "four of the six" not in squeeze[0]
+    _sq = next(c for c in H.build_scenario("b40_event")["board"].convergence
+               if c["name"] == "bullish_supply_squeeze" and c["contract"] == "malaysian_crude_palm_oil_cme")
+    assert (_sq.get("unread_reason") or {}).get("ending_stocks") == "marker_orientation_undeclared"
     # THE NAME IS NEVER STRUCK -- it is stated, with the reason
     assert ("El Nino names the phase opposite the one in force on that reading, so it is not counted "
             "here") in squeeze[0]
@@ -881,16 +903,22 @@ def test_NEW2_the_count_and_the_ENUMERATION_agree_on_the_b40_oversupply_row():
     assert "are on this page" not in line
     assert "one of the five conditions it names is showing here" in line
     assert "so it is not counted here" in line
-    assert "two more are named by the pattern with no series read here, so not counted" in line
-    assert ("; one of them reads in the tail opposite the one the pattern names (Malaysian closing palm oil "
-            "stocks, read here for ending stocks), so it counts against the pattern here; two more") in line
-    for name in ("read here for La Nina", "IOD negative", "read here for ending stocks", "export pace lag",
-                 "USD index"):
+    # RE-BANKED 09-29 FIX SITTING 4, LANE W (CONTRACT C4-12, W4-1; DECLARED in BUILD_W): MPOB ending stocks is a
+    # ``state_marker`` whose series binding declares no orientation, so "it counts against the pattern" was a reading
+    # of its series' tail the graph does not license -- it is NAMED with its reason (the book's words, lane R; a render
+    # with no words for the reason names it among the unread) and is in no verdict list and not in the ordering count.
+    # THE CLAIM IS UNCHANGED: the count is one, and all five reach the reader -- one showing + one phase-opposed +
+    # three named and not counted.
+    assert "named by the pattern with no series read here, so not counted" in line
+    assert "counts against the pattern here" not in line
+    for name in ("read here for La Nina", "IOD negative", "ending stocks", "export pace lag", "USD index"):
         assert name in line, name
     _ov = next(c for c in ctx["board"].convergence
                if c["name"] == "bearish_oversupply" and c["contract"] == "malaysian_crude_palm_oil_cme")
-    assert _ov["against"] == ("ending_stocks",) and _ov["unsided"] == ()
-    assert (len(_ov["matched"]) + len(_ov["against"]) + len(_ov["unsided"])) == _ov["n_declared"]
+    assert _ov["against"] == () and _ov["unsided"] == ()
+    assert (_ov.get("unread_reason") or {}).get("ending_stocks") == "marker_orientation_undeclared"
+    _und = [d for d, w in (_ov.get("unread_reason") or {}).items() if w == "marker_orientation_undeclared"]
+    assert (len(_ov["matched"]) + len(_ov["against"]) + len(_ov["unsided"]) + len(_und)) == _ov["n_declared"]
     assert R.classify(line) == ("SB-C",)
     # ONE PAGE, ONE PATTERN, ONE COUNT: the watch reads the SAME producer (`render.pattern_count`).
     # 09-26 S2 RE-BANK (lane N, N-2): at one counted of three asked the pattern is not at its own threshold on
@@ -1151,9 +1179,13 @@ def test_RW1_the_COCOA_SQUEEZE_row_never_denies_a_read_series_and_names_both_aga
     assert "has a series read here" not in line, line
     assert ("none of the six conditions it names is showing here (none of them reads in the tail the "
             "pattern names)") in line, line
+    # 09-29 FIX SITTING 4 (lane R, R4-1) -- MOVED PIN, CAUSE: a read condition is named by the row identity's INLINE noun
+    # (`short_words`), which is now the series' short name ("the dry-day run z-score"), where it was the long card
+    # description with its own commas inside this parenthetical. The claim is unchanged: both against readings are
+    # NAMED, by their series, with their side words.
     assert ("; two of them read in the tail opposite the one the pattern names (the maximum-temperature "
             "anomaly for West Africa, read here for harmattan, which reads on the low side (cooler than usual) "
-            "and the longest dry-day run in the month, as a z-score for West Africa, read here for drought, "
+            "and the dry-day run z-score for West Africa, read here for drought, "
             "which reads on the low side (shorter dry spells than usual, so wetter)), so they count against "
             "the pattern here") in line, line
     # 09-26 S2 RE-BANK (lane N, N-2 / Y17): the unread condition is NAMED and NOT COUNTED -- HEAD's "the one

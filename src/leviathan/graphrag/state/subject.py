@@ -584,6 +584,185 @@ def alias_ids(query: str, graph) -> tuple:
 
 
 # ---------------------------------------------------------------------------------------------------
+# THE PRODUCT CLASS THE QUESTION NAMES (FIX SITTING 4, 09-29, lane S: S4-2, CONTRACT C4-18)
+# ---------------------------------------------------------------------------------------------------
+class NamedClass(str):
+    """A product-class word (a C4-15 key, e.g. ``"vegetable_oils"``) that CARRIES what the class was read against:
+    the product nodes the question named in it (``.nodes``) and, where the caller passed them, the turn's own seats
+    (``.seated`` -- the planner's seeds and the markets the question named; ``None`` when not passed). It IS a ``str``
+    -- equal to, hashing and serialising as the plain class word -- so every reader of C4-18's ``question_class`` sees
+    the contracted type and a caller that threads it through (lane W's anchor pass) needs no second argument;
+    ``board.priced_anchor`` reads both attributes defensively (``getattr``): it moves a SEAT only onto a product the
+    question itself named (threat S4-c) that no seat already stands for (the crush seats of a named bean)."""
+
+    nodes: tuple = ()
+    seated = None
+
+    def __new__(cls, word: str, nodes=(), seated=None):
+        obj = str.__new__(cls, word)
+        obj.nodes = tuple(sorted({str(n) for n in (nodes or ()) if str(n or "").strip()}))
+        obj.seated = (None if seated is None
+                      else tuple(dict.fromkeys(str(x).strip() for x in seated if str(x or "").strip())))
+        return obj
+
+    def __reduce__(self):
+        return (NamedClass, (str(self), self.nodes, self.seated))
+
+
+_PRODUCT_FORMS_CACHE: dict = {}                            # (config root, hierarchy, graph) -> (matcher, table)
+
+
+def node_match_forms(nodes, graph=None) -> dict:
+    """``{node: forms}`` -- ``evidence.match_forms(node)`` for every node, composed in ONE pass: ``[id, reader form] +
+    the vocabulary's aliases + the aliases of a causal DAG that shares the node's name + the evidence windows'
+    ``extra_terms``, in that function's own order. It exists for ONE measured reason: ``match_forms`` re-parses the
+    entity vocabulary and the windows file on EVERY call (57 nodes -> 57 parses, 20-68 s MEASURED on this machine),
+    and the class read runs on a serving turn. Here each source is read ONCE, and a DAG's aliases are read off the
+    loaded ``graph`` where it carries that DAG (the serving graph parsed exactly those files), else parsed as
+    ``match_forms`` parses them. PINNED EQUAL to ``evidence.match_forms`` node for node on the shipped config
+    (tests/unit/test_fix0929s4_lane_s.py), so it cannot drift from the router's node matcher silently."""
+    from leviathan.graphrag import evidence as _ev
+    from leviathan.graphrag import extract as _ex
+    try:
+        aliases = dict((_ex._vocab() or {}).get("aliases") or {})
+    except Exception:                                      # noqa: BLE001 -- no vocabulary, the id forms stand
+        aliases = {}
+    extra: dict = {}
+    try:
+        wp = _ev._WINDOWS_PATH
+        if wp.exists():
+            import yaml
+            extra = dict(((yaml.safe_load(wp.read_text(encoding="utf-8")) or {}).get("extra_terms")) or {})
+    except Exception:                                      # noqa: BLE001 -- no windows file, no parent terms
+        extra = {}
+    dags = dict(getattr(graph, "contracts", {}) or {}) if graph is not None else {}
+    out: dict = {}
+    for n in nodes:
+        n = str(n)
+        al = list(aliases.get(n) or [])
+        try:
+            if n in dags:
+                dag_al = list(getattr(dags[n], "aliases", ()) or ())
+            else:
+                p = _ex._CFG / "causal" / f"{n}.yaml"
+                dag_al = []
+                if p.exists():
+                    from leviathan.causal import schema as _cs
+                    dag_al = list(_cs.load(p).aliases)
+        except Exception:                                  # noqa: BLE001 -- an unreadable DAG adds no alias
+            dag_al = []
+        al += [a for a in dag_al if a not in al]
+        out[n] = [n, n.replace("_", " ")] + al + [str(t) for t in (extra.get(n) or [])]
+    return out
+
+
+def _product_forms(graph=None) -> tuple:
+    """``(matcher, {normalised form: (own nodes, declaring nodes)})`` over EVERY commodity node the hierarchy declares
+    (its contracts' nodes and context commodities -- ``evidence.all_nodes()`` -- plus its groups' and complexes'
+    members and the group nouns themselves), each node's surface forms being ``evidence.match_forms(node)``: the
+    estate's ONE node matcher's forms (``rebuild_slices`` routes every proposition on exactly these), through
+    ``harvest.build_matcher``, the ONE accent/case-folded word-boundary matcher -- longest form first, so "rapeseed
+    oil" is ONE match and never "rapeseed" plus a stray word. Never a second vocabulary.
+
+    A form is an OWN form of a node where it is the node's id or reader form (``rapeseed`` for ``rapeseed``,
+    ``palm oil`` for ``palm_oil``); every other form is a DECLARED form (the vocabulary's aliases and the evidence
+    windows' parent terms, which is why "rapeseed" is also declared by the rapeseed oil and meal nodes and "canola" by
+    both). The question's word names its OWN node where it is one; only a form that is nobody's own names the nodes
+    that declare it."""
+    from leviathan.graphrag import evidence as _ev
+    from leviathan.graphrag import extract as _ex
+    h = _ev._hier() or {}
+    key = (str(getattr(_ex, "_CFG", "")), id(h), _graph_key(graph) if graph is not None else None)
+    hit = _PRODUCT_FORMS_CACHE.get(key)
+    if hit is not None and hit[0] is h:
+        return hit[1]
+    nodes = set(_ev.all_nodes())
+    for block in ("groups", "complexes"):
+        for members in (h.get(block) or {}).values():
+            nodes |= {str(m) for m in (members or ()) if m}
+    nodes |= {str(k) for k in (h.get("groups") or {})}
+    own: dict = {}
+    declared: dict = {}
+    forms_all: list = []
+    table_forms = node_match_forms(sorted(nodes), graph)
+    for n in sorted(nodes):
+        forms = table_forms.get(n) or [n, n.replace("_", " ")]
+        for f in forms:
+            nf = _ex._normalize(str(f or ""))
+            if len(nf) <= 1:
+                continue
+            declared.setdefault(nf, set()).add(n)
+            forms_all.append(str(f))
+        for f in (n, n.replace("_", " ")):
+            nf = _ex._normalize(f)
+            if len(nf) > 1:
+                own.setdefault(nf, set()).add(n)
+    from leviathan.graphrag import harvest as hv
+    table = {nf: (tuple(sorted(own.get(nf, ()))), tuple(sorted(declared.get(nf, ())))) for nf in declared}
+    val = (hv.build_matcher(forms_all), table)
+    _PRODUCT_FORMS_CACHE[key] = (h, val)
+    return val
+
+
+def named_product_nodes(query: str, graph=None) -> tuple:
+    """The commodity nodes the question's own words NAME, in order of first mention, through :func:`_product_forms`.
+    A word names its own node where it is one; otherwise every node that declares it. Never raises; ``()`` on any
+    failure."""
+    q = str(query or "")
+    if not q.strip():
+        return ()
+    try:
+        from leviathan.graphrag import extract as _ex
+        matcher, table = _product_forms(graph)
+        out: list = []
+        for surf in matcher.findall(q):
+            own, declared = table.get(_ex._normalize(str(surf)), ((), ()))
+            for n in (own or declared):
+                if n not in out:
+                    out.append(n)
+        return tuple(out)
+    except Exception:                                      # noqa: BLE001 -- a naming read never breaks a turn
+        return ()
+
+
+def named_product_class(query: str, graph=None, *, classes=None, seated=None) -> Optional[str]:
+    """THE CLASS GROUP (C4-15 keys) OF THE PRODUCT NODES THE QUESTION'S OWN WORDS NAME -- a :class:`NamedClass`
+    carrying those nodes -- or ``None`` where the words name no node of a product class or nodes of two classes
+    (CONTRACT C4-18). A node of no product class (cocoa, cotton, a driver's region) names no class and is not counted
+    against one. Zero reads, no environment, never raises.
+
+    MEASURED ON THE SMOKE'S PALM / RAPE QUESTION ("Set palm oil against rapeseed oil ..."): "palm oil" names
+    ``palm_oil`` and "rapeseed oil" names ``rapeseed_oil`` (one longest match -- never "rapeseed"), both
+    ``vegetable_oils`` -> that class. "palm oil against rapeseed" names ``palm_oil`` (an oil) and ``rapeseed`` (its
+    own node, a seed) -> two classes -> ``None``, so a bare "rapeseed" never moves the seed (threat S4-c).
+
+    ``classes`` is :func:`board.product_classes`'s injection seat; absent, the book's ``product_class_words`` keys
+    are read, and with no such key there is no class at all -- fail closed.
+
+    ``seated`` -- THE TURN'S OWN SEATS (the planner's seeds and the markets the question named: the caller that holds
+    the question holds them too, ``seam.fill_stage1``'s ``sg.seeds`` and ``named``) -- rides the returned word as
+    ``.seated``. ``board.priced_anchor`` moves NO seat without them: without the seats it cannot tell the seed that
+    stood in for the named product (MATIF rapeseed for "rapeseed oil") from the crush co-products a planner seeds
+    beside a named bean (the 2024 soybeans turns seed the bean, its meal and its oil)."""
+    try:
+        from leviathan.graphrag.state import board as _B
+        cls = _B.product_classes(classes)
+        if not cls:
+            return None
+        named: dict = {}
+        for n in named_product_nodes(query, graph):
+            c = _B.node_class(n, cls)
+            if c is not None:
+                named.setdefault(c, []).append(n)
+        if len(named) != 1:
+            return None
+        (word, nodes), = named.items()
+        return NamedClass(word, nodes, seated)
+    except Exception:                                      # noqa: BLE001 -- no class read is not an error
+        return None
+
+
+# ---------------------------------------------------------------------------------------------------
 # T2 -- THE SEMANTIC TIER
 # ---------------------------------------------------------------------------------------------------
 def semantic_candidates(query: str, graph, *, embed_fn=None, vocab=None, path: Optional[Path] = None,

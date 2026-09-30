@@ -967,8 +967,14 @@ def test_a_convergence_row_names_ONLY_the_rows_that_CARRY_AN_N_z(scenarios):
             assert not ((set(c["matched_unmeasured"]) - set(reasons)) & measured), (name, c["name"])
             assert set(reasons) <= set(c["matched_unmeasured"]) & measured, (name, c["name"])
             assert set(reasons.values()) <= set(getattr(_W, "QUORUM_UNREAD_REASONS", ())), (name, c["name"])
+            # 09-29 FIX SITTING 4, LANE W (CONTRACT C4-12, W4-1 / W4-2; DECLARED in BUILD_W): a member the walk cannot
+            # ORIENT (a marker whose binding declares no orientation, an in-force action with no declared polarity) is
+            # NAMED in ``matched_unmeasured`` with its reason and kept OUT of ``matched``, the ordering count -- so the
+            # names the row states are ``matched`` plus those; every one still stated, none counted.
+            _und = [d for d, w in reasons.items()
+                    if w in ("marker_orientation_undeclared", "regime_action_polarity_undeclared")]
             assert (tuple(sorted(c["matched_measured"] + c["matched_unmeasured"]))
-                    == tuple(sorted(c["matched"]))), (name, c["name"])
+                    == tuple(sorted(tuple(c["matched"]) + tuple(_und)))), (name, c["name"])
             line = R.sb_convergence(c)
             for d in c["matched_unmeasured"]:
                 assert R.humanise(d) in line, (name, d)   # named, never deleted
@@ -976,22 +982,23 @@ def test_a_convergence_row_names_ONLY_the_rows_that_CARRY_AN_N_z(scenarios):
                     assert "no series read here" in line
     ctx = scenarios["soybeans_now"]
     trade = [l for l in ctx["block"].lines if l.startswith("- trade-war demand loss")]
-    assert trade and "with its own [N] z" in trade[0]
-    # RE-ANCHORED, review round 2 MAJOR 9. "four of the four conditions it names ARE SHOWING HERE" was
-    # an observation claim the next clause denied for three of the four. The verb now covers only the
-    # rows that were READ, the unread ones are named as NAMED BY THE PATTERN, and the TOTAL -- which is
-    # the number the threshold comparison uses -- is stated: no count changed and no name was deleted.
-    assert "one of the four conditions it names is showing here" in trade[0], "the READ count"
-    # RE-ANCHORED (review round 3, NEW-2): the total is the COUNTED one, not "on this page".
-    # 09-26 S2 RE-BANK (lane N, N-2 / CONTRACT Y17): the three unread conditions are NAMED in their own clause
-    # and NOT COUNTED -- HEAD's "four of the four are counted here" was one reading plus three read nowhere.
-    assert "it asks for two, and one is counted here" in trade[0], "the COUNTED total is the read one"
+    # 09-29 FIX SITTING 4, LANE W (CONTRACT C4-12, W4-1; DECLARED in BUILD_W) -- MOVED, CAUSE: the one READ condition
+    # of this row, ``export_pace_lag``, is a ``state_marker`` bound to weekly export SHIPMENTS (a pace LAG is the
+    # inverse quantity) and its binding declares no orientation, so its series' tail is no reading of the lag: it is
+    # named with that reason and not counted. THE CLAIM IS UNCHANGED -- only a COUNTED name carries an [N] z, and every
+    # unread name is stated: here none is counted, so none carries a z, and all four are named.
+    _tw = [c for c in ctx["board"].convergence if c["name"] == "bearish_trade_war"][0]
+    assert (_tw.get("unread_reason") or {}).get("export_pace_lag") == "marker_orientation_undeclared"
+    assert trade and "with its own [N] z" not in trade[0]
+    assert "none of the four conditions it names is showing here" in trade[0]
+    assert "it asks for two, and none of them is counted here" in trade[0]
     assert "four of the four" not in trade[0]
-    # 09-24 RE-BANK (ITEM 2, CONTRACT K3 R half -- DM1): the pattern roster names each READ condition by the
-    # series it serves plus "read here for <driver>", never by the driver's humanised id alone (the rice page
-    # handed a writer "the India export ban" for an exports row). The READ row still alone carries a z.
-    assert "(weekly export shipments, read here for export pace lag, with its own [N] z)" in trade[0], \
-        "only the READ row carries a z"
+    for _n in ("China import tariff", "section301 tariffs", "export pace lag", "China state reserves"):
+        assert _n in trade[0], _n
+    # (the 09-24 / 09-26 / round-2 / round-3 anchors "one of the four ... showing here", "it asks for two, and one is
+    # counted here" and "(weekly export shipments, read here for export pace lag, with its own [N] z)" stood on
+    # export_pace_lag being COUNTED; they moved with it, above -- the READ count, the COUNTED total and the one-z-per-
+    # counted-name claims are the assertions that replace them)
     assert "China import tariff" in trade[0] and "no series read here" in trade[0]
     # THE QUORUM ROW CARRIES NO FIRING CLAIM AND NO INTERNAL VOCABULARY (lane D, 2026-09-17).
     # `walk.CONVERGENCE_BANNED_WORDS` puts firing with `firing.fire_contract`, so the row states the
@@ -1127,7 +1134,10 @@ _CUT_PREFIXES = (
     "BOARD ABSENCE the like states past this tier's stanza cut",
     "BOARD ABSENCE the upstream paths past this tier's render cut",
     "BOARD ABSENCE the far states of the readings past this tier's cut",
-    "BOARD ABSENCE the keys this turn's budget did not reach",
+    # 09-29 SITTING 4 (lane R, R4-4 (c)) -- MOVED PIN, CAUSE: the block named the machine's own clock ("this turn's
+    # budget") and the writer copied it; the line now says the same fact in the reader's objects. The claim is
+    # unchanged: the budget cut NAMES what it cut.
+    "BOARD ABSENCE the keys the reads allotted to this question did not reach",
 )
 
 
@@ -1162,7 +1172,8 @@ def test_the_budget_cut_names_ONE_ROW_PER_DEFERRED_KEY_and_never_a_raw_series_la
         pairs = {p for n in notes for p in (n.get("pairs") or ())}
         assert pairs, name
         line = [l for l in ctx["block"].lines
-                if l.startswith("BOARD ABSENCE the keys this turn's budget did not reach")][0]
+                if l.startswith("BOARD ABSENCE the keys the reads allotted to this question did not reach")][0]
+        # (09-29 SITTING 4, R4-4 (c): the prefix moved with the line's words; the one-row-per-key claim is unchanged)
         # THE NAMES INSIDE ONE ABSENCE LINE ARE THEMSELVES CAPPED at S6's review (`absence_names`;
         # one such line MEASURED 23,871 characters), so the claim is now "every deferred key is named
         # OR counted": the line carries the tier's share of the names and states the remainder in
@@ -2149,7 +2160,9 @@ def test_S8R2_the_arithmetic_line_states_the_DATA_SCOPE_so_a_low_score_reads_as_
     ch.scope = {"buffer_series": False, "events_in_corpus": False}
     rich = R.chain_arithmetic_words(ch)
     assert "this market serves no buffer series" in rich
-    assert "this turn retrieved no dated action for this market" in rich
+    # 09-29 SITTING 4 (lane R, R4-4 (c)) -- MOVED PIN, CAUSE: "this turn retrieved" is the machine's clock; the claim
+    # (the scope names a market with no dated action retrieved) is unchanged, said in the reader's objects
+    assert "no dated action on this market was retrieved for this question" in rich
     assert R.classify(rich) == ("SB-P",) and R.register_hits(rich) == []
     ch.scope = {"buffer_series": True, "events_in_corpus": True}
     assert "no buffer series" not in R.chain_arithmetic_words(ch)

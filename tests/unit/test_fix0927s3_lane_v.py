@@ -136,11 +136,16 @@ def test_U4_the_correction_keeps_the_vocabulary_position_of_the_word_it_replaces
 
 
 def test_U4_the_citation_joins_a_handle_group_that_already_closes_the_clause():
+    # 09-29 SITTING 4 DECLARED MOVE (V4-3, CONTRACT C4-6 / THREAT_MODEL V43-b): "the insertion JOINS a following
+    # handle group ('line [N13, N14]') -- one group, the writer's handle kept". The claim is kept -- the judged
+    # figure's citation joins the writer's own group at the clause's close, nothing between the clause and its
+    # handle -- and it now reads as ONE group ("[N194, N196]", `answer._n_handle_token`'s canonical member list)
+    # where sitting 3 wrote two ("[N194] [N196]"), the doubled-token shape the smoke's "severe [N14] line [N13]" wore.
     calls = _calls(200, {194: _call("silver_psd", "su_ratio", 10.72, "%", SOY_SU_RID),
                          196: _call("silver_psd", "su_ratio", 23, "percentile", SOY_SU_RID)})
     thr = dict(_thr(SOY_SU_RID, "tight", 196), judged="percentile")
     out, log = _apply(MAX0924_TIGHT, [thr], calls)
-    assert "past the line the desk calls tight [N194] [N196], and a thin carryout" in out
+    assert "past the line the desk calls tight [N194, N196], and a thin carryout" in out
     assert log.get("threshold_cited") == 1
 
 

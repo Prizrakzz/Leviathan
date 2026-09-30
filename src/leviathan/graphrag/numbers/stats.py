@@ -261,10 +261,16 @@ EMPTY_SERIES_DECLINE = (
 # unchanged. The first two are FIXTURE-ONLY under the current Pink-Sheet plumbing (see the guard-tag
 # note below) -- kept because pair_spread is a general two-leg constructor and a future non-USD/mt
 # source reaches them; dropped branches would fail OPEN there instead.
+# FIX SITTING 4, LANE T (T4-3, the seat-path "does not hold" words): the refusal's last clause said a ratio or a
+# difference "would carry an exchange rate this platform does not hold" -- FALSE: the exchange-rate card holds
+# fourteen crosses (sitting 3 corrected the same claim on the board path, U-8). The true fact is that no rate is
+# applied here (the `CW_XCCY_CLAUSE` precedent's words, "no exchange rate is applied to either figure"). Reached only
+# by a caller that passes the legs' currencies and no rate row (the dark seat spread, a board pair whose rate rows
+# were not attached); the guard tag and everything before the clause are HEAD's.
 CURRENCY_MISMATCH_DECLINE = (
     "the two series are quoted in different currencies ({a} against {b}), and this lookup never converts "
-    "between them -- both a difference and a ratio across them would carry an exchange rate this platform "
-    "does not hold, so no figure is computed")
+    "between them -- both a difference and a ratio across them would carry an exchange rate, and no exchange "
+    "rate is applied to either figure here, so no figure is computed")
 BOTH_UNITS_REQUIRED_DECLINE = (
     "neither series carries a unit label, so there is no way to tell whether they are the same quantity "
     "or two different ones -- this comparison needs both labels before it can be built, so no figure is "
@@ -303,12 +309,30 @@ FX_UNIT_DECLINE = (
     "the declared unit spellings do not show to be one quantity, and this lookup never converts or equates units "
     "on its own -- a difference across them could subtract two different quantities as if they were one, so no "
     "figure is computed")
+# FIX SITTING 4, LANE T (T4-2 a): the SAME refusal where the caller handed NO declared-vocabulary reader
+# (`same_quantity`). Once "t" and "metric ton" are declared one quantity (tables.yaml `unit_spellings`), the clause
+# "which the declared unit spellings do not show to be one quantity" is TRUE only where the declaration was READ; a
+# caller that did not hand its reader gets words that claim nothing about the declaration -- only what this lookup
+# itself does. Where the reader was handed and answered no ("USD/t" against "USD/short ton") the words above stand.
+FX_UNIT_UNREAD_DECLINE = (
+    "once each leg is put in {base} by its own exchange rate the two series are quoted in {a} and in {b}, and this "
+    "lookup never converts or equates units on its own, so no figure is computed")
 FX_TWO_BASES_DECLINE = (
     "the two exchange rates served quote {qa} per {ba} and {qb} per {bb}, against two different currencies, "
     "and this lookup never builds a cross rate out of two rates -- no figure is computed")
 FX_RATE_AFTER_SESSION_DECLINE = (
     "the exchange rate served for {ccy} is dated {rate_date}, after the {date} session the spread is taken "
     "on, so converting at it would price one day's figure at another day's rate -- no figure is computed")
+# FIX SITTING 4, LANE T (CONTRACT C4-15, T4-2 b; OWNER DECISION O-S4-1 at its default): a spread LEVEL is read only
+# between two legs of ONE product class (a seed, an oil, a meal, a grain). The classes are the commodity hierarchy's
+# `groups` keys the conventions book declares in `product_class_words` (`registry.product_class` reads both; the
+# caller passes what it returns), and the words are the BOOK's reader words riding the class ("a seed", "an oil") --
+# so the refusal says what the desk says ("MATIF rapeseed is a seed and CME palm oil is an oil"), never the smoke's
+# "the two legs' unit spellings are not shown to be one quantity". Decided BEFORE the unit and exchange-rate steps.
+# A DECLINE RECORD's words (a served fact the tape line prints), never a sentence the writer is told to copy.
+PRODUCT_CLASS_DECLINE = (
+    "{a} is {wa} and {b} is {wb} -- a spread is read only between two legs of one product class, so no figure is "
+    "computed")
 #: WHY an exchange-rate row cannot be applied, in reader words, keyed on the feeder's CLOSED status vocabulary
 #: (CONTRACT Z13 `feeders.fx_rows`: ok | no_fx_series | fx_stale | read_error) plus this module's own two
 #: states for a row that never arrived (`absent`) or arrived unusable (`unusable`: a rate that is not a positive
@@ -372,6 +396,8 @@ CORR_GUARD = "corr_undefined"       # RV-REGIONAL: rolling_corr's own refusals j
 FX_GUARD = "fx_unavailable"         # FIX SITTING 3 (Z13): a cross-currency level whose exchange-rate row cannot
 #                                     be applied -- absent, unusable, dated after the session, or two rates
 #                                     against two different base currencies. The unit arm keeps UNIT_GUARD.
+CLASS_GUARD = "product_class"       # FIX SITTING 4 (C4-15, T4-2 b): two legs of two different declared product
+#                                     classes (a seed against an oil) -- decided before units and currencies.
 
 
 def _norm_unit(unit) -> str:
@@ -885,9 +911,34 @@ def _price_unit_parts(unit, currency) -> Optional[str]:
 _ISO_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
+def _units_one(a, b, same_quantity: Optional[Callable] = None) -> bool:
+    """FIX SITTING 4, LANE T (T4-2 a): are two unit labels ONE quantity? HEAD's rule first (``unit_compatible``: equal
+    under the module's one normalisation); then, ONLY where the caller hands it, the DECLARED unit vocabulary's own
+    reader (``registry.same_quantity`` over tables.yaml ``unit_spellings``, where "t" and "metric ton" are declared
+    members of the "mt" class). This module still maps, aliases and converts nothing and imports no registry (its
+    pure-leaf law): the equality is the declaration's, read by its one reader and handed in as an argument. A reader
+    that raises, or answers anything but True, is a no -- HEAD's refusal then stands."""
+    if unit_compatible(a, b):
+        return True
+    if not callable(same_quantity):
+        return False
+    try:
+        return same_quantity(a, b) is True
+    except Exception:  # noqa: BLE001 -- an unreadable declaration is no declaration
+        return False
+
+
+def _class_words(c) -> str:
+    """The book's reader words a product class carries (``registry.ProductClass.words``: "a seed"), or "" -- a class
+    handed without its declared words is read as NO class (HEAD's path), so a refusal never prints a class key."""
+    if c is None or not str(c).strip():
+        return ""
+    return str(getattr(c, "words", "") or "").strip()
+
+
 def _pair_level_spread_fx(series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequence,
                           dates_b: Sequence, unit_b, *, currency_a, currency_b, label_a: str, label_b: str,
-                          fx_a, fx_b) -> dict:
+                          fx_a, fx_b, same_quantity: Optional[Callable] = None) -> dict:
     """FIX SITTING 3, LANE T (CONTRACT Z13, U-8 engine half) -- the spread LEVEL of two price series quoted in
     DIFFERENT currencies, each leg put in one base currency by its OWN exchange-rate row. Reached only from
     ``pair_level_spread`` when the caller passed an exchange-rate row for a leg AND the two currencies differ
@@ -982,11 +1033,12 @@ def _pair_level_spread_fx(series_a: Sequence, dates_a: Sequence, unit_a, series_
             quoted[s] = f"{base}/{per}"
         else:
             quoted[s] = str(u)
-    if not unit_compatible(quoted["a"], quoted["b"]):
+    if not _units_one(quoted["a"], quoted["b"], same_quantity):
         def _words(s: str) -> str:
             return f"{quoted[s]} from {side[s][3]}" if s in usable else quoted[s]
         return _decline("pair_level_spread", n0,
-                        FX_UNIT_DECLINE.format(base=base, a=_words("a"), b=_words("b")),
+                        (FX_UNIT_DECLINE if callable(same_quantity) else FX_UNIT_UNREAD_DECLINE).format(
+                            base=base, a=_words("a"), b=_words("b")),
                         guard=UNIT_GUARD, **params)
     n = len(joined)
     if n < MIN_PAIR_LEVEL_N:
@@ -1019,7 +1071,8 @@ def _pair_level_spread_fx(series_a: Sequence, dates_a: Sequence, unit_a, series_
 def pair_level_spread(series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequence,
                       dates_b: Sequence, unit_b, *, currency_a=None, currency_b=None,
                       label_a: str = "the first series", label_b: str = "the second series",
-                      fx_a: Optional[dict] = None, fx_b: Optional[dict] = None) -> dict:
+                      fx_a: Optional[dict] = None, fx_b: Optional[dict] = None,
+                      class_a=None, class_b=None, same_quantity: Optional[Callable] = None) -> dict:
     """THE 09-23 FIX ROUND, LANE T (D5) -- the SPREAD LEVEL of two price series at their NEWEST SHARED
     observation: ``value = a - b`` on the one period both legs printed, and nothing else.
 
@@ -1045,19 +1098,42 @@ def pair_level_spread(series_a: Sequence, dates_a: Sequence, unit_a, series_b: S
     FX path is taken ONLY where the currency guard would have refused, and there the refusal becomes the
     conversion -- each leg put in the one base currency by its OWN rate, the conversion stated on the result
     (``converted``) -- or a refusal that names the missing rate (``_pair_level_spread_fx``). NO ARITHMETIC IN
-    THE MODEL'S HEAD: the converted level is this calculator's row, never the writer's."""
+    THE MODEL'S HEAD: the converted level is this calculator's row, never the writer's.
+
+    FIX SITTING 4, LANE T (CONTRACT C4-15, T4-2 -- the spread's two laws, ruled together; O-S4-1 at its default):
+    ``class_a`` / ``class_b`` are the two legs' PRODUCT CLASSES as ``registry.product_class`` returns them (the
+    hierarchy's group key the conventions book declares, carrying the book's words). Both carrying words and
+    DIFFERENT -> ``PRODUCT_CLASS_DECLINE`` ("MATIF rapeseed is a seed and CME palm oil is an oil -- ..."), decided
+    FIRST, before any unit or exchange-rate step: a seed against an oil is not a spread a desk reads, whatever the
+    units say. Either missing (a contract in no declared class -- cocoa, sugar; or a caller that passes none, the
+    seat) -> HEAD's path. ``same_quantity`` is the DECLARED unit vocabulary's reader (``registry.same_quantity``):
+    handed in, the final unit equality (both the plain arm and the converted arm) also admits two spellings the
+    declaration makes one quantity ("USD/t" and "USD/metric ton": "t" and "metric ton" are members of the "mt"
+    class); absent -> HEAD's strip + casefold equality, byte for byte. All three default to None: every caller that
+    does not pass them is HEAD's function exactly."""
+    wa, wb = _class_words(class_a), _class_words(class_b)
+    if wa and wb and _norm_unit(class_a) != _norm_unit(class_b):
+        try:
+            n0 = len(series_a)
+        except TypeError:
+            n0 = 0
+        return _decline("pair_level_spread", n0,
+                        PRODUCT_CLASS_DECLINE.format(a=label_a, wa=wa, b=label_b, wb=wb), guard=CLASS_GUARD,
+                        labels=f"{label_a} vs {label_b}", units=unit_pair_label(unit_a, unit_b),
+                        classes=f"{str(class_a).strip()} vs {str(class_b).strip()}")
+    _sq = {"same_quantity": same_quantity} if same_quantity is not None else {}
     if ((fx_a is not None or fx_b is not None) and str(currency_a or "").strip()
             and str(currency_b or "").strip() and not unit_compatible(currency_a, currency_b)):
         return _pair_level_spread_fx(series_a, dates_a, unit_a, series_b, dates_b, unit_b,
                                      currency_a=currency_a, currency_b=currency_b,
-                                     label_a=label_a, label_b=label_b, fx_a=fx_a, fx_b=fx_b)
+                                     label_a=label_a, label_b=label_b, fx_a=fx_a, fx_b=fx_b, **_sq)
     params = {"labels": f"{label_a} vs {label_b}", "units": unit_pair_label(unit_a, unit_b)}
     vals_a, joined, refusal = _pair_join("pair_level_spread", series_a, dates_a, unit_a, series_b,
                                          dates_b, unit_b, currency_a=currency_a, currency_b=currency_b,
                                          label_a=label_a, label_b=label_b, params=params)
     if refusal is not None:
         return refusal
-    if not unit_compatible(unit_a, unit_b):
+    if not _units_one(unit_a, unit_b, same_quantity):
         return _decline("pair_level_spread", len(vals_a),
                         PAIR_LEVEL_UNIT_DECLINE.format(a=unit_a, b=unit_b), guard=UNIT_GUARD, **params)
     n = len(joined)

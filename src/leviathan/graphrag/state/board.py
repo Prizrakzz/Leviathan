@@ -475,9 +475,15 @@ ANALOG_REASONS: tuple[str, ...] = (
 #: core per kind -- bounded the draw, which is a different fact and was false on every seat that
 #: measured it (36 of 108 replayed seats printed it over alternates that had cleared the same bar).
 #: The caps now carry their own word and their own sentence; the exhausted case keeps the old one.
+#: ``watch_core_standing`` IS THE FIFTH (09-29 fix sitting 4, AN4-2 / CONTRACT C4-19; the verifier's integration
+#: seam -- the one half of C4-19 no lane owned). The core stops short because every further candidate the draw
+#: could seat restates a period longer than the question's horizon (``watch._row_clock``'s ``standing`` stamp),
+#: which is neither the caps' fact nor the exhausted one. ``watch.absence_row`` mints it and ``render.ABSENCE_WHY``
+#: carries its sentence only where this tuple declares it (lint clause 9, both directions). APPENDED, never sorted.
 WATCH_REASONS: tuple[str, ...] = (
     "no_calendar_rule", "rule_unverified", "no_convention", "no_open_window", "no_policy_date",
     "watch_floor_unmet", "watch_nothing_further", "watch_core_capped", "release_dates_only",
+    "watch_core_standing",
 )
 RENDER_REASONS: tuple[str, ...] = ("template_register_trip",)
 #: ``recency_facts_off`` IS THE S6-REVIEW ADDITION, and it names a COUPLING rather than an outage. The
@@ -690,10 +696,253 @@ class Anchor:
     #: precedence collapse folds a planned seed that carries the subject into a ``subject`` anchor, and
     #: the walk must still know it is one of the question's own markets.
     distance: Optional[int] = None
+    #: FIX SITTING 4 (09-29, lane S, CONTRACT C4-18): WHAT THIS ANCHOR STOOD FOR BEFORE :func:`priced_anchor` RESOLVED
+    #: IT (``seed``) and the word it resolved under (``reason``, one of :data:`ANCHOR_RESOLUTION_REASONS`) -- spelled as
+    #: the trace's own ``anchor_resolution`` keys, which is the name lane W's anchor pass writes them under. Both
+    #: APPENDED with empty defaults and written only by that pass, and only for a reason other than ``priced``, so every
+    #: anchor built without it -- every deck, every flag-off path, every banked board -- keeps HEAD's fields and
+    #: :meth:`Board.trace` stays byte-identical (``anchor_resolution`` is omitted unless some anchor carries one).
+    seed: str = ""
+    reason: str = ""
 
     def __post_init__(self):
         if self.source not in ANCHOR_SOURCES:
             raise ValueError(f"anchor source {self.source!r} is not one of {ANCHOR_SOURCES}")
+        # AN INVENTED RESOLUTION WORD FAILS HERE, at the record, never at a reader (the `stamp` law, sec 6.7).
+        if self.reason and self.reason not in ANCHOR_RESOLUTION_REASONS:
+            raise ValueError(f"anchor resolution {self.reason!r} is not one of {ANCHOR_RESOLUTION_REASONS}")
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE PRICED ANCHOR (FIX SITTING 4, 09-29, lane S: S4-1 / S4-2, CONTRACT C4-18)
+# ---------------------------------------------------------------------------------------------------
+#: WHY AN ANCHOR IS THE CONTRACT IT IS, one closed word per resolution. APPEND-NEVER-SORT (contract rule 2).
+#:
+#:   ``priced``              the slug carries its own per-contract price record: it anchors as itself.
+#:   ``one_priced_contract`` the slug is a PRODUCT (a graph DAG that is no contract of the registry, the smoke's
+#:                           ``soybeans``) whose node has exactly ONE contract with a price record: that contract.
+#:   ``class_named``         the slug is one of the question's OWN seats, the question names a product of another
+#:                           class in the seat's complex (rapeseed OIL against the MATIF rapeseed SEED), that
+#:                           product carries exactly one priced contract and nothing seated stands for it yet.
+#:   ``several_priced``      the product has several priced contracts: the slug is KEPT and the candidates NAMED,
+#:                           never picked (threat S4-b).
+#:   ``no_priced_contract``  the product carries no contract with a price record: the slug is kept, and said.
+#:   ``contract_unpriced``   APPENDED (lane S, beyond C4-18's five, measured below): the slug IS a contract of the
+#:                           registry with no price record of its own while its product has one elsewhere (DCE
+#:                           soybean oil beside CBOT soybean oil). It is a MARKET OF ITS OWN and is NEVER moved --
+#:                           a far market is never dropped for lack of data -- so it is kept and the priced
+#:                           contract of its product is named. C4-18's rule (2) read literally resolves it onto the
+#:                           priced contract, which on the 63 banked turns would have collapsed ``soybean_oil_dce``
+#:                           into ``soybean_oil_cbot`` (0924 soyoil/palm) and dropped the China board.
+ANCHOR_RESOLUTION_REASONS: tuple = ("priced", "one_priced_contract", "class_named", "several_priced",
+                                    "no_priced_contract", "contract_unpriced")
+
+_REGISTRY_CACHE: dict = {}                              # config root -> the parsed registry (one parse per process)
+
+
+def _anchor_registry() -> dict:
+    """THE CONTRACT REGISTRY as the resolver reads it: ``{"node_of": {contract: node}, "contracts_of": {node:
+    (contract, ...)}, "complexes": {name: (node, ...)}, "groups": {name: (node, ...)}}`` off
+    ``commodity_hierarchy.yaml`` through ``evidence._hier`` -- the estate's ONE memoised parse of that file, keyed
+    by its resolved path, so a deck that repoints the config root reads its own fixture. Zero reads."""
+    from leviathan.graphrag import evidence as _ev     # lazy: board.py stays import-light
+    h = _ev._hier() or {}
+    key = str(id(h))
+    hit = _REGISTRY_CACHE.get(key)
+    if hit is not None and hit[0] is h:
+        return hit[1]
+    node_of: dict = {}
+    contracts_of: dict = {}
+    for slug, spec in sorted((h.get("contracts") or {}).items()):
+        if isinstance(spec, dict) and spec.get("node"):
+            node_of[str(slug)] = str(spec["node"])
+            contracts_of.setdefault(str(spec["node"]), []).append(str(slug))
+    reg = {"node_of": node_of,
+           "contracts_of": {n: tuple(v) for n, v in contracts_of.items()},
+           "complexes": {str(k): tuple(str(m) for m in (v or ())) for k, v in (h.get("complexes") or {}).items()},
+           "groups": {str(k): tuple(str(m) for m in (v or ())) for k, v in (h.get("groups") or {}).items()}}
+    _REGISTRY_CACHE[key] = (h, reg)
+    return reg
+
+
+def product_classes(classes: Optional[dict] = None) -> dict:
+    """THE PRODUCT CLASSES, ``{class key: frozenset(member nodes)}`` -- the keys the book DECLARES once
+    (``product_class_words``, lane R, CONTRACT C4-15: "the keys are commodity_hierarchy.yaml ``groups`` keys"), the
+    members the hierarchy's own ``groups`` block holds under each. Read DEFENSIVELY: no book key, no class (``{}``),
+    and every class-driven resolution below is then inert -- never a class this module typed.
+
+    ``classes`` is an INJECTION SEAT (the ``embed_fn`` / ``vocab`` idiom of ``subject.py``): a ``{key: members}``
+    mapping, or a sequence of keys whose members the hierarchy supplies. Never a configuration."""
+    reg = _anchor_registry()
+    if classes is None:
+        try:
+            from leviathan.graphrag.state.lint import load_conventions
+            keys = tuple((load_conventions() or {}).get("product_class_words") or {})
+        except Exception:                               # noqa: BLE001 -- no book, no class
+            keys = ()
+        classes = keys
+    if isinstance(classes, dict):
+        return {str(k): frozenset(str(m) for m in (v if v is not None else reg["groups"].get(str(k), ())))
+                for k, v in classes.items()}
+    return {str(k): frozenset(reg["groups"].get(str(k), ())) for k in (classes or ())}
+
+
+def node_class(node: str, classes: Optional[dict] = None) -> Optional[str]:
+    """The ONE product class whose members hold ``node`` (a class noun names its own class); ``None`` where none
+    holds it or more than one does -- C4-15's rule, applied to a NODE (``registry.product_class`` is the same rule
+    composed with the contract's node)."""
+    cls = product_classes(classes)
+    n = str(node or "")
+    hits = sorted(k for k, members in cls.items() if n == k or n in members)
+    return hits[0] if len(hits) == 1 else None
+
+
+def _reader(slug: str, *, contract: bool) -> str:
+    """A slug as reader words through the estate's ONE display vocabulary (``display.node_label``: a contract reads
+    ``'{EXCH} {node}'``, a node de-underscores), folded to ASCII -- never a raw slug in a note."""
+    try:
+        from leviathan.graphrag import display as _display
+        words = _display.node_label(str(slug or ""), kind=("contract" if contract else None))
+    except Exception:                                   # noqa: BLE001 -- the fallback is still reader words
+        words = str(slug or "").replace("_", " ")
+    return str(words or "").encode("ascii", "ignore").decode().strip()
+
+
+def _named_list(labels) -> str:
+    out = []
+    for x in labels:
+        if x and x not in out:
+            out.append(x)
+    return out[0] if len(out) == 1 else (", ".join(out[:-1]) + " and " + out[-1] if out else "")
+
+
+def priced_anchor(slug: str, *, graph=None, question_class: Optional[str] = None, seated=None,
+                  classes: Optional[dict] = None) -> dict:
+    """THE PRICED CONTRACT A BOARD ANCHOR STANDS ON, AND WHY (S4-1 / S4-2, CONTRACT C4-18). Pure: zero reads, no
+    environment, never raises. Returns::
+
+        {"contract": <slug to anchor>, "reason": <ANCHOR_RESOLUTION_REASONS word>,
+         "note": "<reader words, '' when the reason is 'priced'>", "candidates": (<priced contracts named>,)}
+
+    THE DEFECT (smoke N-1, recon A-6): the max page anchored the graph's generic ``soybeans`` DAG -- a product with no
+    per-contract price record -- so every price read on the page declined at zero reads (front_decline 8, reads 0),
+    where arm A had anchored ``soybeans_cbot``. And (S3 S3-4c) "rapeseed oil" seated MATIF rapeseed, the SEED.
+
+    THE REGISTRY DECIDES, never a word list: a price record is ``futures_eod_contracts.PRICE_COVERAGE_START`` (the
+    per-contract floor map, "absent slug == NOT SERVED"), a product is a ``commodity_hierarchy.yaml`` node, its
+    contracts are the registry's contracts of that node, a complex bridges a seed to its oil and meal, and a class is a
+    book-declared ``groups`` key (:func:`product_classes`). Where ``graph`` is given, a candidate must carry a DAG on it
+    (a contract with no DAG would anchor nothing).
+
+    IN ORDER:
+      1. THE CLASS THE QUESTION NAMES (S4-2), and it moves only a SEAT: ``question_class`` given (a class word;
+         ``subject.named_product_class`` returns one carrying the product ``nodes`` the question named and, where its
+         caller passed them, the turn's ``seated``), the seats known (the ``seated`` kwarg, else the class word's own
+         ``.seated`` -- the turn's own markets: the planner's seeds and the markets the question named) and ``slug``
+         among them; the seat's class known and different; the target is a node OF THAT CLASS in one of the seat's
+         complexes that the question NAMED (when the class word carries its nodes); and nothing seated already stands
+         for the target product. One priced contract -> it (``class_named``); several -> the slug kept and the
+         candidates named (``several_priced``). WITHOUT ``seated`` NO SEAT IS MOVED -- fail closed, because without the
+         turn's seats this function cannot tell the seed that stood in for the named product (MATIF rapeseed for
+         "rapeseed oil") from the crush co-products the planner inferred beside a named bean (the 2024 soybeans
+         turns seed soybeans + meal + oil: a class move would collapse the meal and the oil into the bean) or from a
+         fan-out board (canola on the palm/rape turn).
+      2. A SLUG WITH ITS OWN PRICE RECORD -> itself (``priced``).
+      3. A CONTRACT OF THE REGISTRY WITHOUT ONE -> KEPT: ``contract_unpriced`` (its product's priced contracts named)
+         or ``no_priced_contract``. A market of its own is never moved for lack of data.
+      4. A PRODUCT NODE (a graph DAG that is no contract, S4-1) -> its node's priced contracts: one -> it
+         (``one_priced_contract``); several -> kept, named (``several_priced``); none -> kept (``no_priced_contract``).
+
+    REJECTED, and named so no later hand re-adds it: an alias table from product words to contracts, and any string
+    test on "oil" or "seed" -- the class is the hierarchy's group, the product is the question's named node."""
+    s = str(slug or "").strip()
+    try:
+        from leviathan.silver import futures_eod_contracts as _FC
+        priced = set(_FC.PRICE_COVERAGE_START)
+    except Exception:                                   # noqa: BLE001 -- no registry, no resolution
+        priced = set()
+    out = {"contract": s, "reason": ("priced" if s in priced else "no_priced_contract"), "note": "",
+           "candidates": ()}
+    if not s:
+        return out
+    try:
+        reg = _anchor_registry()
+        dags = set(getattr(graph, "contracts", {}) or {}) if graph is not None else set()
+
+        def _priced_of(node: str) -> tuple:
+            return tuple(c for c in reg["contracts_of"].get(node, ())
+                         if c in priced and (not dags or c in dags))
+
+        node = reg["node_of"].get(s, s)
+        is_contract = s in reg["node_of"]
+        node_words = _reader(node, contract=False)
+
+        # 1. THE CLASS THE QUESTION NAMES -- a SEAT only, and only with the seats known.
+        # the seats: the kwarg, else the ones the class word was read against (``subject.NamedClass.seated``)
+        _seated = seated if seated is not None else getattr(question_class, "seated", None)
+        seats = tuple(str(x) for x in (_seated or ()) if str(x or "").strip()) if _seated is not None else None
+        qc = str(question_class or "")
+        if qc and seats is not None and s in seats:
+            cls = product_classes(classes)
+            own = node_class(node, cls)
+            if own is not None and own != qc and qc in cls:
+                named = getattr(question_class, "nodes", None)
+                named = None if named is None else {str(x) for x in named}
+                targets = sorted({m for members in reg["complexes"].values() if node in members
+                                  for m in members
+                                  if m != node and node_class(m, cls) == qc and (named is None or m in named)})
+                seat_nodes = {reg["node_of"].get(x, x) for x in seats}
+                cands = tuple(sorted({c for m in targets for c in _priced_of(m)}))
+                # EXACTLY ONE SEAT STANDS IN FOR THE NAMED PRODUCT: every seat of a known class other than the named
+                # one that shares a complex with a target. Two stand-ins (MATIF rapeseed AND ICE canola seated for
+                # "rapeseed oil") -> which one stood in is not a fact the registry holds, so neither moves and
+                # neither board is dropped.
+                stand_ins = sorted({x for x in seats
+                                    if node_class(reg["node_of"].get(x, x), cls) not in (None, qc)
+                                    and any(reg["node_of"].get(x, x) in members and t in members
+                                            for members in reg["complexes"].values() for t in targets)})
+                if cands and not (seat_nodes & set(targets)) and stand_ins == [s]:
+                    words = _named_list([_reader(m, contract=False) for m in targets])
+                    if len(cands) == 1:
+                        try:
+                            from leviathan.graphrag.state.lint import load_conventions
+                            cw = str(((load_conventions() or {}).get("product_class_words") or {}).get(own) or "")
+                        except Exception:       # noqa: BLE001 -- the class word is optional reader words
+                            cw = ""
+                        tail = f", which is {cw}" if cw and not any(ch.isdigit() for ch in cw) else ""
+                        return {"contract": cands[0], "reason": "class_named", "candidates": cands,
+                                "note": (f"stands for the {words} the question names, in place of "
+                                         f"{_reader(s, contract=is_contract)}{tail}")}
+                    return {"contract": s, "reason": "several_priced", "candidates": cands,
+                            "note": (f"the {words} the question names trades on several contracts with a price "
+                                     f"record, {_named_list([_reader(c, contract=True) for c in cands])}, so no "
+                                     f"single price stands for it")}
+
+        # 2. ITS OWN PRICE RECORD.
+        if s in priced:
+            return out
+        cands = _priced_of(node)
+        # 3. A CONTRACT OF THE REGISTRY -- a market of its own, never moved.
+        if is_contract:
+            if cands:
+                return {"contract": s, "reason": "contract_unpriced", "candidates": cands,
+                        "note": (f"{_reader(s, contract=True)} has no price record of its own; the {node_words} "
+                                 f"contract with one is {_named_list([_reader(c, contract=True) for c in cands])}")}
+            return {"contract": s, "reason": "no_priced_contract", "candidates": (),
+                    "note": f"{node_words} has no contract with a price record"}
+        # 4. A PRODUCT NODE (S4-1).
+        if len(cands) == 1:
+            return {"contract": cands[0], "reason": "one_priced_contract", "candidates": cands,
+                    "note": f"stands for {node_words}: the one {node_words} contract with a price record"}
+        if len(cands) > 1:
+            return {"contract": s, "reason": "several_priced", "candidates": cands,
+                    "note": (f"{node_words} trades on several contracts with a price record, "
+                             f"{_named_list([_reader(c, contract=True) for c in cands])}, so no single price "
+                             f"stands for {node_words}")}
+        return {"contract": s, "reason": "no_priced_contract", "candidates": (),
+                "note": f"{node_words} has no contract with a price record"}
+    except Exception:                                   # noqa: BLE001 -- the anchor pass never breaks a turn
+        return out
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -1266,6 +1515,16 @@ class Board:
             _ret = {}
         if _ret:
             out["retention"] = _ret
+        # FIX SITTING 4 (09-29, lane S, CONTRACT C4-18): EVERY ANCHOR THE PRICED-ANCHOR PASS MOVED OR NAMED --
+        # ``{"seed", "contract", "reason"}`` in the anchors' own order, APPENDED LAST and OMITTED when every anchor is
+        # ``priced`` or carries no resolution at all (every deck board, every banked board, every flag-off path).
+        _res = [{"seed": str(getattr(a, "seed", "") or getattr(a, "contract", "")),
+                 "contract": str(getattr(a, "contract", "")),
+                 "reason": str(getattr(a, "reason", ""))}
+                for a in self.anchors
+                if str(getattr(a, "reason", "") or "") not in ("", "priced")]
+        if _res:
+            out["anchor_resolution"] = _res
         return out
 
     @staticmethod

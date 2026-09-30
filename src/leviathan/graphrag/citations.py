@@ -2230,6 +2230,49 @@ def _analyst_figure(value, *, table: str, metric: str, unit: str, commodity: Opt
     return txt, printed
 
 
+def _display_unit(unit) -> str:
+    """09-29 SITTING 4 (CONTRACT C4-10): the reader's words for a served unit -- lane R's ONE producer
+    (``rows.display_unit``: the book's ``unit_words`` entry for a stored spelling that carries a scale numeral,
+    else the unit as stored), read defensively. Where the producer is absent, fails or answers blank: the unit as
+    stored, byte for byte. Called only under the analyst display stamp."""
+    u = str(unit or "")
+    try:
+        from leviathan.graphrag.state import rows as _rows
+        fn = getattr(_rows, "display_unit", None)
+        if callable(fn):
+            got = str(fn(u) or "").strip()
+            return got or u
+    except Exception:  # noqa: BLE001 -- no producer, the stored unit
+        pass
+    return u
+
+
+def _conflict_note(call: dict, *, table: str, metric: str, unit: str, commodity=None, level: bool = True,
+                   change: bool = False) -> str:
+    """09-29 SITTING 4 (CONTRACT C4-16): :data:`CONFLICT_NOTE` for a call lane T stamped ``identity_conflict``
+    (``{"with": <first handle>, "values": [<first>, <this>], "row_id"}``) -- the first handle's figure at the
+    label's own precision (:func:`_analyst_figure`, its backing guard included; HEAD's ``_fmt`` where it declines),
+    signed on a change row, with its unit in the reader's words, and that handle. "" for no stamp or a malformed
+    one (nothing is guessed)."""
+    ic = call.get("identity_conflict") if isinstance(call, dict) else None
+    if not isinstance(ic, dict):
+        return ""
+    try:
+        i = int(ic.get("with"))
+        vals = list(ic.get("values") or ())
+        a = vals[0] if vals else None
+    except (TypeError, ValueError):
+        return ""
+    if i < 1 or a is None or (isinstance(a, str) and not a.strip()):
+        return ""
+    fig = _analyst_figure(a, table=table, metric=metric, unit=unit, commodity=commodity, level=level)
+    txt, pu = fig if fig is not None else (_fmt(a), unit)
+    if change:
+        txt = _signed(txt, a)
+    shown = " ".join(x for x in (str(txt or "").strip(), _display_unit(pu).strip()) if x)
+    return CONFLICT_NOTE.format(a=shown, i=i)
+
+
 def _analyst_value_text(value, *, table: str, metric: str, unit: str,
                         commodity: Optional[str] = None) -> Optional[str]:
     """The text half of :func:`_analyst_figure` for a LEVEL (kept for any caller that reads the figure
@@ -3000,7 +3043,10 @@ def from_number(call: dict, i: int) -> Citation:
                         if _gpw:
                             _fpw, _fpk = _gpw, str(_gkind or "")
                     _val = figure_token_for(
-                        _txt, unit=_pu,
+                        # 09-29 SITTING 4 (CONTRACT C4-10, R4-2's V half): the unit in the READER's words the book
+                        # declares for a stored scaled spelling ("thousand tonnes" for "1000 MT"), through lane R's
+                        # one producer -- under this stamp only; the basis test below reads the stored unit
+                        _txt, unit=_display_unit(_pu),
                         figure_basis=(_figure_basis(_ctable or table, _cmetric or metric)
                                       if _basis_applies(_ctable or table, _cmetric or metric,
                                                         q.get("commodity"), _pu, level=_level, agg=_agg)
@@ -3035,6 +3081,14 @@ def from_number(call: dict, i: int) -> Citation:
                              f"{_window_words(call, rH, _b)} = {_val}{_pct_words(rH)}").strip()
                 else:
                     label = f"{src} {mdisp} {scope} = {_val}".strip()
+            # 09-29 SITTING 4 (CONTRACT C4-16): a second handle of one identity NAMES the first -- its figure and
+            # address -- on its own line, under the analyst stamp only (the conflict is served, never merged)
+            if call.get("display") == "analyst":
+                _cn = _conflict_note(call, table=_ctable or table, metric=_cmetric or metric, unit=str(unit or ""),
+                                     commodity=q.get("commodity"), level=_is_level_stat(rH, _stat_row),
+                                     change=_is_change)
+                if _cn:
+                    label += " (" + _cn + ")"
         # D-PQ RENDER-2, second half: WHAT KIND OF PRINT this is, plus the row's own currency. Both are
         # card-declared columns and neither was reaching the writer. The currency is appended only when it
         # is not already inside the unit string (US cents/bushel already says USD; CNY/t already says CNY),
@@ -3996,11 +4050,19 @@ class EvidenceLedger:
 #: The keys of a call record that name its ROUTE or its RENDERING, never the served row (`render.sb_call`'s own
 #: schema, CONTRACT C3 / K4): which board row minted it, the stamp it was rendered under, the board marker and
 #: the value pool. APPEND-NEVER-SORT.
-NUMBERS_LEDGER_ROUTE_CALL_KEYS: tuple = ("_row_id", "shown", "display", "_sb")
+#: 09-29 SITTING 4 (CONTRACT C4-16, APPENDED): ``identity_conflict`` -- the note lane T stamps on a call the ledger
+#: issued a second handle for (an equal identity at an unequal value). It names the call's RENDERING, never the
+#: served row, so a stamped call keeps the identity it was addressed under (the cascade's own reuse check
+#: recomputes identities of calls it already minted).
+NUMBERS_LEDGER_ROUTE_CALL_KEYS: tuple = ("_row_id", "shown", "display", "_sb", "identity_conflict")
 #: The keys of a served ROW that name its route (`sb_call`: the driver words the block printed as "read here
 #: for <driver>", and whether that driver IS the series). The row's `value` is the value fence's, not the
 #: identity's. APPEND-NEVER-SORT.
 NUMBERS_LEDGER_ROUTE_ROW_KEYS: tuple = ("routing", "route_is_series")
+#: 09-29 SITTING 4 (CONTRACT C4-16): the served fact a second handle of one identity carries on its own line (the
+#: numbers block and the footer), under the analyst display stamp only -- the first handle's figure and address.
+#: A reader's words for a served fact, never a clause the writer is asked to repeat.
+CONFLICT_NOTE = "the same series also reads {a} at [N{i}]"
 
 
 def _ledger_canon(x) -> str:
@@ -4037,12 +4099,24 @@ class NumbersLedger:
         self._issued = 0
         self._reused = 0
         self._conflict = 0
+        # 09-29 SITTING 4 (CONTRACT C4-16): each handle's HEADLINE value (the figure its footer line prints) and
+        # every conflict the fence refused to merge, NAMED -- the identity, both values, both handles
+        self._head: dict = {}                     # handle -> headline value
+        self._conflicts: list = []                # [{"row_id", "values": [a, b], "handles": [i, j]}, ...]
         for c in calls or ():
             h = self._take()
             self._note_route(h, c)
+            self._note_head(h, c)
             ident, vk = self.identity(c), self._value_key(c)
             if ident and vk is not None and ident not in self._by_identity:
                 self._by_identity[ident] = [(h, vk)]
+
+    def _note_head(self, handle: int, call) -> None:
+        try:
+            rH = _headline(call)[0] if isinstance(call, dict) and call.get("rows") else {}
+            self._head[int(handle)] = _ledger_value((rH or {}).get("value"))
+        except Exception:  # noqa: BLE001 -- a headline that cannot be read is named as unknown
+            self._head[int(handle)] = None
 
     def _take(self) -> int:
         h = self._next
@@ -4106,8 +4180,10 @@ class NumbersLedger:
             h = self._take()
             self._issued += 1
             self._note_route(h, call)
+            self._note_head(h, call)
             return h, False
         held = self._by_identity.get(ident)
+        first = None
         if held:
             for h, v in held:
                 if v == vk:
@@ -4115,11 +4191,35 @@ class NumbersLedger:
                     self._note_route(h, call)
                     return h, True
             self._conflict += 1
+            first = held[0][0]
         h = self._take()
         self._issued += 1
         self._by_identity.setdefault(ident, []).append((h, vk))
         self._note_route(h, call)
+        self._note_head(h, call)
+        if first is not None:
+            # 09-29 SITTING 4 (CONTRACT C4-16): THE CONFLICT IS NAMED, never merged, never struck -- the identity
+            # (the first handle's board row where it has one, else this call's, else the identity's own card /
+            # metric / scope / period -- lane T's `_identity_conflict` reads the same order), the first handle's
+            # figure and this one's, and both handles
+            rid = (next(iter(self._row_ids.get(int(first)) or ()), "") or str(call.get("_row_id") or "")
+                   or "|".join(str(x or "") for x in ident[:5]))
+            self._conflicts.append({"row_id": rid, "values": [self._head.get(int(first)), self._head.get(int(h))],
+                                    "handles": [int(first), int(h)]})
         return h, False
+
+    def conflict_of(self, handle) -> Optional[dict]:
+        """09-29 SITTING 4 (CONTRACT C4-16): the conflict ``handle`` was issued under, in the shape a call carries it
+        (``call["identity_conflict"]``, lane T's stamp) -- ``{"with": <the first handle>, "values": [<first>,
+        <this>], "row_id": <identity>}``; None for a handle that is no conflict's second address."""
+        try:
+            hh = int(handle)
+        except (TypeError, ValueError):
+            return None
+        for c in self._conflicts:
+            if c["handles"][1] == hh:
+                return {"with": c["handles"][0], "values": list(c["values"]), "row_id": c["row_id"]}
+        return None
 
     def row_ids_for(self, handle: int) -> tuple:
         """Every board row id (``_row_id``) printed under ``handle``, in the order they were addressed --
@@ -4131,8 +4231,14 @@ class NumbersLedger:
 
     def stamp(self) -> dict:
         """The ledger's own counts for ``state_board["numbers_ledger"]`` (the caller omits it when nothing was
-        reused): handles the ledger issued, handles it handed back, and identities held at two values."""
-        return {"issued": self._issued, "reused": self._reused, "identity_value_conflict": self._conflict}
+        reused): handles the ledger issued, handles it handed back, and identities held at two values.
+        09-29 SITTING 4 (CONTRACT C4-16, APPENDED): ``conflicts`` -- each such identity NAMED with both values and
+        both handles; omitted when there is none (HEAD's three keys, byte for byte)."""
+        out = {"issued": self._issued, "reused": self._reused, "identity_value_conflict": self._conflict}
+        if self._conflicts:
+            out["conflicts"] = [dict(c, values=list(c["values"]), handles=list(c["handles"]))
+                                for c in self._conflicts]
+        return out
 
 
 # ══ 09-24 FIX ROUND 2, LANE C (CONTRACT K4) -- THE ONE READER OF A CALL'S IDENTITY ══════════════════════

@@ -1149,8 +1149,17 @@ DESK_REGISTER_TOKENS: tuple = (
     # window under a tariff question as "past episodes like this" (arm A tariff F-N2), a likeness the walk never
     # made. The phrase keeps its slot (index 1: `answer._EPISODES` and `cascade._cw_desk_words` compose "one of the
     # <phrase>" from it, desk-lit / analyst-key only), so every sentence that speaks it now says a dated window.
+    # 09-29 SITTING 4 (lane R, R4-4 (d)): THE COMPOSED PHRASE NEVER REPEATS ITS FRAME. Index 1 is composed into "the
+    # dated window of one of the <phrase>" (answer.py's desk-lit persona variants) and "measured over the dated window
+    # of <label>, one of the <phrase>, whose dated span rides ..." (cascade's analyst hop header) -- and "dated windows
+    # on the record" composed "the dated window of one of the dated windows on the record" (the list's R4-4 (d), 0 of
+    # 63 pages, open in the desk-lit prompt). Index 1 is now a phrase with no word of any frame it is composed into
+    # ("dated", "window", "span", "record", "market") and no likeness (sitting 3's F-N2 rule) that still names a stretch
+    # of time the record holds: "historical periods".
+    # NOTHING HEAD TAUGHT IS WITHDRAWN (`answer._desk_allowed_stems` reads this column): "dated windows on the record"
+    # stays, one place later.
     ("firing", r"\bfirings?\b",
-     "the times this reading sat this far out, dated windows on the record, occasions"),
+     "the times this reading sat this far out, historical periods, dated windows on the record, occasions"),
     ("hop", r"\bhops?\b", "link, step in the chain"),
     ("far end", r"\bfar end\b", "where the chain ends, the last link"),
     # "the cut for a full TREATMENT" and not the contract table's "write-up": `write-up` carries the word
@@ -1192,9 +1201,22 @@ DESK_REGISTER_TOKENS: tuple = (
     # in the reader's world; each is claim-class free and scores zero on all four detectors. The render's own rows
     # carry none of these words (0 hits on the forty rebuilt blocks), so no board class's ceiling moves.
     ("this page", r"\b(?:this|the) page\b", "here, in this note"),
-    ("cleared the bar", r"\bclear(?:ed|s|ing)? the bar\b", "stands out on its own record, is on the watch list"),
+    # 09-29 SITTING 4 (lane R, R4-4 (e)): the FIRST replacement names what clearing the bar MEANT -- the watch list's own
+    # floor ("made the watch list") -- where HEAD's first ("stands out on its own record") named LOUDNESS, a different
+    # claim (17 writer uses of "cleared the bar" on the fifty, each about the watch list). HEAD's two phrases stay.
+    ("cleared the bar", r"\bclear(?:ed|s|ing)? the bar\b",
+     "made the watch list, is on the watch list, stands out on its own record"),
     ("nominated", r"\bnominat(?:e|ed|es|ing|ion|ions)\b", "on the watch list, picked to watch"),
     ("this estate", r"\bthis estate\b", "the markets covered here"),
+    # -- 09-29 SITTING 4 (lane R, R4-4 (c)): THE INSTRUMENT'S OWN CLOCK -- ROW BUILT, NOT SHIPPED (a cross-lane BLOCKER) --
+    # MEASURED on the 63 banked pages (``fix_sitting_4_0929/r_work/drives/r44c_this_turn.py``): the writer named the
+    # machine's unit of work to a desk reader ("No past state was tested on this turn", "mechanism only on this turn"),
+    # copied off the block's own absence lines -- which now state the fact (render.py, the same sitting: the CAUSE is
+    # removed). The CHECK -- ("this turn", r"\b(?:on |in |for )?this turn\b(?! of\b)", "here, for this question"),
+    # charging the phrase only, never "turn" alone ("the turn of the season") -- reds ``narration.check_literals``
+    # (``lint.check_state_board`` clause 11) on ONE literal of lane A's file, ``narration.MANDATE_CHAIN_MOVEMENT``
+    # ("what this market's data covers on this turn"), which is held to ZERO desk-register charges. The row lands
+    # with the commit that re-words that literal (docketed in BUILD_R, fix sitting 4).
 )
 #: THE ELEVEN NAMES THE TABLE CARRIED AT HEAD ee06f19c, FROZEN (OWNER DECISION 8). The arm reports the
 #: register count on BOTH tables side by side -- ``count_desk_register(text, DESK_REGISTER_V1_NAMES)`` and

@@ -1,0 +1,1419 @@
+{
+"source": "research probe 2026-09-29, opus5_plain, deep",
+"source_sha256": "562d2ad004be87ff04a43a3d9f394dd3c1696d8af8ea12fe78511100dcaa446c",
+"tree": "596f4452",
+"reduction": "census-read keys only, every kept value verbatim (see README.txt)",
+"record": {
+"id": "probe_cocoa_surplus_asof_2026_04",
+"writer_seam": {
+"outcome": "ok",
+"prose_words": 1594,
+"prose_ceiling": 900,
+"prose_over_budget": 694,
+"superlatives_corrected": 0,
+"classes_corrected": 0,
+"superlatives_seen": 1,
+"superlatives_unbound": 0,
+"classes_unbound": 0,
+"superlative_articles_fixed": 0,
+"superlatives_negated": 0,
+"superlatives_rank_written": 1,
+"stale_rows_dated": 0,
+"stale_sentences": 0,
+"lag_windows_checked": 0,
+"lag_windows_corrected": 0,
+"lag_windows_subject_bound": 0,
+"lag_windows_negated": 0,
+"watch_bullets": 5,
+"watch_figures_added": 0,
+"watch_no_figure": 0,
+"watch_no_window": 1,
+"watch_no_falsifier": 2,
+"watch_over_ceiling": 0,
+"watch_section_seen": 1,
+"watch_figures_rounded": 0,
+"decline_words_corrected": 0,
+"metric_labels_corrected": 0,
+"absence_claims_checked": 5,
+"absence_rows_appended": 0,
+"absence_unbound": 5,
+"served_row_duplicate_groups": 2,
+"served_rows_duplicated": 2,
+"ceiling_cut_proposed_paragraphs": 4,
+"ceiling_cut_proposed_handles": [
+26,
+28,
+31,
+32,
+42,
+44,
+45,
+47,
+48,
+49,
+50,
+57,
+58,
+59,
+60,
+61,
+62,
+76
+],
+"ceiling_cut_proposed_words": 564,
+"ceiling_kept_over": 1,
+"name_binding": {
+"outcome": "ok",
+"sentences": 25,
+"bindings": 48,
+"routing_corrected": 0,
+"commodity_corrected": 0,
+"unit_corrected": 0,
+"period_corrected": 0,
+"name_unbound": 0,
+"period_duration_kept": 0,
+"period_unanchored": 0,
+"noun_unlicensed_kept": 15
+},
+"mandate_census": {
+"words": 2239,
+"sentences": 90,
+"asks": 45,
+"facts_required": 26,
+"rules": 19,
+"exactly_as": 0,
+"undeclared_words": 0,
+"foreign_words": 200,
+"by_part": {
+"panel": 37,
+"state_board_mandate": 1111,
+"writer_seam": 317,
+"ask_call": 102,
+"watch_selection": 200,
+"desk_register": 472
+}
+}
+},
+"raw_draft": {
+"tldr": "The risk to the surplus view is a right-tailed one: the readings on this market lean price-supportive \u2014 seven toward a higher price against one toward a lower, beside a July 2026 front settle of 3,630 USD/metric ton [N51] \u2014 with West African heat the live supply worry (the maximum-temperature anomaly at 0.34 z, March 2026 [N45], heat/flowering stress at 0.52 z, 83rd percentile of its own record [N49], [N50]) and managed money at -12,616 contracts, the 1st percentile of its record since February 2023 [N26], [N28], a crowd positioned for the surplus to hold. One caveat on the premise: the surplus documents shown here are older than the question implies \u2014 the ICCO's 142,000 MT surplus is a March 2025 projection for MY 2024/25 [E3], and the ICCO's 27 February 2026 release is noted only as revised 2024/25 estimates [E2], so the record I hold does not itself carry a next-season surplus number.",
+"mechanism": "## Mechanism\n**Where the balance tilts.** Rain is the one leg genuinely working for the surplus case: the longest dry-day run for the West Africa growing cells reads -0.91 z, February 2026 [N29] \u2014 shorter dry spells, so wetter \u2014 at the 3rd percentile of its record since April 2015 [N31], having bottomed at the 0th percentile in December 2025 [N32]. Drought is declared to move this market the same way at one to three quarters, high confidence, so a wet reading is the model's price-pressuring leg, and it is the reading furthest from its own record on the opposite side of the lean.\n\nAgainst it: heat. The maximum-temperature anomaly reads hotter than usual at 0.34 z, March 2026 [N45], 59th percentile [N47], having peaked at the 84th in November 2025 [N48]; heat stress and flowering stress are ONE reading on ONE series, counted once \u2014 0.52 z, March 2026 [N49], 83rd percentile of its record since April 2015 [N50], rising. Both are declared same-direction (price-supportive): hot, dry Harmattan air desiccates pods and cuts the mid-crop at zero to two quarters (high confidence); heat during flowering caps the next main crop at one to two quarters. Nine point zero nine zero nine one percent of the basin's cells sat at or beyond +2 sigma in max-temperature [N76]. So the balance is not symmetric: wet soils are a slow, linear loosening; a heat-clipped flowering window is convex and shows up in arrivals later.\n\nThe West Africa deficit squeeze pattern \u2014 a supply shortfall confirmed by slow arrivals and falling deliverable stocks \u2014 asks for three conditions and only one is showing (the hot max-temperature reading); drought reads on the side opposite the one the pattern names, counting against it. Origin disease loss, demand-led unwind and favorable supply recovery each have no series read here. So no pattern is anywhere near complete; the conditions are consistent with none of them.\n\n## The record\nDated: Ghana's projected MY 2025/26 grindings were a 36 percent increase on the prior year's estimate, reported 3 December 2025 [E26] \u2014 the same note says the January-February Harmattan is critical to Ghana's crop. Global grindings for 2024/25 were estimated at 4.60 million tonnes, event September 2025, reported 28 November 2025 [E32]. For 2023/24 the ICCO recorded production of 4,368 1000 MT [N13], grindings 4,818 1000 MT [N16], end stocks 1,270 1000 MT [N17] and a stocks-to-use ratio of 26.36 % of grindings [N18], all known 30 May 2025 \u2014 a drawn-down cushion. The 2024/25 and 2025/26 balance rows are not published on this read, so I assert no figure for them.\n\nPrice and crowd: World Bank's March 2026 cocoa price was 3,240 USD/mt [N9], -0.57 sigma versus its five-year mean [N10]. The July 2026 delivery settled 3,630 USD/metric ton on 14 April 2026 [N51], the 14th percentile of that contract's own sessions since 23 December 2024 [N56]; over sixty-three sessions it printed 3630 USD/metric ton [N55], rising. Managed money was -12,616 contracts in the week to 7 April 2026 [N26], -1.6 sigma [N27], 1st percentile [N28], down 2484 contracts on the week [N70] and falling three weeks running [N71]. The dated action against the lean is a weak-dollar note of 1 November 2025 [E13], carried opposite-sign, window open to about May 2026.\n\nThe chains. First, from the West Africa dry-day run into this price: it bottomed at the 0th percentile in December 2025 [N32], now the 3rd [N31], read through 25 March 2026; the model expects it to push deliverable-stock collapse the same way, but no series is served at that link, and on to the managed-money net position [N26], 1st percentile [N28], falling since March 2026, then to price at zero to one quarter. The readings do not settle any link, the record holds no past case of this reading sitting this far out with a deliverable-stock read to measure, and no dated document falls inside this link's lag. Second, from the West Africa max-temperature anomaly [N45], peaked at the 84th percentile in November 2025 [N48], now the 59th [N47], through 5 April 2026; the model expects it to push export-pace lag the same way \u2014 again no series served \u2014 then the same crowd link to price. That link does carry a dated report on its mechanism, 3 December 2025 [E26]. These two chains point opposite ways for this market, and no link on either runs against the model's expected direction. The crowd sits the same way as the dry chain (making a reversal abrupt) and the other way from the heat chain (cushioning it).\n\nHistory, not forecast: the nearest past state of the dry-day series is April 2023, and the July 2026 delivery's record starts December 2024, so no price outcome exists over that band. What measured after it, over the one-to-three-quarter lag: the dry-day run itself moved -0.1 z by the lag's open [N57] and +0.87 z by its close [N58]; heat/flowering stress +0.12 z [N59] then +0.36 z [N60]; the max-temperature reading +1.44 z [N61] then +1.14 z [N62]. Zero of the twenty-four comparable readings qualified as like states, and the corpus holds no dated document explaining that state. Recency: figures read as of 15 April 2026, newest known that day and oldest 30 May 2025; the newest dated document is 15 April 2026; the board price tape runs through 14 April 2026.\n\n## Where the record disagrees\nTwo same-confidence-tier legs point opposite ways and the record does not adjudicate them. The wet soil-moisture reading [N29] is the highest-confidence driver on the panel and sits at the 3rd percentile [N31] \u2014 that is the surplus case's best evidence. The heat legs [N45], [N49] are medium-to-high confidence and rising. My lean goes to heat, for two stated reasons rather than a measured attribution: the count of readings on this market is seven toward a higher price against one toward a lower [N51]-[N56], and the pattern-relevant amplifier the model records \u2014 coincident Harmattan dryness with soil-moisture deficit compounding mid- and main-crop losses \u2014 currently has only the heat half present. That is a model ranking, not a historical decomposition.\n\n## What to watch\n- **The wet reading reverting** [N29], -0.91 z, February 2026, bottom decile and past the desk's notable line: the driver is high-confidence and same-sign, so a return toward the middle of its own record \u2014 up from the wet side \u2014 would remove the surplus case's strongest leg. Window 2026-05-28 to 2026-11-28.\n- **West Africa max-temperature** [N45], 0.34 z, March 2026: four declared upstream paths land on this price through it, so one cause reaches price by several routes. It reads wrong if the next print returns it to the middle of its record, down from hotter than usual. Window already open, 2026-03-31 to 2026-09-30.\n- **Heat/flowering stress** [N49], 0.52 z, March 2026, 83rd percentile [N50]: six declared paths run through this one reading; a print back to mid-record takes the move off all of them at once. Window 2026-06-30 to 2026-09-30.\n- **The Indian Ocean dipole** [N36], +0.29 degC, February 2026, four months rising and about seventy-two percent of the way to the desk's event line: a lower-confidence hypothesis channel only \u2014 positive dipole suppressing equatorial African rainfall. It reads wrong if the run breaks before the line. Window 2026-05-28 to 2026-08-28.\n- **GBP/USD** [N33], 0.74 local currency per USD, 15 April 2026, 16th percentile since April 2021 [N35]: fifty-four like states in one thousand two hundred eighty-two observations, nearest 2025-07-30 \u2014 a record base rate, not a guess. It carries no committed direction, so treat it as the London-versus-New York arbitrage only; it reads wrong if the next print leaves that state.\n\nI weighed and left the tropical Pacific reading [N42] \u2014 -0.21 degC, February 2026, 42nd percentile [N44], and El Ni\u00f1o and La Ni\u00f1a are one reading here, counted once, sitting mid-record with nothing to act on. Scheduled publication dates for these series are set by their publishers and are not watch items. Several model drivers \u2014 deliverable exchange stocks, export pace, disease, the EU deforestation rule \u2014 have no series served here at all; that is a coverage gap in our record, not evidence those channels are quiet.\n\n## Cross-commodity\nThe largest moves here are declared on two other markets, each on its own edge: the tropical Pacific reading is declared to move ICE arabica coffee in the opposite direction at one to three quarters, medium confidence; the Indian Ocean dipole is declared to move ICE arabica coffee in the same direction at one to three quarters, medium confidence; drought is declared to move BMF corn in the same direction at zero to two quarters, high confidence. The dipole reading is declared on seventeen other markets, all same-direction \u2014 a move here is one a desk prices elsewhere too.",
+"preverify_tldr": "The risk to the surplus view is a right-tailed one: the readings on this market lean price-supportive \u2014 seven toward a higher price against one toward a lower, beside a July 2026 front settle of 3,630 USD/metric ton [N51] \u2014 with West African heat the live supply worry (the maximum-temperature anomaly at 0.34 z, March 2026 [N45], heat/flowering stress at 0.52 z, 83rd percentile of its own record [N49], [N50]) and managed money at -12,616 contracts, the 1st percentile of its record since February 2023 [N26], [N28], a crowd positioned for the surplus to hold. One caveat on the premise: the surplus documents shown here are older than the question implies \u2014 the ICCO's 142,000 MT surplus is a March 2025 projection for MY 2024/25 [E3], and the ICCO's 27 February 2026 release is noted only as revised 2024/25 estimates [E2], so the record I hold does not itself carry a next-season surplus number.",
+"preverify_mechanism": "## Mechanism\n**Where the balance tilts.** Rain is the one leg genuinely working for the surplus case: the longest dry-day run for the West Africa growing cells reads -0.91 z, February 2026 [N29] \u2014 shorter dry spells, so wetter \u2014 at the 3rd percentile of its record since April 2015 [N31], having bottomed at the 0th percentile in December 2025 [N32]. Drought is declared to move this market the same way at one to three quarters, high confidence, so a wet reading is the model's price-pressuring leg, and it is the reading furthest from its own record on the opposite side of the lean.\n\nAgainst it: heat. The maximum-temperature anomaly reads hotter than usual at 0.34 z, March 2026 [N45], 59th percentile [N47], having peaked at the 84th in November 2025 [N48]; heat stress and flowering stress are ONE reading on ONE series, counted once \u2014 0.52 z, March 2026 [N49], 83rd percentile of its record since April 2015 [N50], rising. Both are declared same-direction (price-supportive): hot, dry Harmattan air desiccates pods and cuts the mid-crop at zero to two quarters (high confidence); heat during flowering caps the next main crop at one to two quarters. Nine point zero nine zero nine one percent of the basin's cells sat at or beyond +2 sigma in max-temperature [N76]. So the balance is not symmetric: wet soils are a slow, linear loosening; a heat-clipped flowering window is convex and shows up in arrivals later.\n\nThe West Africa deficit squeeze pattern \u2014 a supply shortfall confirmed by slow arrivals and falling deliverable stocks \u2014 asks for three conditions and only one is showing (the hot max-temperature reading); drought reads on the side opposite the one the pattern names, counting against it. Origin disease loss, demand-led unwind and favorable supply recovery each have no series read here. So no pattern is anywhere near complete; the conditions are consistent with none of them.\n\n## The record\nDated: Ghana's projected MY 2025/26 grindings were a 36 percent increase on the prior year's estimate, reported 3 December 2025 [E26] \u2014 the same note says the January-February Harmattan is critical to Ghana's crop. Global grindings for 2024/25 were estimated at 4.60 million tonnes, event September 2025, reported 28 November 2025 [E32]. For 2023/24 the ICCO recorded production of 4,368 1000 MT [N13], grindings 4,818 1000 MT [N16], end stocks 1,270 1000 MT [N17] and a stocks-to-use ratio of 26.36 % of grindings [N18], all known 30 May 2025 \u2014 a drawn-down cushion. The 2024/25 and 2025/26 balance rows are not published on this read, so I assert no figure for them.\n\nPrice and crowd: World Bank's March 2026 cocoa price was 3,240 USD/mt [N9], -0.57 sigma versus its five-year mean [N10]. The July 2026 delivery settled 3,630 USD/metric ton on 14 April 2026 [N51], the 14th percentile of that contract's own sessions since 23 December 2024 [N56]; over sixty-three sessions it printed 3630 USD/metric ton [N55], rising. Managed money was -12,616 contracts in the week to 7 April 2026 [N26], -1.6 sigma [N27], 1st percentile [N28], down 2484 contracts on the week [N70] and falling three weeks running [N71]. The dated action against the lean is a weak-dollar note of 1 November 2025 [E13], carried opposite-sign, window open to about May 2026.\n\nThe chains. First, from the West Africa dry-day run into this price: it bottomed at the 0th percentile in December 2025 [N32], now the 3rd [N31], read through 25 March 2026; the model expects it to push deliverable-stock collapse the same way, but no series is served at that link, and on to the managed-money net position [N26], 1st percentile [N28], falling since March 2026, then to price at zero to one quarter. The readings do not settle any link, the record holds no past case of this reading sitting this far out with a deliverable-stock read to measure, and no dated document falls inside this link's lag. Second, from the West Africa max-temperature anomaly [N45], peaked at the 84th percentile in November 2025 [N48], now the 59th [N47], through 5 April 2026; the model expects it to push export-pace lag the same way \u2014 again no series served \u2014 then the same crowd link to price. That link does carry a dated report on its mechanism, 3 December 2025 [E26]. These two chains point opposite ways for this market, and no link on either runs against the model's expected direction. The crowd sits the same way as the dry chain (making a reversal abrupt) and the other way from the heat chain (cushioning it).\n\nHistory, not forecast: the nearest past state of the dry-day series is April 2023, and the July 2026 delivery's record starts December 2024, so no price outcome exists over that band. What measured after it, over the one-to-three-quarter lag: the dry-day run itself moved -0.1 z by the lag's open [N57] and +0.87 z by its close [N58]; heat/flowering stress +0.12 z [N59] then +0.36 z [N60]; the max-temperature reading +1.44 z [N61] then +1.14 z [N62]. Zero of the twenty-four comparable readings qualified as like states, and the corpus holds no dated document explaining that state. Recency: figures read as of 15 April 2026, newest known that day and oldest 30 May 2025; the newest dated document is 15 April 2026; the board price tape runs through 14 April 2026.\n\n## Where the record disagrees\nTwo same-confidence-tier legs point opposite ways and the record does not adjudicate them. The wet soil-moisture reading [N29] is the highest-confidence driver on the panel and sits at the 3rd percentile [N31] \u2014 that is the surplus case's best evidence. The heat legs [N45], [N49] are medium-to-high confidence and rising. My lean goes to heat, for two stated reasons rather than a measured attribution: the count of readings on this market is seven toward a higher price against one toward a lower [N51]-[N56], and the pattern-relevant amplifier the model records \u2014 coincident Harmattan dryness with soil-moisture deficit compounding mid- and main-crop losses \u2014 currently has only the heat half present. That is a model ranking, not a historical decomposition.\n\n## What to watch\n- **The wet reading reverting** [N29], -0.91 z, February 2026, bottom decile and past the desk's notable line: the driver is high-confidence and same-sign, so a return toward the middle of its own record \u2014 up from the wet side \u2014 would remove the surplus case's strongest leg. Window 2026-05-28 to 2026-11-28.\n- **West Africa max-temperature** [N45], 0.34 z, March 2026: four declared upstream paths land on this price through it, so one cause reaches price by several routes. It reads wrong if the next print returns it to the middle of its record, down from hotter than usual. Window already open, 2026-03-31 to 2026-09-30.\n- **Heat/flowering stress** [N49], 0.52 z, March 2026, 83rd percentile [N50]: six declared paths run through this one reading; a print back to mid-record takes the move off all of them at once. Window 2026-06-30 to 2026-09-30.\n- **The Indian Ocean dipole** [N36], +0.29 degC, February 2026, four months rising and about seventy-two percent of the way to the desk's event line: a lower-confidence hypothesis channel only \u2014 positive dipole suppressing equatorial African rainfall. It reads wrong if the run breaks before the line. Window 2026-05-28 to 2026-08-28.\n- **GBP/USD** [N33], 0.74 local currency per USD, 15 April 2026, 16th percentile since April 2021 [N35]: fifty-four like states in one thousand two hundred eighty-two observations, nearest 2025-07-30 \u2014 a record base rate, not a guess. It carries no committed direction, so treat it as the London-versus-New York arbitrage only; it reads wrong if the next print leaves that state.\n\nI weighed and left the tropical Pacific reading [N42] \u2014 -0.21 degC, February 2026, 42nd percentile [N44], and El Ni\u00f1o and La Ni\u00f1a are one reading here, counted once, sitting mid-record with nothing to act on. Scheduled publication dates for these series are set by their publishers and are not watch items. Several model drivers \u2014 deliverable exchange stocks, export pace, disease, the EU deforestation rule \u2014 have no series served here at all; that is a coverage gap in our record, not evidence those channels are quiet.\n\n## Cross-commodity\nThe largest moves here are declared on two other markets, each on its own edge: the tropical Pacific reading is declared to move ICE arabica coffee in the opposite direction at one to three quarters, medium confidence; the Indian Ocean dipole is declared to move ICE arabica coffee in the same direction at one to three quarters, medium confidence; drought is declared to move BMF corn in the same direction at zero to two quarters, high confidence. The dipole reading is declared on seventeen other markets, all same-direction \u2014 a move here is one a desk prices elsewhere too.",
+"postverify_tldr": "The risk to the surplus view is a right-tailed one: the readings on this market lean price-supportive \u2014 seven toward a higher price against one toward a lower, beside a July 2026 front settle of 3,630 USD/metric ton [N51] \u2014 with West African heat the live supply worry (the maximum-temperature anomaly at 0.34 z, March 2026 [N45], heat/flowering stress at 0.52 z, 83rd percentile [N50] of its own record [N49], [N50]) and managed money at -12,616 contracts, the 1st percentile of its record since February 2023 [N26], [N28], a crowd positioned for the surplus to hold. One caveat on the premise: the surplus documents shown here are older than the question implies \u2014 the ICCO's 142,000 MT surplus is a March 2025 projection for MY 2024/25 [E3], and the ICCO's 27 February 2026 release is noted only as revised 2024/25 estimates [E2], so the record I hold does not itself carry a next-season surplus number.",
+"postverify_mechanism": "## Mechanism\n**Where the balance tilts.** Rain is the one leg genuinely working for the surplus case: the longest dry-day run for the West Africa growing cells reads -0.91 z, February 2026 [N29] \u2014 shorter dry spells, so wetter \u2014 at the 3rd percentile of its record since April 2015 [N31], having bottomed at the 0th percentile in December 2025 [N32]. Drought is declared to move this market the same way at one to three quarters, high confidence, so a wet reading is the model's price-pressuring leg, and it is the reading furthest from its own record on the opposite side of the lean.\n\nAgainst it: heat. The maximum-temperature anomaly reads hotter than usual at 0.34 z, March 2026 [N45], 59th percentile [N47], having peaked at the 84th in November 2025 [N48]; heat stress and flowering stress are ONE reading on ONE series, counted once \u2014 0.52 z, March 2026 [N49], 83rd percentile of its record since April 2015 [N50], rising. Both are declared same-direction (price-supportive): hot, dry Harmattan air desiccates pods and cuts the mid-crop at zero to two quarters (high confidence); heat during flowering caps the next main crop at one to two quarters. Nine point zero nine zero nine one percent of the basin's cells sat at or beyond +2 sigma in max-temperature [N76]. So the balance is not symmetric: wet soils are a slow, linear loosening; a heat-clipped flowering window is convex and shows up in arrivals later.\n\nThe West Africa deficit squeeze pattern \u2014 a supply shortfall confirmed by slow arrivals and falling deliverable stocks \u2014 asks for three conditions and only one is showing (the hot max-temperature reading); drought reads on the side opposite the one the pattern names, counting against it. Origin disease loss, demand-led unwind and favorable supply recovery each have no series read here. So no pattern is anywhere near complete; the conditions are consistent with none of them.\n\n## The record\nDated: Ghana's projected MY 2025/26 grindings were a 36 percent increase on the prior year's estimate, reported 3 December 2025 [E26] \u2014 the same note says the January-February Harmattan is critical to Ghana's crop. Global grindings for 2024/25 were estimated at 4.60 million tonnes, event September 2025, reported 28 November 2025. For 2023/24 the ICCO recorded production of 4,368 1000 MT [N13], grindings 4,818 1000 MT [N16], end stocks 1,270 1000 MT [N17] and a stocks-to-use ratio of 26.36 % of grindings [N18], all known 30 May 2025 \u2014 a drawn-down cushion. The 2024/25 and 2025/26 balance rows are not published on this read, so I assert no figure for them.\n\nPrice and crowd: World Bank's March 2026 cocoa price was 3,240 USD/mt [N9], -0.57 sigma versus its five-year mean [N10]. The July 2026 delivery settled 3,630 USD/metric ton on 14 April 2026 [N51], the 14th percentile of that contract's own sessions since 23 December 2024 [N56]; over sixty-three sessions it printed 3630 USD/metric ton [N55], rising. Managed money was -12,616 contracts in the week to 7 April 2026 [N26], -1.6 sigma [N27], 1st percentile [N28], down 2484 contracts on the week [N70] and falling three weeks running [N71]. The dated action against the lean is a weak-dollar note of 1 November 2025 [E13], carried opposite-sign, window open to about May 2026.\n\nThe chains. First, from the West Africa dry-day run into this price: it bottomed at the 0th percentile in December 2025 [N32], now the 3rd [N31], read through 25 March 2026; the model expects it to push deliverable-stock collapse the same way, but no series is served at that link, and on to the managed-money net position [N26], 1st percentile [N28], falling since March 2026, then to price at zero to one quarter. The readings do not settle any link, the record holds no past case of this reading sitting this far out with a deliverable-stock read to measure, and no dated document falls inside this link's lag. Second, from the West Africa max-temperature anomaly [N45], peaked at the 84th percentile in November 2025 [N48], now the 59th [N47], through 5 April 2026; the model expects it to push export-pace lag the same way \u2014 again no series served \u2014 then the same crowd link to price. That link does carry a dated report on its mechanism, 3 December 2025 [E26]. These two chains point opposite ways for this market, and no link on either runs against the model's expected direction. The crowd sits the same way as the dry chain (making a reversal abrupt) and the other way from the heat chain (cushioning it).\n\nHistory, not forecast: the nearest past state of the dry-day series is April 2023, and the July 2026 delivery's record starts December 2024, so no price outcome exists over that band. What measured after it, over the one-to-three-quarter lag: the dry-day run itself moved -0.1 z by the lag's open [N57] and +0.87 z by its close [N58]; heat/flowering stress +0.12 z [N59] then +0.36 z [N60]; the max-temperature reading +1.44 z [N61] then +1.14 z [N62]. Zero of the twenty-four comparable readings qualified as like states, and the corpus holds no dated document explaining that state. Recency: figures read as of 15 April 2026, newest known that day and oldest 30 May 2025; the newest dated document is 15 April 2026; the board price tape runs through 14 April 2026.\n\n## Where the record disagrees\nTwo same-confidence-tier legs point opposite ways and the record does not adjudicate them. The wet soil-moisture reading [N29] is the highest-confidence driver on the panel and sits at the 3rd percentile [N31] \u2014 that is the surplus case's best evidence. The heat legs [N45], [N49] are medium-to-high confidence and rising. My lean goes to heat, for two stated reasons rather than a measured attribution: the count of readings on this market is seven toward a higher price against one toward a lower [N51]-[N56], and the pattern-relevant amplifier the model records \u2014 coincident Harmattan dryness with soil-moisture deficit compounding mid- and main-crop losses \u2014 currently has only the heat half present. That is a model ranking, not a historical decomposition.\n\n## What to watch\n- **The wet reading reverting** [N29], -0.91 z, February 2026, bottom decile and past the desk's notable line [N30]: the driver is high-confidence and same-sign, so a return toward the middle of its own record \u2014 up from the wet side \u2014 would remove the surplus case's strongest leg. Window 2026-05-28 to 2026-11-28.\n- **West Africa max-temperature** [N45], 0.34 z, March 2026: four declared upstream paths land on this price through it, so one cause reaches price by several routes. It reads wrong if the next print returns it to the middle of its record, down from hotter than usual. Window already open, 2026-03-31 to 2026-09-30.\n- **Heat/flowering stress** [N49], 0.52 z, March 2026, 83rd percentile [N50]: six declared paths run through this one reading; a print back to mid-record takes the move off all of them at once. Window 2026-06-30 to 2026-09-30.\n- **The Indian Ocean dipole** [N36], +0.29 degC, February 2026, four months rising and about seventy-two percent of the way to the desk's event line: a lower-confidence hypothesis channel only \u2014 positive dipole suppressing equatorial African rainfall. It reads wrong if the run breaks before the line. Window 2026-05-28 to 2026-08-28.\n- **GBP/USD** [N33], 0.74 local currency per USD, 15 April 2026, 16th percentile since April 2021 [N35]: fifty-four like states in one thousand two hundred eighty-two observations, nearest 2025-07-30 \u2014 a record base rate, not a guess. It carries no committed direction, so treat it as the London-versus-New York arbitrage only; it reads wrong if the next print leaves that state.\n\nI weighed and left the tropical Pacific reading [N42] \u2014 -0.21 degC, February 2026, 42nd percentile [N44], and El Ni\u00f1o and La Ni\u00f1a are one reading here, counted once, sitting mid-record with nothing to act on. Scheduled publication dates for these series are set by their publishers and are not watch items. Several model drivers \u2014 deliverable exchange stocks, export pace, disease, the EU deforestation rule \u2014 have no series served here at all; that is a coverage gap in our record, not evidence those channels are quiet.\n\n## Cross-commodity\nThe largest moves here are declared on two other markets, each on its own edge: the tropical Pacific reading is declared to move ICE arabica coffee in the opposite direction at one to three quarters, medium confidence; the Indian Ocean dipole is declared to move ICE arabica coffee in the same direction at one to three quarters, medium confidence; drought is declared to move BMF corn in the same direction at zero to two quarters, high confidence. The dipole reading is declared on seventeen other markets, all same-direction \u2014 a move here is one a desk prices elsewhere too."
+},
+"served_rows": [
+{
+"table": "silver_icco_cocoa",
+"metric": "production_kt",
+"country": null,
+"status": "not_known",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "grindings_kt",
+"country": null,
+"status": "not_known",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "end_stocks_kt",
+"country": null,
+"status": "not_known",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "su_ratio",
+"country": null,
+"status": "not_known",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "production_kt",
+"country": null,
+"status": "not_known",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "grindings_kt",
+"country": null,
+"status": "not_known",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "end_stocks_kt",
+"country": null,
+"status": "not_known",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "su_ratio",
+"country": null,
+"status": "not_known",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_pink_sheet",
+"metric": "cocoa_usd_t",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": "3240.0",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-03-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "cocoa_usd_t_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": "-0.5714021223246767",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-03-01"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "-12616",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-04-07"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net_z_3yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "-1.6418",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-04-07"
+}
+]
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "production_kt",
+"country": null,
+"status": "ok",
+"row_count": 14,
+"rows": [
+{
+"period": "2007/08",
+"estimate_role": null,
+"value": "3713.0",
+"unit": null,
+"country": null,
+"knowledge_date": "2008-02-28"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "Cote d'Ivoire",
+"status": "no_rows",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "gold_weather_z",
+"metric": "heat_stress_z",
+"country": "Cote d'Ivoire",
+"status": "no_rows",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "grindings_kt",
+"country": null,
+"status": "ok",
+"row_count": 14,
+"rows": [
+{
+"period": "2007/08",
+"estimate_role": null,
+"value": "3727.0",
+"unit": null,
+"country": null,
+"knowledge_date": "2008-02-28"
+}
+]
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "end_stocks_kt",
+"country": null,
+"status": "ok",
+"row_count": 14,
+"rows": [
+{
+"period": "2007/08",
+"estimate_role": null,
+"value": "1536.0",
+"unit": null,
+"country": null,
+"knowledge_date": "2008-02-28"
+}
+]
+},
+{
+"table": "silver_icco_cocoa",
+"metric": "su_ratio",
+"country": null,
+"status": "ok",
+"row_count": 14,
+"rows": [
+{
+"period": "2007/08",
+"estimate_role": null,
+"value": "0.4121277166621948",
+"unit": null,
+"country": null,
+"knowledge_date": "2008-02-28"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "Ghana",
+"status": "ok",
+"row_count": 21,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "0.5520597304681306",
+"unit": null,
+"country": "Ghana",
+"knowledge_date": null
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "heat_stress_z",
+"country": "Ghana",
+"status": "ok",
+"row_count": 14,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "-0.18257418583505539",
+"unit": null,
+"country": "Ghana",
+"knowledge_date": null
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "Ivory Coast",
+"status": "no_rows",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "gold_weather_z",
+"metric": "heat_stress_z",
+"country": "Ivory Coast",
+"status": "no_rows",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "C\u00f4te d'Ivoire",
+"status": "no_rows",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_pink_sheet",
+"metric": "cocoa_usd_t",
+"country": null,
+"status": "ok",
+"row_count": 39,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": "2620.0",
+"unit": null,
+"country": null,
+"knowledge_date": "2023-01-01"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": null,
+"country": null,
+"status": "error",
+"row_count": 0,
+"rows": []
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -12616.0,
+"unit": "contracts",
+"country": null,
+"knowledge_date": "2026-04-13"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.6,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-04-13"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-04-13"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.9074964912341877,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-03-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.4,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-03-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-03-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-03-25"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "gbp_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.73799,
+"unit": "local currency per USD",
+"country": null,
+"knowledge_date": "2026-04-15"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "gbp_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.9,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-04-15"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "gbp_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 16,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-04-15"
+}
+]
+},
+{
+"table": "silver_noaa_iod",
+"metric": "dmi_value",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.29,
+"unit": "degC",
+"country": null,
+"knowledge_date": "2026-04-14"
+}
+]
+},
+{
+"table": "silver_noaa_iod",
+"metric": "dmi_value",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.4,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-04-14"
+}
+]
+},
+{
+"table": "silver_noaa_iod",
+"metric": "dmi_value",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 67,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-04-14"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.32811708201419854,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-04-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.3,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-04-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 76,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-04-10"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.21,
+"unit": "degC",
+"country": null,
+"knowledge_date": "2026-04-05"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.3,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-04-05"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 42,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-04-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.34299152994595716,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-04-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.1,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-04-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 59,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-04-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 84,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-04-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "heat_stress_z",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.521153573325906,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-04-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "heat_stress_z",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 83,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-04-05"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3630.0,
+"unit": "USD/metric ton",
+"country": null,
+"knowledge_date": "2026-04-15"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 258.0,
+"unit": "USD/metric ton",
+"country": null,
+"knowledge_date": "2026-04-15"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 559.0,
+"unit": "USD/metric ton",
+"country": null,
+"knowledge_date": "2026-04-15"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 266.0,
+"unit": "USD/metric ton",
+"country": null,
+"knowledge_date": "2026-04-15"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 63 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3630.0,
+"unit": "USD/metric ton",
+"country": null,
+"knowledge_date": "2026-04-15"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 14,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-04-15"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.1026,
+"unit": "z",
+"country": null,
+"knowledge_date": "2023-08-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.8691,
+"unit": "z",
+"country": null,
+"knowledge_date": "2024-02-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "heat_stress_z",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.123,
+"unit": "z",
+"country": null,
+"knowledge_date": "2023-06-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "heat_stress_z",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.3644,
+"unit": "z",
+"country": null,
+"knowledge_date": "2024-02-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.4367,
+"unit": "z",
+"country": null,
+"knowledge_date": "2023-08-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.1399,
+"unit": "z",
+"country": null,
+"knowledge_date": "2024-02-05"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -12616.0,
+"unit": "contracts",
+"country": null,
+"knowledge_date": "2026-04-07"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": "Cote d'Ivoire",
+"status": "ok",
+"row_count": 4,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "1.84",
+"unit": null,
+"country": null,
+"knowledge_date": null
+},
+{
+"period": null,
+"estimate_role": null,
+"value": 0.77,
+"unit": "degC",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": "Cote d'Ivoire",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.46,
+"unit": "degC",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": "Cote d'Ivoire",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.46,
+"unit": "degC",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly",
+"country": "West Africa",
+"status": "ok",
+"row_count": 4,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "1.1962003256821547",
+"unit": null,
+"country": "West Africa",
+"knowledge_date": null
+},
+{
+"period": null,
+"estimate_role": null,
+"value": 1.5211336964034614,
+"unit": "z",
+"country": "West Africa",
+"knowledge_date": null
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly",
+"country": "West Africa",
+"status": "ok",
+"row_count": 4,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "0.4605612521484053",
+"unit": null,
+"country": "West Africa",
+"knowledge_date": null
+},
+{
+"period": null,
+"estimate_role": null,
+"value": 0.34299152994595716,
+"unit": "z",
+"country": "West Africa",
+"knowledge_date": null
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly",
+"country": "West Africa",
+"status": "ok",
+"row_count": 13,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "2.3487649852812833",
+"unit": null,
+"country": "West Africa",
+"knowledge_date": null
+},
+{
+"period": null,
+"estimate_role": null,
+"value": 0.5001741333867433,
+"unit": "z",
+"country": "West Africa",
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -2484.0,
+"unit": "contracts",
+"country": null,
+"knowledge_date": "2026-04-07"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net_pace_streak",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3,
+"unit": "weeks",
+"country": null,
+"knowledge_date": "2026-04-07"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom_pace_change",
+"country": "Cote d'Ivoire",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.35,
+"unit": "degC",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom_pace_streak",
+"country": "Cote d'Ivoire",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 5,
+"unit": "months",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly_pace_change",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.1572,
+"unit": "z",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly_pace_streak",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2,
+"unit": "months",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "tmax_anomaly_tail_share",
+"country": "West Africa",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 9.090909090909092,
+"unit": "%",
+"country": "West Africa",
+"knowledge_date": null
+}
+]
+}
+],
+"state_board": {
+"asof": "2026-04-15",
+"ask_netting": {
+"opposing": [
+29
+],
+"tape": 55,
+"event_e": 13
+},
+"chains": [
+{
+"rendered": true,
+"hops": [
+{
+"driver_id": "drought",
+"measured": true
+},
+{
+"driver_id": "tenderable_collapse",
+"measured": false
+},
+{
+"driver_id": "speculative_positioning",
+"measured": true
+}
+]
+},
+{
+"rendered": true,
+"hops": [
+{
+"driver_id": "harmattan",
+"measured": true
+},
+{
+"driver_id": "export_pace_lag",
+"measured": false
+},
+{
+"driver_id": "speculative_positioning",
+"measured": true
+}
+]
+}
+],
+"block_sentences": [
+{
+"cls": "SB-C",
+"text": "- demand-led unwind (price-pressuring) on ICE cocoa: none of the three conditions it names is showing here (none of those drivers has a series read here);"
+},
+{
+"cls": "SB-C",
+"text": "two are named by the pattern with no series read here, so not counted (demand destruction and USD strength);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for two, and none of them is counted here;"
+},
+{
+"cls": "SB-C",
+"text": "none of them carries a declared desk band"
+},
+{
+"cls": "SB-C",
+"text": "- favorable supply recovery (price-pressuring) on ICE cocoa: none of the three conditions it names is showing here (none of those drivers has a series read here);"
+},
+{
+"cls": "SB-C",
+"text": "two are named by the pattern with no series read here, so not counted (grind demand and export pace lag);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for two, and none of them is counted here;"
+},
+{
+"cls": "SB-C",
+"text": "none of them carries a declared desk band"
+},
+{
+"cls": "SB-C",
+"text": "- West Africa deficit squeeze (price-supportive) on ICE cocoa: one of the six conditions it names is showing here (the maximum-temperature anomaly for West Africa, read here for harmattan, which reads on the high side (hotter than usual), with its own [N] z);"
+},
+{
+"cls": "SB-C",
+"text": "one of them reads in the tail opposite the one the pattern names (the longest dry-day run in the month, as a z-score for West Africa, read here for drought, which reads on the low side (shorter dry spells than usual, so wetter)), so it counts against the pattern here;"
+},
+{
+"cls": "SB-C",
+"text": "one more is named by the pattern with no series read here, so not counted (export pace lag);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for three, and one is counted here;"
+},
+{
+"cls": "SB-C",
+"text": "none of them carries a declared desk band"
+},
+{
+"cls": "SB-C",
+"text": "- origin disease loss (price-supportive) on ICE cocoa: none of the five conditions it names is showing here (none of those drivers has a series read here);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for two, and none of them is counted here;"
+},
+{
+"cls": "SB-C",
+"text": "none of them carries a declared desk band"
+}
+]
+}
+},
+"page": "**TL;DR.** The risk to the surplus view is a right-tailed one: the readings on this market lean price-supportive \u2014 seven toward a higher price against one toward a lower, beside a July 2026 front settle of 3,630 USD/metric ton [N51] \u2014 with West African heat the live supply worry (the maximum-temperature anomaly at 0.34 z, March 2026 [N45], heat/flowering stress at 0.52 z, 83rd percentile [N50] of its own record [N49], [N50]) and managed money at -12,616 contracts, the 1st percentile of its record since February 2023 [N26], [N28], a crowd positioned for the surplus to hold. One caveat on the premise: the surplus documents shown here are older than the question implies \u2014 the ICCO's 142,000 MT surplus is a March 2025 projection for MY 2024/25 [E3], and the ICCO's 27 February 2026 release is noted only as revised 2024/25 estimates [E2], so the record I hold does not itself carry a next-season surplus number.\n\n## Mechanism\n**Where the balance tilts.** Rain is the one leg genuinely working for the surplus case: the longest dry-day run for the West Africa growing cells reads -0.91 z, February 2026 [N29] \u2014 shorter dry spells, so wetter \u2014 at the 3rd percentile of its record since April 2015 [N31], having bottomed at the 0th percentile in December 2025 [N32]. Drought is declared to move this market the same way at one to three quarters, high confidence, so a wet reading is the model's price-pressuring leg, and it is the reading furthest from its own record on the opposite side of the lean.\n\nAgainst it: heat. The maximum-temperature anomaly reads hotter than usual at 0.34 z, March 2026 [N45], 59th percentile [N47], having peaked at the 84th in November 2025 [N48]; heat stress and flowering stress are ONE reading on ONE series, counted once \u2014 0.52 z, March 2026 [N49], 83rd percentile of its record since April 2015 [N50], rising. Both are declared same-direction (price-supportive): hot, dry Harmattan air desiccates pods and cuts the mid-crop at zero to two quarters (high confidence); heat during flowering caps the next main crop at one to two quarters. Nine point zero nine zero nine one percent of the basin's cells sat at or beyond +2 sigma in max-temperature [N76]. So the balance is not symmetric: wet soils are a slow, linear loosening; a heat-clipped flowering window is convex and shows up in arrivals later.\n\nThe West Africa deficit squeeze pattern \u2014 a supply shortfall confirmed by slow arrivals and falling deliverable stocks \u2014 asks for three conditions and only one is showing (the hot max-temperature reading); drought reads on the side opposite the one the pattern names, counting against it. Origin disease loss, demand-led unwind and favorable supply recovery each have no series read here. So no pattern is anywhere near complete; the conditions are consistent with none of them.\n\n## The record\nDated: Ghana's projected MY 2025/26 grindings were a 36 percent increase on the prior year's estimate, reported 3 December 2025 [E26] \u2014 the same note says the January-February Harmattan is critical to Ghana's crop. Global grindings for 2024/25 were estimated at 4.60 million tonnes, event September 2025, reported 28 November 2025. For 2023/24 the ICCO recorded production of 4,368 1000 MT [N13], grindings 4,818 1000 MT [N16], end stocks 1,270 1000 MT [N17] and a stocks-to-use ratio of 26.36 % of grindings [N18], all known 30 May 2025 \u2014 a drawn-down cushion. The 2024/25 and 2025/26 balance rows are not published on this read, so I assert no figure for them.\n\nPrice and crowd: World Bank's March 2026 cocoa price was 3,240 USD/mt [N9], -0.57 sigma versus its five-year mean [N10]. The July 2026 delivery settled 3,630 USD/metric ton on 14 April 2026 [N51], the 14th percentile of that contract's own sessions since 23 December 2024 [N56]; over sixty-three sessions it printed 3630 USD/metric ton [N55], rising. Managed money was -12,616 contracts in the week to 7 April 2026 [N26], -1.6 sigma [N27], 1st percentile [N28], down 2484 contracts on the week [N70] and falling three weeks running [N71]. The dated action against the lean is a weak-dollar note of 1 November 2025 [E13], carried opposite-sign, window open to about May 2026.\n\nThe chains. First, from the West Africa dry-day run into this price: it bottomed at the 0th percentile in December 2025 [N32], now the 3rd [N31], read through 25 March 2026; the model expects it to push deliverable-stock collapse the same way, but no series is served at that link, and on to the managed-money net position [N26], 1st percentile [N28], falling since March 2026, then to price at zero to one quarter. The readings do not settle any link, the record holds no past case of this reading sitting this far out with a deliverable-stock read to measure, and no dated document falls inside this link's lag. Second, from the West Africa max-temperature anomaly [N45], peaked at the 84th percentile in November 2025 [N48], now the 59th [N47], through 5 April 2026; the model expects it to push export-pace lag the same way \u2014 again no series served \u2014 then the same crowd link to price. That link does carry a dated report on its mechanism, 3 December 2025 [E26]. These two chains point opposite ways for this market, and no link on either runs against the model's expected direction. The crowd sits the same way as the dry chain (making a reversal abrupt) and the other way from the heat chain (cushioning it).\n\nHistory, not forecast: the nearest past state of the dry-day series is April 2023, and the July 2026 delivery's record starts December 2024, so no price outcome exists over that band. What measured after it, over the one-to-three-quarter lag: the dry-day run itself moved -0.1 z by the lag's open [N57] and +0.87 z by its close [N58]; heat/flowering stress +0.12 z [N59] then +0.36 z [N60]; the max-temperature reading +1.44 z [N61] then +1.14 z [N62]. Zero of the twenty-four comparable readings qualified as like states, and the corpus holds no dated document explaining that state. Recency: figures read as of 15 April 2026, newest known that day and oldest 30 May 2025; the newest dated document is 15 April 2026; the board price tape runs through 14 April 2026.\n\n## Where the record disagrees\nTwo same-confidence-tier legs point opposite ways and the record does not adjudicate them. The wet soil-moisture reading [N29] is the highest-confidence driver on the panel and sits at the 3rd percentile [N31] \u2014 that is the surplus case's best evidence. The heat legs [N45], [N49] are medium-to-high confidence and rising. My lean goes to heat, for two stated reasons rather than a measured attribution: the count of readings on this market is seven toward a higher price against one toward a lower [N51]-[N56], and the pattern-relevant amplifier the model records \u2014 coincident Harmattan dryness with soil-moisture deficit compounding mid- and main-crop losses \u2014 currently has only the heat half present. That is a model ranking, not a historical decomposition.\n\n## What to watch\n- **The wet reading reverting** [N29], -0.91 z, February 2026, bottom decile and past the desk's notable line [N30]: the driver is high-confidence and same-sign, so a return toward the middle of its own record \u2014 up from the wet side \u2014 would remove the surplus case's strongest leg. Window 2026-05-28 to 2026-11-28.\n- **West Africa max-temperature** [N45], 0.34 z, March 2026: four declared upstream paths land on this price through it, so one cause reaches price by several routes. It reads wrong if the next print returns it to the middle of its record, down from hotter than usual. Window already open, 2026-03-31 to 2026-09-30.\n- **Heat/flowering stress** [N49], 0.52 z, March 2026, 83rd percentile [N50]: six declared paths run through this one reading; a print back to mid-record takes the move off all of them at once. Window 2026-06-30 to 2026-09-30.\n- **The Indian Ocean dipole** [N36], +0.29 degC, February 2026, four months rising and about seventy-two percent of the way to the desk's event line: a lower-confidence hypothesis channel only \u2014 positive dipole suppressing equatorial African rainfall. It reads wrong if the run breaks before the line. Window 2026-05-28 to 2026-08-28.\n- **GBP/USD** [N33], 0.74 local currency per USD, 15 April 2026, 16th percentile since April 2021 [N35]: fifty-four like states in one thousand two hundred eighty-two observations, nearest 2025-07-30 \u2014 a record base rate, not a guess. It carries no committed direction, so treat it as the London-versus-New York arbitrage only; it reads wrong if the next print leaves that state.\n\nI weighed and left the tropical Pacific reading [N42] \u2014 -0.21 degC, February 2026, 42nd percentile [N44], and El Ni\u00f1o and La Ni\u00f1a are one reading here, counted once, sitting mid-record with nothing to act on. Scheduled publication dates for these series are set by their publishers and are not watch items. Several model drivers \u2014 deliverable exchange stocks, export pace, disease, the EU deforestation rule \u2014 have no series served here at all; that is a coverage gap in our record, not evidence those channels are quiet.\n\n## Cross-commodity\nThe largest moves here are declared on two other markets, each on its own edge: the tropical Pacific reading is declared to move ICE arabica coffee in the opposite direction at one to three quarters, medium confidence; the Indian Ocean dipole is declared to move ICE arabica coffee in the same direction at one to three quarters, medium confidence; drought is declared to move BMF corn in the same direction at zero to two quarters, high confidence. The dipole reading is declared on seventeen other markets, all same-direction \u2014 a move here is one a desk prices elsewhere too.\n\n**Cascade / convergence**\n```mermaid\nflowchart LR\np_cocoa_price[\"ICE cocoa price\"]\nd_cocoa_export_pace_lag[\"export pace lag +\"]\nd_cocoa_export_pace_lag --> p_cocoa_price\nd_cocoa_harmattan --> d_cocoa_export_pace_lag\nd_cocoa_drought --> d_cocoa_export_pace_lag\nd_cocoa_swollen_shoot_virus --> d_cocoa_export_pace_lag\nd_cocoa_west_africa_rainfall --> d_cocoa_export_pace_lag\nd_cocoa_USD_strength[\"USD strength -\"]\nd_cocoa_USD_strength --> p_cocoa_price\nd_cocoa_El_Nino[\"El Nino +\"]\nd_cocoa_El_Nino --> p_cocoa_price\nd_cocoa_demand_destruction[\"demand destruction -\"]\nd_cocoa_demand_destruction --> p_cocoa_price\nd_cocoa_grind_demand --> d_cocoa_demand_destruction\nd_cocoa_grind_demand[\"grind demand +\"]\nd_cocoa_grind_demand --> p_cocoa_price\nd_cocoa_macro_demand --> d_cocoa_grind_demand\nd_cocoa_tenderable_collapse[\"tenderable collapse +\"]\nd_cocoa_tenderable_collapse --> p_cocoa_price\nd_cocoa_export_pace_lag --> d_cocoa_tenderable_collapse\nd_cocoa_drought --> d_cocoa_tenderable_collapse\nd_cocoa_swollen_shoot_virus --> d_cocoa_tenderable_collapse\nd_cocoa_IOD_positive[\"IOD positive +\"]\nd_cocoa_IOD_positive --> p_cocoa_price\nd_cocoa_El_Nino --> d_cocoa_IOD_positive\nd_cocoa_west_africa_rainfall[\"west africa rainfall -\"]\nd_cocoa_west_africa_rainfall --> p_cocoa_price\nd_cocoa_witches_broom[\"witches broom +\"]\nd_cocoa_witches_broom --> p_cocoa_price\nd_cocoa_minimum_export_price[\"minimum export price +\"]\nd_cocoa_minimum_export_price --> p_cocoa_price\nd_cocoa_harmattan[\"harmattan +\"]\nd_cocoa_harmattan --> p_cocoa_price\nd_cocoa_La_Nina --> d_cocoa_harmattan\nd_cocoa_drought --> d_cocoa_harmattan\nd_cocoa_speculative_positioning[\"speculative positioning +\"]\nd_cocoa_speculative_positioning --> p_cocoa_price\nd_cocoa_tenderable_collapse --> d_cocoa_speculative_positioning\nd_cocoa_export_pace_lag --> d_cocoa_speculative_positioning\nd_cocoa_withheld_supply[\"withheld supply +\"]\nd_cocoa_withheld_supply --> p_cocoa_price\nd_cocoa_drought --> d_cocoa_withheld_supply\nd_cocoa_export_tax --> d_cocoa_withheld_supply\nd_cocoa_swollen_shoot_virus[\"swollen shoot virus +\"]\nd_cocoa_swollen_shoot_virus --> p_cocoa_price\nd_cocoa_drought[\"drought +\"]\nd_cocoa_drought --> p_cocoa_price\nd_cocoa_La_Nina --> d_cocoa_drought\nd_cocoa_El_Nino --> d_cocoa_drought\nd_cocoa_IOD_positive --> d_cocoa_drought\nd_cocoa_La_Nina[\"La Nina +\"]\nd_cocoa_La_Nina --> p_cocoa_price\nd_cocoa_biennial_bearing[\"biennial bearing 0\"]\nd_cocoa_biennial_bearing --> p_cocoa_price\nd_cocoa_drought --> d_cocoa_biennial_bearing\nd_cocoa_heat_stress --> d_cocoa_biennial_bearing\nd_cocoa_macro_demand[\"macro demand +\"]\nd_cocoa_macro_demand --> p_cocoa_price\nd_cocoa_US_section301_tariffs[\"US section301 tariffs +\"]\nd_cocoa_US_section301_tariffs --> p_cocoa_price\nd_cocoa_frosty_pod_rot[\"frosty pod rot +\"]\nd_cocoa_frosty_pod_rot --> p_cocoa_price\nd_cocoa_excess_rain --> d_cocoa_frosty_pod_rot\nd_cocoa_excess_rain[\"excess rain +\"]\nd_cocoa_excess_rain --> p_cocoa_price\nd_cocoa_La_Nina --> d_cocoa_excess_rain\nd_cocoa_port_closure[\"port closure +\"]\nd_cocoa_port_closure --> p_cocoa_price\nd_cocoa_excess_rain --> d_cocoa_port_closure\nd_cocoa_EUDR[\"EUDR +\"]\nd_cocoa_EUDR --> p_cocoa_price\nd_cocoa_flowering_stress[\"flowering stress +\"]\nd_cocoa_flowering_stress --> p_cocoa_price\nd_cocoa_heat_stress --> d_cocoa_flowering_stress\nd_cocoa_drought --> d_cocoa_flowering_stress\nd_cocoa_harmattan --> d_cocoa_flowering_stress\nd_cocoa_fertilizer_input_cost[\"fertilizer input cost +\"]\nd_cocoa_fertilizer_input_cost --> p_cocoa_price\nd_cocoa_replanting_cycle[\"replanting cycle +\"]\nd_cocoa_replanting_cycle --> p_cocoa_price\nd_cocoa_swollen_shoot_virus --> d_cocoa_replanting_cycle\nd_cocoa_heat_stress[\"heat stress +\"]\nd_cocoa_heat_stress --> p_cocoa_price\nd_cocoa_El_Nino --> d_cocoa_heat_stress\nd_cocoa_drought --> d_cocoa_heat_stress\nd_cocoa_export_tax[\"export tax +\"]\nd_cocoa_export_tax --> p_cocoa_price\nd_cocoa_GBP_cross[\"GBP cross 0\"]\nd_cocoa_GBP_cross --> p_cocoa_price\nd_cocoa_black_pod[\"black pod +\"]\nd_cocoa_black_pod --> p_cocoa_price\nd_cocoa_excess_rain --> d_cocoa_black_pod\n```\n\n## Sources\n[E13] FNC (Colombian Coffee Federation) (2025-11-01): Dollar flows toward Colombia and perception of a weak dollar supported the Colombian peso in November 2025.\n[E3] USDA FAS GAIN Report \u2014 Cocoa (2025-03-31): The International Cocoa Organization is projecting for MY 2024/2025 a cocoa supply surplus of 142,000 MT.\n[E26] USDA FAS GAIN Report \u2014 Cocoa (2025-12-03): Ghana's projected domestic cocoa grindings for MY 2025/2026 represent a 36 percent increase from the preceding market year's estimate.\n[E2] Icco Qbcs Summary (2026-02-27): The International Cocoa Organization released revised estimates for the 2024/25 cocoa year of world production, grindings, and stocks of coc...\n[N9] World Bank Pink Sheet cocoa price 2026-03-01 = $3,240.00/mt, March 2026  [known 2026-04-10]\n[N10] World Bank Pink Sheet cocoa price 5-year z-score 2026-03-01 = -0.57 sigma vs 5-yr mean, March 2026  [known 2026-04-10]\n[N13] ICCO COCOA production 2023/24 season = 4,368 1000 MT for the 2023/24 season, the ICCO release of 30 May 2025 (latest available 2025-05-30; as-of 2026-04-15) [14 rows served, covering 2008-02-28..2025-05-30; newest shown]  [known 2025-05-30]\n[N16] ICCO COCOA grindings 2023/24 season = 4,818 1000 MT for the 2023/24 season, the ICCO release of 30 May 2025 (latest available 2025-05-30; as-of 2026-04-15) [14 rows served, covering 2008-02-28..2025-05-30; newest shown]  [known 2025-05-30]\n[N17] ICCO COCOA end stocks 2023/24 season = 1,270 1000 MT for the 2023/24 season, the ICCO release of 30 May 2025 (latest available 2025-05-30; as-of 2026-04-15) [14 rows served, covering 2008-02-28..2025-05-30; newest shown]  [known 2025-05-30]\n[N18] ICCO COCOA stocks-to-use ratio 2023/24 season = 26.36 % of grindings for the 2023/24 season, the ICCO release of 30 May 2025 (latest available 2025-05-30; as-of 2026-04-15) [14 rows served, covering 2008-02-28..2025-05-30; newest shown]  [known 2025-05-30]\n[N26] COT managed-money net position ICE cocoa 2026-04-07 = -12,616 contracts, week to 7 April 2026  [known 2026-04-13]\n[N27] COT managed-money net position ICE cocoa 2026-04-07 vs 156 points of its own history = -1.6 sigma, week to 7 April 2026  [known 2026-04-13]\n[N28] COT managed-money net position ICE cocoa 2026-04-07 = 1 percentile, week to 7 April 2026  [known 2026-04-13]\n[N29] GOLD WEATHER Z drought z-score ICE cocoa the mean over the West Africa growing cells 2026-02 = -0.91 z, February 2026  [known 2026-03-25]\n[N30] GOLD WEATHER Z drought z-score ICE cocoa the mean over the West Africa growing cells 2026-02 vs 120 points of its own history = -1.4 sigma, February 2026  [known 2026-03-25]\n[N31] GOLD WEATHER Z drought z-score ICE cocoa the mean over the West Africa growing cells 2026-02 = 3 percentile, February 2026  [known 2026-03-25]\n[N32] GOLD WEATHER Z drought z-score ICE cocoa the mean over the West Africa growing cells 2025-12 lowest reading inside 2025-07-15..2026-04-15 = 0 percentile, December 2025  [known 2026-03-25]\n[N33] ECB reference rates GBP/USD exchange rate  global 2026-04-15 = 0.74 local currency per USD, 15 April 2026  [known 2026-04-15]\n[N35] ECB reference rates GBP/USD exchange rate  global 2026-04-15 = 16 percentile, 15 April 2026  [known 2026-04-15]\n[N36] NOAA IOD IOD dipole index  global 2026-02 = +0.29 degC, February 2026  [known 2026-04-14]\n[N42] NOAA ONI ONI anomaly  global 2026-02 = -0.21 degC, February 2026  [known 2026-04-05]\n[N44] NOAA ONI ONI anomaly  global 2026-02 = 42 percentile, February 2026  [known 2026-04-05]\n[N45] GOLD WEATHER Z max-temperature anomaly ICE cocoa the mean over the West Africa growing cells 2026-03 = 0.34 z, March 2026  [known 2026-04-05]\n[N47] GOLD WEATHER Z max-temperature anomaly ICE cocoa the mean over the West Africa growing cells 2026-03 = 59 percentile, March 2026  [known 2026-04-05]\n[N48] GOLD WEATHER Z max-temperature anomaly ICE cocoa the mean over the West Africa growing cells 2025-11 highest reading inside 2025-10-15..2026-04-15 = 84 percentile, November 2025  [known 2026-04-05]\n[N49] GOLD WEATHER Z heat-stress z-score ICE cocoa the mean over the West Africa growing cells 2026-03 = 0.52 z, March 2026  [known 2026-04-05]\n[N50] GOLD WEATHER Z heat-stress z-score ICE cocoa the mean over the West Africa growing cells 2026-03 = 83 percentile, March 2026  [known 2026-04-05]\n[N51] FUTURES EOD settlement price ICE cocoa 2026-07 = $3,630.00/metric ton, 2026-07  [known 2026-04-15]\n[N55] FUTURES EOD settle change over 63 sessions ICE cocoa 2026-07 = $3,630.00/metric ton, 2026-07  [known 2026-04-15]\n[N56] FUTURES EOD settle percentile ICE cocoa 2026-07 = 14 percentile, 2026-07  [known 2026-04-15]\n[N57] GOLD WEATHER Z drought z-score ICE cocoa West Africa change from April 2023 to July 2023 = -0.1 z (latest available 2023-08-25; as-of 2026-04-15)  [known 2023-08-25]\n[N58] GOLD WEATHER Z drought z-score ICE cocoa West Africa change from April 2023 to January 2024 = +0.87 z (latest available 2024-02-25; as-of 2026-04-15)  [known 2024-02-25]\n[N59] GOLD WEATHER Z heat-stress z-score ICE cocoa West Africa change from April 2023 to May 2023 = +0.12 z (latest available 2023-06-05; as-of 2026-04-15)  [known 2023-06-05]\n[N60] GOLD WEATHER Z heat-stress z-score ICE cocoa West Africa change from April 2023 to January 2024 = +0.36 z (latest available 2024-02-05; as-of 2026-04-15)  [known 2024-02-05]\n[N61] GOLD WEATHER Z max-temperature anomaly ICE cocoa West Africa change from April 2023 to July 2023 = +1.44 z (latest available 2023-08-05; as-of 2026-04-15)  [known 2023-08-05]\n[N62] GOLD WEATHER Z max-temperature anomaly ICE cocoa West Africa change from April 2023 to January 2024 = +1.14 z (latest available 2024-02-05; as-of 2026-04-15)  [known 2024-02-05]\n[N70] COT managed-money net position ICE cocoa change from the prior week, week to 7 April 2026 = -2,484 contracts  [known 2026-04-13]\n[N71] COT managed-money net position ICE cocoa consecutive weeks moving the same way, week to 7 April 2026 = 3 weeks  [known 2026-04-13]\n[N76] GOLD WEATHER Z share of basin cells in max-temperature tail ICE cocoa West Africa 2025-04-15..2026-04-15 = 9.09 %, 2025-04-15 to 2026-04-15  [known 2026-05-05]\n[N18b] ICCO COCOA stocks-to-use ratio 2015/16 season = 0.342666 ratio  [known 2016-05-31]\n\n"
+}

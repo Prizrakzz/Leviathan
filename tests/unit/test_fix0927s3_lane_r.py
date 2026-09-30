@@ -90,12 +90,18 @@ TARIFF = ("Lag and aftermath in the 2018 case: duties spring 2018 [E1], [E4], wi
 
 
 def test_U10_b_a_name_with_its_own_commas_enters_in_apposition_after_the_slots_own_head():
+    # 09-29 FIX SITTING 4 (lane R, R4-1) -- MOVED PIN, CAUSE: the apposition this pin banked IS the sitting-4 defect
+    # (six served sentences on the 2026-09-29 smoke and probe: "the severe reading (the longest dry-day run in the
+    # month, as a z-score for SE Asia Palm Belt) [N13]"). The claim it made -- ONE determiner, no handle moved -- is
+    # kept; the name now enters IN the slot and never in brackets. The served name is the SHORT name
+    # (``reading_short``, C4-9), which keeps the slot's own head.
     i = SOYOIL_MECH.index("drought")
     out = _apply(SOYOIL_MECH, i, i + len("drought"), PALM_BELT)
-    assert "the high-confidence reading (the longest dry-day run in the month, as a z-score for SE Asia Palm Belt) " \
-           "[N24]" in out
+    assert "(" not in out and "the high-confidence longest dry-day run" in out
     assert "the high-confidence the" not in out                       # the measured doubled determiner
     assert out.count("[N24]") == 1 and out.count("[N100]") == 1        # no handle moved
+    short = _apply(SOYOIL_MECH, i, i + len("drought"), "the dry-day run z-score for SE Asia Palm Belt")
+    assert "the high-confidence dry-day run z-score reading for SE Asia Palm Belt [N24]" in short
 
 
 def _apply_head(text, start, end, name):
@@ -565,5 +571,11 @@ def test_OI2_the_recons_page_talk_is_charged_and_every_replacement_is_clean():
 
 
 def test_OI2_F_N2_the_firing_rows_second_phrase_names_a_dated_window_never_a_likeness():
+    # 09-29 FIX SITTING 4 (lane R, R4-4 (d)) -- MOVED PIN, CAUSE: index 1 is COMPOSED into "the dated window of one of
+    # the <phrase>" (answer.py desk variants), and "dated windows on the record" composed "the dated window of one of
+    # the dated windows on the record". The claim is kept: the composed phrase names a stretch of time the record
+    # holds and never a likeness; the dated-window phrase is still taught, one place later (nothing withdrawn).
     p = REG.desk_phrase("firing", 1)
-    assert "like" not in p and "window" in p
+    assert "like" not in p and "period" in p
+    col = [r for n, _p, r in REG.DESK_REGISTER_TOKENS if n == "firing"][0]
+    assert "dated windows on the record" in col

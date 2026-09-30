@@ -1007,7 +1007,9 @@ def test_R0923_the_receipt_words_carry_the_DATE_AT_ITS_PRECISION_and_the_EVENT_K
     g = R._event_words("guidance", event_date="2026-01-01", precision="year", published="2026-04-03")
     assert g == "a dated forecast, published 3 April 2026, about 2026 -- not an action", g
     r = R._event_words("regime_in_force", event_date="2025-03-10", precision="day")
-    assert "the newest dated policy action on this link that this turn retrieved is 10 March 2025" in r
+    # 09-29 FIX SITTING 4 (lane R, R4-4 (c)) -- MOVED PIN, CAUSE: "that this turn retrieved" named the machine's clock;
+    # the drawn regime still names its retrieval (the DRAW law), in the reader's objects. The claim is unchanged.
+    assert "the newest dated policy action on this link among those retrieved for this question is 10 March 2025" in r
     assert "the model treats a policy as in force until a later dated action on the same link" in r
     for x in (g, r):
         assert REG.count_desk_register(x) == 0 and R.register_hits(x) == []

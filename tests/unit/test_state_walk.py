@@ -282,7 +282,16 @@ def test_AMENDMENT_1_a_focus_driver_anchors_EVERY_contract_carrying_it(real):
     """DRIVER-AS-SUBJECT: the two-contract planner ceiling does not apply, because these contracts are
     not planned -- they are read off the graph."""
     anchors = W.resolve_anchors(focus_driver="El_Nino", graph=real, max_contracts=2)
-    assert len(anchors) == 35                                   # every board carrying the id
+    # MOVED 09-29 (fix sitting 4, S4-1 / CONTRACT C4-18 -- the verifier's integration of lane S's resolver with lane
+    # W's call, BLOCKER-S2). CAUSE: every seat now goes through `board.priced_anchor`, and the generic `soybeans`
+    # graph DAG (a base yaml with no price record; `graph.cross_links` calls the base yamls non-tradeable
+    # duplicates) is seated on its one priced contract, `soybeans_cbot`, which ALSO carries the id -- so the two
+    # collapse to one anchor: 35 -> 34. CLAIM KEPT: every board carrying the id is anchored (after the resolver),
+    # the planner ceiling does not apply, and every anchor is the driver's.
+    carriers = {B.priced_anchor(c, graph=real)["contract"]
+                for c in real.contracts if any(d.id == "El_Nino" for d in real.contracts[c].drivers)}
+    assert sorted(a.contract for a in anchors) == sorted(carriers) and len(anchors) == 34
+    assert "soybeans" not in {a.contract for a in anchors} and "soybeans_cbot" in {a.contract for a in anchors}
     assert {a.source for a in anchors} == {"focus_driver"}
     assert all(a.driver_id == "El_Nino" for a in anchors)
 

@@ -125,8 +125,12 @@ def test_the_leg_is_a_pure_append_after_the_board_mandate_and_before_the_other_t
     assert an._system(state_board=True, desk_register=True) == \
         an._desk_fork_words(base.replace(sn.state_board_mandate(), sn.state_board_mandate(desk=True))) \
         + sn.desk_register_mandate(state_board=True)
+    # MOVED 09-29 (fix sitting 4, lane A, A4-3 -- CONTRACT C4-17, declared DM4): the scheduled-prints RULE left the
+    # WATCH movement and lands right after the absence fact it scopes, so the non-obvious variant is TWO named
+    # substitutions; the claim (the lit mandate is HEAD's with exactly the named substitutions) is kept.
     assert (an._system(state_board=True, watch_selection=True)
             == base.replace(sn.MANDATE_WATCH_HEAD_RX, sn.MANDATE_WATCH_NONOBVIOUS)
+            .replace(sn.MANDATE_ABSENCE_RX, sn.MANDATE_ABSENCE_RX + " " + sn.MANDATE_SCHEDULED_PRINTS)
             + sw.WATCH_SELECTION_CLAUSE)
     # ...and it sits ABOVE `_SYSTEM_HANDLES`, which keeps the last word because it NARROWS number rules
     both = an._system(state_board=True, handles=True)
@@ -303,8 +307,11 @@ def test_the_MPOB_case_a_stale_row_spoken_as_a_current_movement_gets_its_read_da
     assert cen["stale_rows_dated"] == 1 and cen["stale_sentences"] == 1
     # RE-BANKED 09-23 FIX ROUND -- D3 known-date + period correction (09-23 recon palm_rapeoil F2; FIX.md O-3): the
     # July MPOB print is a data_date card read, known 2026-08-13 (+43-day lag), and its month clause now rides.
-    assert d["mechanism"].endswith("(the 2026-07 reading, read 2026-08-13)")
-    assert "2.62832 MMT [N61]" in d["mechanism"]
+    # MOVED 09-29 (fix sitting 4, lane A, A4-1 -- CONTRACT C4-13, declared): the date clause sits RIGHT AFTER its
+    # row's own handle (never at the sentence's end, never a list of bare handles) and only on a SUPERSEDED row
+    # (the release calendar's next print of its series on or before the as-of).
+    # The July print read 2026-08-13 was superseded by MPOB's 10 September print before this 2026-09-16 as-of.
+    assert "2.62832 MMT [N61] (the 2026-07 reading, read 2026-08-13) and rising" in d["mechanism"]
 
 
 def test_the_ONI_case_a_fresh_VINTAGE_on_a_stale_MONTH_is_dated_by_its_reading():
@@ -313,8 +320,18 @@ def test_the_ONI_case_a_fresh_VINTAGE_on_a_stale_MONTH_is_dated_by_its_reading()
     nothing is wrong, so the clause names the month FIRST and the vintage second."""
     d = {"tldr": "", "mechanism": "Tropical Pacific +1.8 degC [N23], rising eight months running"}
     cen = an._seam_stale_figures(d, _rows(ONI_ROWS), ASOF)
-    assert cen["stale_rows_dated"] == 1
-    assert d["mechanism"].endswith("(the 2026-07 reading, read 2026-09-05)")
+    # MOVED 09-29 (fix sitting 4, lane A, A4-1 -- CONTRACT C4-13, declared): the date clause sits RIGHT AFTER its
+    # row's own handle (never at the sentence's end, never a list of bare handles) and only on a SUPERSEDED row
+    # (the release calendar's next print of its series on or before the as-of).
+    # The July ONI known 2026-09-05 IS the newest print on 2026-09-16 (CPC's table prints days 1-5): no charge -- its
+    # period rides its own footer line. A reading the table has since REPLACED (June, read 2026-08-05) is dated by its
+    # month, right after its handle: the grader's "the January ONI printed undated" is that case.
+    assert cen["stale_rows_dated"] == 0 and d["mechanism"].endswith("rising eight months running")
+    old = [None] * 22 + [_call("silver_noaa_oni", "ONI anomaly", None, "global", "MY2026-06", 1.5, "degC",
+                               "2026-08-05")]
+    d2 = {"tldr": "", "mechanism": "Tropical Pacific +1.5 degC [N23], rising seven months running"}
+    assert an._seam_stale_figures(d2, _rows(old), ASOF)["stale_rows_dated"] == 1
+    assert "+1.5 degC [N23] (the 2026-06 reading, read 2026-08-05), rising" in d2["mechanism"]
 
 
 def test_a_dated_line_a_copula_and_a_row_already_read_are_all_left_alone():
@@ -346,7 +363,16 @@ def test_a_fresh_weekly_row_is_never_dated_and_an_annual_row_always_is():
     annual = [_call("silver_psd", "stocks to use", "corn_cbot", "US", "MY2026", 0.12, "ratio",
                     "2026-09-11")]
     d2 = {"tldr": "", "mechanism": "The ratio [N1] is tightening"}
-    assert an._seam_stale_figures(d2, _rows(annual), ASOF)["stale_rows_dated"] == 1
+    # MOVED 09-29 (fix sitting 4, lane A, A4-1 -- CONTRACT C4-13, declared): the date clause sits RIGHT AFTER its
+    # row's own handle (never at the sentence's end, never a list of bare handles) and only on a SUPERSEDED row
+    # (the release calendar's next print of its series on or before the as-of).
+    # The annual clock still fires at zero days, and the NEWEST WASDE (known 2026-09-11, the October print not yet out)
+    # is current -- the witness census's own case; the August print it replaced is dated.
+    assert an._seam_stale_figures(d2, _rows(annual), ASOF)["stale_rows_dated"] == 0
+    aug = [_call("silver_psd", "stocks to use", "corn_cbot", "US", "MY2026", 0.12, "ratio", "2026-08-12")]
+    d2b = {"tldr": "", "mechanism": "The ratio [N1] is tightening"}
+    assert an._seam_stale_figures(d2b, _rows(aug), ASOF)["stale_rows_dated"] == 1
+    assert d2b["mechanism"] == "The ratio [N1] (read 2026-08-12) is tightening"
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -805,7 +831,11 @@ def test_MAJOR4_a_COT_week_and_an_ESR_week_are_not_ANNUAL_ROWS():
     assert an._seam_stale_figures(d2, _rows(esr), ASOF)["stale_rows_dated"] == 0
     assert _rows(esr)[1]["known"] == "2026-09-04"        # the stamp is ISO before any rule reads it
     # THE CARD'S OWN CADENCE is the other half of the ruling, and it wins whatever the period spells
-    ann = _call("silver_psd", "stocks to use", "corn_cbot", "US", "2026", 0.12, "ratio", "2026-09-11")
+    # MOVED 09-29 (fix sitting 4, lane A, A4-1 -- CONTRACT C4-13, declared): the date clause sits RIGHT AFTER its
+    # row's own handle (never at the sentence's end, never a list of bare handles) and only on a SUPERSEDED row
+    # (the release calendar's next print of its series on or before the as-of).
+    # The card's declared cadence still decides the ANNUAL clock; the row is the August print, superseded.
+    ann = _call("silver_psd", "stocks to use", "corn_cbot", "US", "2026", 0.12, "ratio", "2026-08-12")
     ann["cadence"] = "annual"
     d3 = {"tldr": "", "mechanism": "The ratio [N1] is tightening"}
     assert an._seam_stale_figures(d3, _rows([ann]), ASOF)["stale_rows_dated"] == 1
@@ -855,7 +885,11 @@ def test_MAJOR6_a_multi_row_stale_sentence_attaches_each_DATE_to_its_HANDLE():
     d = {"tldr": "", "mechanism": "A reads 1 z [N1] and B reads 2 z [N2], both rising"}
     cen = an._seam_stale_figures(d, rows, ASOF)
     assert cen["stale_rows_dated"] == 2
-    assert d["mechanism"].endswith("(N1 read 2026-05-01; N2 read 2026-06-02)")
+    # MOVED 09-29 (fix sitting 4, lane A, A4-1 -- CONTRACT C4-13, declared): the date clause sits RIGHT AFTER its
+    # row's own handle (never at the sentence's end, never a list of bare handles) and only on a SUPERSEDED row
+    # (the release calendar's next print of its series on or before the as-of).
+    # Each date is attached to its own handle by PLACE -- the claim this pin makes -- never by naming the handle.
+    assert d["mechanism"] == "A reads 1 z [N1] (read 2026-05-01) and B reads 2 z [N2] (read 2026-06-02), both rising"
     # ROWS THAT SHARE ONE DATE ARE NAMED TOGETHER, not stamped once each -- the palm/rape shape
     same = an._seam_row_index([
         _call("silver_mpob", "closing stocks", "palm oil", None, None, 2.6, "MMT", "2026-07-01"),
@@ -865,13 +899,22 @@ def test_MAJOR6_a_multi_row_stale_sentence_attaches_each_DATE_to_its_HANDLE():
     assert an._seam_stale_figures(d2, same, ASOF)["stale_rows_dated"] == 3
     # RE-BANKED 09-23 FIX ROUND -- D3 known-date + period correction (09-23 recon palm_rapeoil F2; FIX.md O-3): the
     # July MPOB print is a data_date card read, known 2026-08-13 (+43-day lag), and its month clause now rides.
-    assert d2["mechanism"].endswith("(N1, N2, N3 the 2026-07 reading, read 2026-08-13)")
+    # MOVED 09-29 (fix sitting 4, lane A, A4-1 -- CONTRACT C4-13, declared): the date clause sits RIGHT AFTER its
+    # row's own handle (never at the sentence's end, never a list of bare handles) and only on a SUPERSEDED row
+    # (the release calendar's next print of its series on or before the as-of).
+    # ROWS OF ONE PRINT SHARE ONE STAMP (the claim kept): the three MPOB figures are one print, dated ONCE, where its
+    # first figure stands -- never the same stamp three times, and never "(N1, N2, N3 ...)".
+    assert d2["mechanism"] == ("Stocks 2.6 MMT [N1] (the 2026-07 reading, read 2026-08-13), up 0.08 MMT [N2] and "
+                               "rising 4 months [N3]")
     # ...and a ONE-HANDLE sentence has no ambiguity to resolve and keeps the bare form
     d3 = {"tldr": "", "mechanism": "Stocks 2.62832 MMT [N61] and rising in each of the last 4 months"}
     an._seam_stale_figures(d3, _rows(MPOB_ROWS), ASOF)
     # RE-BANKED 09-23 FIX ROUND -- D3 known-date + period correction (09-23 recon palm_rapeoil F2; FIX.md O-3): the
     # July MPOB print is a data_date card read, known 2026-08-13 (+43-day lag), and its month clause now rides.
-    assert d3["mechanism"].endswith("(the 2026-07 reading, read 2026-08-13)")
+    # MOVED 09-29 (fix sitting 4, lane A, A4-1 -- CONTRACT C4-13, declared): the date clause sits RIGHT AFTER its
+    # row's own handle (never at the sentence's end, never a list of bare handles) and only on a SUPERSEDED row
+    # (the release calendar's next print of its series on or before the as-of).
+    assert "[N61] (the 2026-07 reading, read 2026-08-13) and rising" in d3["mechanism"]
 
 
 def test_MAJOR7_the_watch_walk_accepts_every_spelling_its_SIBLING_WALKS_accept():

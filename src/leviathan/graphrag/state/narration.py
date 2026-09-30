@@ -153,9 +153,9 @@ MANDATE_FACTS: tuple = (
     ("watch_weighed_left", "the readings weighed and left, each by its own [N]",
      "Where fewer items bear on this market than there is room for, the readings you weighed and left "
      "and why -- another market's reading named as that market's -- rather than filling the space."),
-    ("scheduled_prints", "the dated note of scheduled prints",
-     "The scheduled prints are not watch items here: {record} names them once, in its own dated note, and "
-     "they stay there."),
+    # 09-29 FIX SITTING 4 (lane A, A4-3; CONTRACT C4-17): ``scheduled_prints`` MOVED to MANDATE_RULES (its tail),
+    # words unchanged -- it names no fact the reader is owed, it PROTECTS the watch draw's ban on calendar-only
+    # items. See :data:`MANDATE_SCHEDULED_PRINTS` for where it is composed and why.
     ("absence_reason", "the BOARD ABSENCE line's own reason",
      "A BOARD ABSENCE line is a fact about coverage: the gap and the reason it gives, with no number for "
      "it."),
@@ -317,6 +317,14 @@ MANDATE_RULES: tuple = (
     ("register_recency", "register.DESK_REGISTER_EXEMPT's first entry (the tape layer's own name), on the block's turns",
      "The RECENCY layers keep one phrase of their own, the board price tape, which is the tape layer's "
      "name."),
+    # 09-29 FIX SITTING 4 (lane A, A4-3; CONTRACT C4-17): moved here from MANDATE_FACTS, WORDS UNCHANGED (appended
+    # at the tail: the tuple is append-never-sort). It protects a served fact the reader is never owed a sentence
+    # about: the watch draw bans calendar-only items at nomination (`state/watch.py`), so the scheduled prints stay
+    # in the record's own dated note.
+    ("scheduled_prints", "the watch draw's ban on calendar-only items (state/watch.py): the scheduled prints "
+     "stay in the record's own dated note, and no sentence is owed about them",
+     "The scheduled prints are not watch items here: {record} names them once, in its own dated note, and "
+     "they stay there."),
 )
 
 #: every clause by its key -- the ONE lookup the composed literals below are built from
@@ -612,8 +620,28 @@ def mandate_movements(chain: bool = False) -> tuple:
 #: substitution below still keys on exactly the text the base literal carries.
 MANDATE_WATCH_HEAD_RX: str = "(4) WATCH: close with " + _CLAUSE["watch_items"]
 _T_MANDATE_WATCH_NONOBVIOUS: str = _compose((("(4) WATCH: close with ", "watch_forward"),
-                                             ("", "watch_weighed_left"), ("", "scheduled_prints")))
+                                             ("", "watch_weighed_left")))
 MANDATE_WATCH_NONOBVIOUS: str = _T_MANDATE_WATCH_NONOBVIOUS.format(record=MANDATE_BLOCK_SELF_NAME)
+#: 09-29 FIX SITTING 4 (lane A, A4-3; CONTRACT C4-17) -- THE PUBLICATION NOTE IS A RULE, AND IT IS COMPOSED AS ONE.
+#: MEASURED (`fix_sitting_4_0929/verify/stale/witness_census.out`, A4-3): 8 pages of the 63 (armA 1, resmoke 0925 2,
+#: smoke 2, probe 3), every one at the WRITER stage, owe the reader a sentence about publication dates -- "Scheduled
+#: publication dates for these series are set by their publishers and are not watch items" (probe cocoa), "Scheduled
+#: publication dates are the publishers' and stay in the record's own note" (smoke max). The words are the block's own
+#: BOARD ABSENCE line for the scheduled prints ("these are scheduled publication dates the publishers set, named once
+#: here rather than as items to watch", `render.ABSENCE_WHY` ``release_dates_only``) and this clause's ("they stay
+#: there"): the clause sat inside the WATCH movement after "close with" as a FACT, and the ``absence_reason`` fact
+#: ("A BOARD ABSENCE line is a fact about coverage: the gap and the reason it gives") owed the reader that note's
+#: reason. THE CLAUSE WAS A FACT BY TUPLE AND BY PLACE; it is now a RULE by both. Its words are unchanged; it moves to
+#: :data:`MANDATE_RULES` and is composed IMMEDIATELY AFTER the ``absence_reason`` fact it scopes -- the one BOARD
+#: ABSENCE line that states no gap in coverage, named where the absence fact is asked for, so the note stays in the
+#: record. REFUTED FIRST CUT: moving the tuple entry alone (the contract's letter) re-composes the SAME bytes in the
+#: SAME place -- the census moves and the writer's prompt does not, so no page could change. REJECTED: a sentence
+#: handed to the writer ("do not mention publication dates"), a scrub of "publication dates" from the page, and
+#: rewording the block's own absence line (lane R's words; reported for the next list). Shipped only where the
+#: non-obvious watch draw ships (the ban it protects exists only there), exactly as before.
+MANDATE_ABSENCE_RX: str = _CLAUSE["absence_reason"]
+_T_MANDATE_SCHEDULED_PRINTS: str = _compose((("", "scheduled_prints"),))
+MANDATE_SCHEDULED_PRINTS: str = _T_MANDATE_SCHEDULED_PRINTS.format(record=MANDATE_BLOCK_SELF_NAME)
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -839,7 +867,7 @@ def netting_parts_words(netting, *, balanced: bool = False) -> str:
     return named[0] if len(named) == 1 else ", ".join(named[:-1]) + " and " + named[-1]
 
 
-def ask_call_mandate(handles, *, balanced: bool = False, netting=()) -> str:
+def ask_call_mandate(handles, *, balanced: bool = False, netting=(), lines=()) -> str:
     """:data:`MANDATE_ASK_CALL` (or its balanced twin) with the handles of the block line carrying
     ``render.ASK_SIDES_LEAD``, in block order. ``""`` for no handle -- the clause never ships over a block that
     printed no such line (CONTRACT Y13; ``answer._ask_sides_printed`` finds them, the ``_ask_head_printed``
@@ -848,13 +876,53 @@ def ask_call_mandate(handles, *, balanced: bool = False, netting=()) -> str:
     ``netting`` (CONTRACT Z4, TAIL kwarg): the netting facts the SAME line printed, ``{part: (handle, ...)}``
     (``answer._ask_netting_printed``); each part is named by its kind and its own handles and the writer is asked
     to net the lean against them or say why not (:data:`MANDATE_FACTS` ``netting``). ``()`` -> HEAD's clause
-    byte for byte."""
+    byte for byte.
+
+    ``lines`` (09-29 FIX SITTING 4, lane A, A4-4; CONTRACT C4-17, TAIL kwarg): ``((handles, balanced, netting),
+    ...)`` -- EACH printed ASKED SIDES line with its own handles, its own count read (level or not) and the netting
+    parts printed on IT (``answer._ask_sides_line_records``). MEASURED (sitting 3 VERIFY sec 6, lane A minor): on a
+    multi-market board one clause named every line's handles and parts under ONE label -- a line whose own counts
+    are level was told "state the lean those counts give" whenever another line leaned. Where the lines carry BOTH
+    labels, the leaning lines' handles and parts take the lean clause and the level lines' take the balanced
+    clause, each declared clause composed as HEAD composes it; where every line carries one label (every
+    single-market board) -- or ``lines`` is empty -- the clause is HEAD's, from ``handles`` / ``balanced`` /
+    ``netting``, byte for byte. Each line's own facts, never a sentence handed over."""
+    groups = _ask_call_groups(lines)
+    if groups:
+        return " ".join(x for x in (ask_call_mandate(h, balanced=b, netting=n) for h, b, n in groups) if x)
     joined = _join_handles(handles)
     if not joined:
         return ""
     out = (MANDATE_ASK_CALL_BALANCED if balanced else MANDATE_ASK_CALL).format(handles=joined)
     parts = netting_parts_words(netting, balanced=balanced) if netting else ""
     return out + " " + _CLAUSE["netting"].format(parts=parts) if parts else out
+
+
+def _ask_call_groups(lines) -> tuple:
+    """A4-4: ``((handles, balanced, netting), ...)`` -- the per-line records grouped by their OWN label, lean lines
+    first, each group's handles and netting parts in line order, each handle and part token once. ``()`` when the
+    records are unreadable or carry ONE label only (the caller then composes HEAD's single clause)."""
+    try:
+        recs = [(tuple(h or ()), bool(b), dict(n or {})) for h, b, n in (lines or ())]
+    except (TypeError, ValueError):
+        return ()
+    if len({b for _h, b, _n in recs}) < 2:
+        return ()
+    out = []
+    for label in (False, True):
+        hs: list = []
+        net: dict = {}
+        for h, b, n in recs:
+            if b != label:
+                continue
+            hs += [x for x in h if x not in hs]
+            for part in NETTING_PARTS:
+                for x in (n.get(part) or ()):
+                    if x not in net.setdefault(part, []):
+                        net[part].append(x)
+        if hs:
+            out.append((tuple(hs), label, {k: tuple(v) for k, v in net.items() if v}))
+    return tuple(out)
 
 
 def positioning_asymmetry_mandate(handles) -> str:
@@ -910,6 +978,13 @@ def _state_board_mandate(nonobvious: bool = False, chain: bool = False,
             "narration: the mandate's WATCH movement was reworded and the non-obvious variant's needle "
             "no longer matches -- re-cut MANDATE_WATCH_HEAD_RX beside it")
         text = base.replace(MANDATE_WATCH_HEAD_RX, watch_nob)
+        # 09-29 SITTING 4 (A4-3): the scheduled-prints RULE lands right after the absence fact it scopes (see
+        # :data:`MANDATE_SCHEDULED_PRINTS`); the needle is asserted exactly as the watch needle is.
+        assert text.count(MANDATE_ABSENCE_RX) == 1, (
+            "narration: the absence fact the scheduled-prints rule scopes matches %d times in the mandate, not "
+            "once -- re-cut MANDATE_ABSENCE_RX beside it" % text.count(MANDATE_ABSENCE_RX))
+        sp_rule = (MANDATE_SCHEDULED_PRINTS if same else _T_MANDATE_SCHEDULED_PRINTS.format(record=record))
+        text = text.replace(MANDATE_ABSENCE_RX, MANDATE_ABSENCE_RX + " " + sp_rule)
     if not chain:
         return text
     for needle in (MANDATE_COUNT_RX, MANDATE_SPILLOVERS_RX, MANDATE_WATCH_NUMBER_RX):
@@ -975,12 +1050,26 @@ def panel_mandate() -> str:
     the book's words (``state_conventions.yaml`` ``panel_words.mandate``, lane R, CONTRACT Z9: the block header and
     the mandate read ONE declaration), read through the render's one book reader. ``""`` while the book declares
     none (the producer not landed): the sentence is never typed here a second time. Lazily imported and belted:
-    this module keeps no import-time dependency on ``render`` and never raises."""
+    this module keeps no import-time dependency on ``render`` and never raises.
+
+    09-29 FIX SITTING 4 (lane A, A4-4 panel reach; CONTRACT C4-17): THE SENTENCE'S DECLARATION, NEVER A SECOND AND
+    WIDER USE-OR-SAY-WHY-NOT. The book's sentence is a declaration ("The block of served facts is the panel you read,
+    not the text you print") and an ask ("use its facts, each with its own handle, in your own words, or say in one
+    clause why one is not used") that reaches EVERY fact of a block that runs to three hundred rows -- the pull toward
+    enumeration sitting 3's verifier docketed (VERIFY sec 3, lane A residual; the same ask is :data:`MANDATE_RULES`
+    ``facts_owed``, scoped to the facts the mandate names, ~25 words twice). The leg therefore ships the book's
+    DECLARATION -- the sentence up to its own first clause separator (the colon the book writes between the fact and
+    its ask), ended as a sentence -- and the ask is ``facts_owed``'s alone. A book sentence with no such separator
+    ships whole (the declaration IS the sentence). The words are the book's; nothing is typed here. REJECTED: editing
+    the book from this lane (lane R's file; reported), a ban on the word "use", dropping the leg (the panel fact
+    would then reach the writer only through the block's own header)."""
     try:
         from leviathan.graphrag.state.render import book_words
-        return str(book_words("panel_words", "mandate") or "").strip()
+        text = str(book_words("panel_words", "mandate") or "").strip()
     except Exception:                                   # noqa: BLE001 -- no book, no sentence
         return ""
+    head, sep, _ask = text.partition(": ")
+    return (head.rstrip(" ,;") + ".") if (sep and head.strip()) else text
 
 
 #: THE CENSUS'S ONE TOKENIZER (CONTRACT Z1): a word is a letter followed by letters, apostrophes or hyphens.

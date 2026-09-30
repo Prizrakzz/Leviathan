@@ -549,6 +549,12 @@ def test_amendment_1_a_focus_driver_anchors_EVERY_contract_that_carries_it(graph
                       if any(d.id == "El_Nino" for d in graph.contracts[c].drivers))
     assert len(carriers) > 2, carriers
     anchors = W.resolve_anchors(graph=graph, focus_driver="El_Nino", max_contracts=2)
+    # MOVED 09-29 (fix sitting 4, S4-1 / CONTRACT C4-18 -- the verifier's integration of lane S's resolver with lane
+    # W's call, BLOCKER-S2). CAUSE: each carrier is seated through `board.priced_anchor`; the generic `soybeans` DAG
+    # (no price record) is seated on `soybeans_cbot`, which carries the id too, so the two are one anchor. CLAIM KEPT:
+    # the anchor set is EVERY carrier of the id (as the resolver seats it), past the two-contract planner ceiling.
+    carriers = sorted({B.priced_anchor(c, graph=graph)["contract"] for c in carriers})
+    assert "soybeans" not in carriers and "soybeans_cbot" in carriers
     assert sorted(a.contract for a in anchors) == carriers
     assert {a.source for a in anchors} == {"focus_driver"}
     assert all(a.driver_id == "El_Nino" for a in anchors)
@@ -1555,8 +1561,12 @@ def test_lane_ws_selection_clause_rides_the_mandate_and_never_the_block():
     # "close with THE WATCH ROWS", which `clause` opens by denying on the same turn. The equality now
     # NAMES the substitution, so an edit to either half reds here with a cause instead of silently
     # decoupling the mandate from the clause it ships beside.
+    # MOVED 09-29 (fix sitting 4, lane A, A4-3 -- CONTRACT C4-17, declared DM4): the scheduled-prints RULE left the
+    # WATCH movement and lands right after the absence fact it scopes, so the non-obvious variant is TWO named
+    # substitutions; the claim (the lit mandate is HEAD's with exactly the named substitutions) is kept.
     assert (an._system(state_board=True, watch_selection=True)
-            == base.replace(N.MANDATE_WATCH_HEAD_RX, N.MANDATE_WATCH_NONOBVIOUS) + clause)
+            == base.replace(N.MANDATE_WATCH_HEAD_RX, N.MANDATE_WATCH_NONOBVIOUS)
+            .replace(N.MANDATE_ABSENCE_RX, N.MANDATE_ABSENCE_RX + " " + N.MANDATE_SCHEDULED_PRINTS) + clause)
     assert N.MANDATE_WATCH_HEAD_RX in base and N.MANDATE_WATCH_NONOBVIOUS not in base
     assert an._system() == an._system(watch_selection=False)
     assert clause not in R.ROW_CLASSES and not any(clause in str(v) for v in R.ROW_CLASSES.values())

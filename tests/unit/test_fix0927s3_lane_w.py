@@ -57,7 +57,10 @@ def test_Z10_a_regime_member_with_no_action_in_force_is_NAMED_with_its_reason_an
     r = _row(regime={"ban": {"in_force": None, "action": None, "why": "none"}})
     assert "ban" in r["matched"], "the ORDERING count keeps HEAD's loud intersection"
     assert "ban" not in r["matched_measured"] and "ban" in r["matched_unmeasured"]
-    assert r["unread_reason"] == {"ban": "regime_action_unread"}
+    # MOVED 09-29 (fix sitting 4, lane W; CONTRACT C4-12, R4-4 a): "nothing dated on this link was read" (in_force None)
+    # now has its OWN reason word -- the block said "no action ... stands on the record" of a node nothing was read
+    # for (10 SB-C sentences on 9 of 13 smoke / probe boards). The claim is kept: named with its reason, never counted.
+    assert r["unread_reason"] == {"ban": "regime_action_none_read"}
     assert r["unread_reason"]["ban"] in W.QUORUM_UNREAD_REASONS
     # a report / forecast on the node (False) is not an action in force either
     r2 = _row(regime={"ban": {"in_force": False, "action": None, "why": "report_in_reach"}})
@@ -65,15 +68,20 @@ def test_Z10_a_regime_member_with_no_action_in_force_is_NAMED_with_its_reason_an
 
 
 def test_Z10_a_regime_action_IN_FORCE_reads_the_node_present_through_the_cards_own_tail_rule():
-    r = _row(regime={"ban": {"in_force": True, "action": {}, "why": "regime_in_force"}})
+    # MOVED 09-29 (fix sitting 4, lane W; CONTRACT C4-12, W4-2): an action in force is read WITH ITS POLARITY -- the
+    # record's own declared direction (``regime_state``'s ``polarity``); an in-force action whose record declares none is
+    # named unread (the probe palm page counted an import-tariff action as the node present whatever its direction).
+    # So the in-force fixture now DECLARES the action puts the node's condition in force (``+``); the claim is kept:
+    # an action in force reads the node present through the card's own tail rule.
+    r = _row(regime={"ban": {"in_force": True, "action": {}, "why": "regime_in_force", "polarity": "+"}})
     assert "ban" in r["matched_measured"] and "unread_reason" not in r
     # the SAME action on a pattern whose card asks the node's absence (a bearish pattern, node declared '+')
     bear = W.convergence_rows(_graph(direction="-"), "rice", {"ban"}, loud_k=16, measured_ids={"ban"},
-                              sides={}, regime={"ban": {"in_force": True}})[0]
+                              sides={}, regime={"ban": {"in_force": True, "polarity": "+"}})[0]
     assert bear["against"] == ("ban",) and "ban" not in bear["matched"]
     # a node declared with no committed direction is unsided, never counted
     flat = W.convergence_rows(_graph(signs={"ban": "0"}), "rice", {"ban"}, loud_k=16, measured_ids={"ban"},
-                              sides={}, regime={"ban": {"in_force": True}})[0]
+                              sides={}, regime={"ban": {"in_force": True, "polarity": "+"}})[0]
     assert flat["unsided"] == ("ban",)
 
 
@@ -92,13 +100,22 @@ def test_Z10_a_member_held_only_as_last_revised_is_named_not_counted_whatever_it
 
 
 def test_Z10_the_four_populations_partition_the_loud_members_on_every_combination():
-    for reg in (None, {"ban": {"in_force": None}}, {"ban": {"in_force": True}}):
+    # MOVED 09-29 (fix sitting 4, lane W; CONTRACT C4-12, W4-1 / W4-2): an action in force whose record declares no
+    # polarity (``{"in_force": True}`` below) is a member the walk cannot ORIENT -- named in ``matched_unmeasured`` with
+    # its reason, in no verdict list and NOT in ``matched`` (the ordering count: the first cut that kept it there made
+    # 22 of 774 banked quorum rows cross their threshold on uncounted names and the watch draw 11 false "at its own
+    # threshold" rows). The claim is kept: every loud member is in exactly ONE population and every reason is on a
+    # named, uncounted member -- the populations are now matched / against / unsided / undeclared.
+    for reg in (None, {"ban": {"in_force": None}}, {"ban": {"in_force": True}},
+                {"ban": {"in_force": True, "polarity": "+"}}):
         for held in (None, {"flow"}, {"stocks", "flow"}):
             r = _row(regime=reg, held=held)
             loud = {"ban", "stocks", "flow"}
             m, a, u = set(r["matched"]), set(r.get("against") or ()), set(r.get("unsided") or ())
-            assert m | a | u == loud and not (m & a) and not (m & u)
-            assert set(r["matched_measured"]) | set(r["matched_unmeasured"]) == m
+            und = {d for d, w in (r.get("unread_reason") or {}).items()
+                   if w in ("marker_orientation_undeclared", "regime_action_polarity_undeclared")}
+            assert m | a | u | und == loud and not (m & a) and not (m & u) and not (und & (m | a | u))
+            assert set(r["matched_measured"]) | set(r["matched_unmeasured"]) == m | und
             assert not (set(r["matched_measured"]) & set(r["matched_unmeasured"]))
             assert set(r.get("unread_reason") or {}) <= set(r["matched_unmeasured"])
 

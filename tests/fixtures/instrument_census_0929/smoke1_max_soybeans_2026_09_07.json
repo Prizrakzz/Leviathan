@@ -1,0 +1,3352 @@
+{
+"source": "smoke 2026-09-29 run 1 (cold), treatment max",
+"source_sha256": "31db34c240f6d7157551a6581a9c4270281b6b24a2d83b4053868ee42a69b156",
+"tree": "596f4452",
+"reduction": "census-read keys only, every kept value verbatim (see README.txt)",
+"record": {
+"id": "rv_soybeans_state_2026_09_07",
+"writer_seam": {
+"outcome": "ok",
+"prose_words": 1638,
+"prose_ceiling": 1200,
+"prose_over_budget": 438,
+"superlatives_corrected": 0,
+"classes_corrected": 0,
+"superlatives_seen": 0,
+"superlatives_unbound": 0,
+"classes_unbound": 0,
+"superlative_articles_fixed": 0,
+"superlatives_negated": 0,
+"stale_rows_dated": 0,
+"stale_sentences": 0,
+"lag_windows_checked": 0,
+"lag_windows_corrected": 0,
+"lag_windows_subject_bound": 0,
+"lag_windows_negated": 0,
+"watch_bullets": 5,
+"watch_figures_added": 0,
+"watch_no_figure": 0,
+"watch_no_window": 0,
+"watch_no_falsifier": 0,
+"watch_over_ceiling": 0,
+"watch_section_seen": 1,
+"watch_figures_rounded": 0,
+"decline_words_corrected": 1,
+"metric_labels_corrected": 0,
+"absence_claims_checked": 4,
+"absence_rows_appended": 1,
+"absence_unbound": 3,
+"served_row_duplicate_groups": 4,
+"served_rows_duplicated": 4,
+"ceiling_cut_proposed_paragraphs": 5,
+"ceiling_cut_proposed_handles": [
+3,
+4,
+9,
+10,
+11,
+13,
+15,
+76,
+78,
+94,
+111,
+112,
+113,
+115,
+116,
+130
+],
+"ceiling_cut_proposed_words": 433,
+"ceiling_kept_over": 1,
+"name_binding": {
+"outcome": "ok",
+"sentences": 28,
+"bindings": 55,
+"routing_corrected": 0,
+"commodity_corrected": 0,
+"unit_corrected": 0,
+"period_corrected": 0,
+"name_unbound": 0,
+"period_duration_kept": 1,
+"period_unanchored": 0,
+"noun_unlicensed_kept": 8
+},
+"mandate_census": {
+"words": 2378,
+"sentences": 92,
+"asks": 47,
+"facts_required": 28,
+"rules": 19,
+"exactly_as": 0,
+"undeclared_words": 0,
+"foreign_words": 200,
+"by_part": {
+"panel": 37,
+"state_board_mandate": 1111,
+"writer_seam": 317,
+"horizon": 59,
+"positioning": 70,
+"ask_call": 112,
+"watch_selection": 200,
+"desk_register": 472
+}
+}
+},
+"raw_draft": {
+"tldr": "CBOT soybeans read price-supportive into the turn of the year: the US balance sheet is tight at a 10.72% stocks-to-use ratio for 2026/27 [N76], its 23rd percentile and falling three straight years [N78], with crush economics firm at a 2.43 USD/bu board crush margin [N109] and shipments running ahead at 775.39 thousand MT in the week to 17 September 2026 [N126] -- thirteen of the readings served here settle toward a higher price against six toward a lower one, beside a November 2026 delivery settle of 1,317.5 US cents/bushel [N1]. The counterweight is real and named: the tropical Pacific is at +1.8 degC in July 2026 [N16], a warm phase the model signs against soybeans, and managed money sits at the 100th percentile of its own record since August 2023 [N27], which the model reads as reversal risk, not as added fuel. On the three-month horizon the record gives no price range -- the chain from macro demand into soybeans answers the question, but the front price does not reach back to the past times these readings sat this far out.",
+"mechanism": "## Mechanism\n\nThe physical chain is a demand-pull crush story sitting on a thin cushion. Crush value, not a weather shock, is doing the pulling: firm energy and biofuel demand lift the oil side of the crush, wide crush margins make processors bid for beans, and the drawn-down carryout leaves little slack to absorb any further call on supply. The model signs the tight stocks-to-use ratio as price-supportive at high confidence, the crush margin as price-supportive at high confidence, and a fast export pace as price-supportive at high confidence. Those three point the same way.\n\nAgainst them: a strong warm phase in the tropical Pacific, which the model signs against soybeans at medium confidence with a one-to-two-quarter lag -- the channel is better South American yields, expanding crushable supply. Harvested area is also signed as loosening, at medium confidence. And the crowd is the wrinkle -- the positioning card reads an extreme position as large managed-money net length that amplifies and can overextend price moves, while extreme positioning flags reversal risk. I lean supportive because the balance-sheet and crush legs are high-confidence and already measured, while the warm-phase leg is medium-confidence and works through a South American crop not yet made. That is a model ranking, not a measured attribution.\n\nTwo convergence patterns are partly showing and neither is at its threshold: the crush demand-pull pattern names four conditions and one is counted here; the South American weather squeeze names five and one is counted here (the tight stocks-to-use ratio), with drought and heat stress carrying no series read on this turn. The supply-glut pattern is worse off still -- one condition showing, and the stocks-to-use reading counts against it.\n\n## The record\n\nBalance sheet, known 2026-09-11: 2026/27 ending stocks 310 Million Bushels [N9] against 325 Million Bushels for 2025/26 [N3]; stocks-to-use 10.72% [N11], at the 23rd percentile of its own record [N78]. USDA's own read of 2026/27 is a projection, not a settled year: average farm price 12 $/bu [N10] against the 2025/26 estimate of 10.5 $/bu [N4].\n\nDrivers, in the chain order the record carries. Macro demand: no series is served at this link, and the model expects it to tighten the stocks-to-use ratio, with the readings not settling it; the dated action behind it is Mexico removing soybean oil from its anti-inflation decree in December 2025, still inside the lag the model allows [E19]. Stocks-to-use at 10.72% [N76], 23rd percentile [N78], falling since 2023 -- the model expects this to pull managed money the other way, and the readings agree. Managed money at 265,159 contracts [N25], +2.2 sigma [N26], 100th percentile [N27] -- the model expects it to move price the same way with a zero-to-one-quarter lag, and the readings do not settle it. The record is thin at that last link: it holds no past time positioning sat this far out with a price reading to measure, and the front price does not reach back.\n\nThe energy-side chain agrees where it can be measured: Brent against its own five-year record peaked at the 98th percentile in April 2026 [N116] and reads 0.51 z [N113] at the 68th [N115]; the model expects that to lift the board crush margin, and the readings agree. Of the past times Brent sat this far out, eight had a crush reading to measure -- five moved as the model expects, three the other way; eight more had no reading inside the lag. The crush peaked at the 96th percentile in July 2026 [N112], now the 89th [N111]. Dated report behind that link: soybean oil prices projected to rise by 8 percent in 2026, published 1 April 2026 [E39].\n\nOther current readings: export shipments 775.39 thousand MT [N126], having bottomed at the 3rd percentile in August 2026 [N129] and now the 62nd [N128], rising three weeks; Argentine exports 6.45 MMT for 2026/27 [N117]; harvested area 34.76 M ha [N94] at the 91st percentile [N96]; US dry-spell length at -0.69 z [N37], the wetter side, 11th percentile [N39]. Price: November 2026 delivery settled 1,317.5 US cents/bushel [N1] -- the front-month rule could not run because open interest is not yet published for the session, so this is the nearest listed delivery outside its delivery month, not \"the front month.\" World Bank soybeans August 2026: 482 USD/mt [N12].\n\nDated context, 2026: US soybean exports for 2026/27 raised 30 million bushels on stronger global demand, reported 10 July 2026 [E29]; global oilseed crush projected up 4 percent in 2026/27, reported 12 May 2026 [E5]; strong Chinese demand fuelled record Brazilian area for 2025/26 [E30]. Dry conditions in March and April 2026 depleted soil moisture in northeastern countries [E33], a window now closed.\n\nThe cross-market record from the 2025-01 to 2025-04 episode, an older window, read one way per pair: CBOT soybeans -3.18% [N168] against ZCE rapeseed meal +2.54% [N169] -- the declared same-direction demand-competition relation sat at odds over that window, read on each board's own currency, US dollars and Chinese yuan, with the yuan-per-dollar rate +0.32% [N170] inside that comparison and not removed from it. Soybeans against ZCE rapeseed oil +10.06% [N171] also sat at odds, same currency caveat. Soybeans against CBOT soybean meal -6.64% [N172]: the crush relation held. Soybean meal against soybean oil +4.01% [N173]: the declared opposite-direction relation held. Soybean oil against CME palm oil +4.8% [N174]: held. MATIF rapeseed cannot be read -- that window predates the board's own price history.\n\nSeason-average farm price across the analogue years, USDA survey actuals and not futures settles: fell from $12.40/bu [N166] in MY2023/24 to $10.00/bu [N167] in MY2024/25.\n\nRecency: figures read as of 2026-09-29, newest known 2026-09-28, oldest 2026-04-09; the newest dated document is 2026-08-12; the board price tape runs through 2026-09-28.\n\n## Where the record disagrees\n\nThe measured record splits on this exact chain. Over the 2025-01 to 2025-04 window the model's soy-to-rapeseed demand-competition links sat at odds -- soybeans fell 3.18% [N168] while ZCE rapeseed meal rose 2.54% [N169] and ZCE rapeseed oil rose 10.06% [N171] -- while every link inside the crush complex held: meal -6.64% [N172], oil +4.01% [N173], palm +4.8% [N174]. Read that as: the crush identity transmits reliably; the cross-oilseed substitution link did not, in-sample, on that window only.\n\n## Cross-commodity\n\nThe largest moves carried here are also declared on five other markets -- CBOT soybean meal, CME palm oil, DCE palm olein, DCE soybean meal and ICE cocoa -- each with its own sign and lag. The warm Pacific phase is declared to move CME palm oil and DCE palm olein in the same direction at two-to-four quarters, high confidence; and ICE cocoa in the same direction at one-to-three quarters, medium confidence. Fishmeal substitution, the single largest move on the panel at 4.24 z [N13], 100th percentile of its record since September 2015 [N15], is declared on CBOT soybean meal and DCE soybean meal in the same direction at zero-to-two quarters, medium confidence -- a protein-complex pull that reaches beans through meal.\n\n## What to watch\n\n- **The Pacific warm phase** [N16]: +1.8 degC, July 2026, eight straight months rising, past the strong line at one and a half degC. Its window runs 2026-10-31 to 2027-01-31; next print between 2026-10-01 and 2026-10-05. Wrong if that print turns back inside the line or the run breaks. This is the reading set against the supportive lean.\n- **Board crush** [N109]: 2.43 USD/bu, 23 September 2026, three declared paths run through it onto the price. Window 2026-09-23 to 2026-12-23. Wrong if the next print returns it to the middle of its own record. This prints every session and is the only carried reading that can genuinely turn inside three months.\n- **Export shipments** [N126]: 775.39 thousand MT, week to 17 September 2026, past the ahead line, three weeks rising. Window 2026-09-17 to 2026-12-17; next print 2026-10-01. Wrong if it turns back inside that line or the run breaks.\n- **Fishmeal** [N13]: 4.24 z, August 2026, top decile. Window 2026-08-01 to 2027-02-01. Wrong if the next print returns it to the middle of its record.\n- **US dry-spell length** [N37]: -0.69 z, August 2026, the wetter side; two declared upstream paths land on price through it. Window 2026-08-31 to 2026-11-30. Wrong if it returns to the middle of its record.\n\nWeighed and left: the stocks-to-use ratio [N76] and harvested area [N94] are both past declared lines, but their next print on 2026-10-09 restates a period already reported -- standing context inside a three-month horizon, not a watch item. Scheduled publication dates are the publishers' and stay in the record's own note.",
+"preverify_tldr": "CBOT soybeans read price-supportive into the turn of the year: the US balance sheet is tight at a 10.72% stocks-to-use ratio for 2026/27 [N76], its 23rd percentile and falling three straight years [N78], with crush economics firm at a 2.43 USD/bu board crush margin [N109] and shipments running ahead at 775.39 thousand MT in the week to 17 September 2026 [N126] -- thirteen of the readings served here settle toward a higher price against six toward a lower one, beside a November 2026 delivery settle of 1,317.5 US cents/bushel [N1]. The counterweight is real and named: the tropical Pacific is at +1.8 degC in July 2026 [N16], a warm phase the model signs against soybeans, and managed money sits at the 100th percentile of its own record since August 2023 [N27], which the model reads as reversal risk, not as added fuel. On the three-month horizon the record gives no price range -- the chain from macro demand into soybeans answers the question, but the front price does not reach back to the past times these readings sat this far out.",
+"preverify_mechanism": "## Mechanism\n\nThe physical chain is a demand-pull crush story sitting on a thin cushion. Crush value, not a weather shock, is doing the pulling: firm energy and biofuel demand lift the oil side of the crush, wide crush margins make processors bid for beans, and the drawn-down carryout leaves little slack to absorb any further call on supply. The model signs the tight stocks-to-use ratio as price-supportive at high confidence, the crush margin as price-supportive at high confidence, and a fast export pace as price-supportive at high confidence. Those three point the same way.\n\nAgainst them: a strong warm phase in the tropical Pacific, which the model signs against soybeans at medium confidence with a one-to-two-quarter lag -- the channel is better South American yields, expanding crushable supply. Harvested area is also signed as loosening, at medium confidence. And the crowd is the wrinkle -- the positioning card reads an extreme position as large managed-money net length that amplifies and can overextend price moves, while extreme positioning flags reversal risk. I lean supportive because the balance-sheet and crush legs are high-confidence and already measured, while the warm-phase leg is medium-confidence and works through a South American crop not yet made. That is a model ranking, not a measured attribution.\n\nTwo convergence patterns are partly showing and neither is at its threshold: the crush demand-pull pattern names four conditions and one is counted here; the South American weather squeeze names five and one is counted here (the tight stocks-to-use ratio), with drought and heat stress carrying no series read on this turn. The supply-glut pattern is worse off still -- one condition showing, and the stocks-to-use reading counts against it.\n\n## The record\n\nBalance sheet, known 2026-09-11: 2026/27 ending stocks 310 Million Bushels [N9] against 325 Million Bushels for 2025/26 [N3]; stocks-to-use 10.72% [N11], at the 23rd percentile of its own record [N78]. USDA's own read of 2026/27 is a projection, not a settled year: average farm price 12 $/bu [N10] against the 2025/26 estimate of 10.5 $/bu [N4].\n\nDrivers, in the chain order the record carries. Macro demand: no series is served at this link, and the model expects it to tighten the stocks-to-use ratio, with the readings not settling it; the dated action behind it is Mexico removing soybean oil from its anti-inflation decree in December 2025, still inside the lag the model allows [E19]. Stocks-to-use at 10.72% [N76], 23rd percentile [N78], falling since 2023 -- the model expects this to pull managed money the other way, and the readings agree. Managed money at 265,159 contracts [N25], +2.2 sigma [N26], 100th percentile [N27] -- the model expects it to move price the same way with a zero-to-one-quarter lag, and the readings do not settle it. The record is thin at that last link: it holds no past time positioning sat this far out with a price reading to measure, and the front price does not reach back.\n\nThe energy-side chain agrees where it can be measured: Brent against its own five-year record peaked at the 98th percentile in April 2026 [N116] and reads 0.51 z [N113] at the 68th [N115]; the model expects that to lift the board crush margin, and the readings agree. Of the past times Brent sat this far out, eight had a crush reading to measure -- five moved as the model expects, three the other way; eight more had no reading inside the lag. The crush peaked at the 96th percentile in July 2026 [N112], now the 89th [N111]. Dated report behind that link: soybean oil prices projected to rise by 8 percent in 2026, published 1 April 2026 [E39].\n\nOther current readings: export shipments 775.39 thousand MT [N126], having bottomed at the 3rd percentile in August 2026 [N129] and now the 62nd [N128], rising three weeks; Argentine exports 6.45 MMT for 2026/27 [N117]; harvested area 34.76 M ha [N94] at the 91st percentile [N96]; US dry-spell length at -0.69 z [N37], the wetter side, 11th percentile [N39]. Price: November 2026 delivery settled 1,317.5 US cents/bushel [N1] -- the front-month rule could not run because open interest is not yet published for the session, so this is the nearest listed delivery outside its delivery month, not \"the front month.\" World Bank soybeans August 2026: 482 USD/mt [N12].\n\nDated context, 2026: US soybean exports for 2026/27 raised 30 million bushels on stronger global demand, reported 10 July 2026 [E29]; global oilseed crush projected up 4 percent in 2026/27, reported 12 May 2026 [E5]; strong Chinese demand fuelled record Brazilian area for 2025/26 [E30]. Dry conditions in March and April 2026 depleted soil moisture in northeastern countries [E33], a window now closed.\n\nThe cross-market record from the 2025-01 to 2025-04 episode, an older window, read one way per pair: CBOT soybeans -3.18% [N168] against ZCE rapeseed meal +2.54% [N169] -- the declared same-direction demand-competition relation sat at odds over that window, read on each board's own currency, US dollars and Chinese yuan, with the yuan-per-dollar rate +0.32% [N170] inside that comparison and not removed from it. Soybeans against ZCE rapeseed oil +10.06% [N171] also sat at odds, same currency caveat. Soybeans against CBOT soybean meal -6.64% [N172]: the crush relation held. Soybean meal against soybean oil +4.01% [N173]: the declared opposite-direction relation held. Soybean oil against CME palm oil +4.8% [N174]: held. MATIF rapeseed cannot be read -- that window predates the board's own price history.\n\nSeason-average farm price across the analogue years, USDA survey actuals and not futures settles: fell from $12.40/bu [N166] in MY2023/24 to $10.00/bu [N167] in MY2024/25.\n\nRecency: figures read as of 2026-09-29, newest known 2026-09-28, oldest 2026-04-09; the newest dated document is 2026-08-12; the board price tape runs through 2026-09-28.\n\n## Where the record disagrees\n\nThe measured record splits on this exact chain. Over the 2025-01 to 2025-04 window the model's soy-to-rapeseed demand-competition links sat at odds -- soybeans fell 3.18% [N168] while ZCE rapeseed meal rose 2.54% [N169] and ZCE rapeseed oil rose 10.06% [N171] -- while every link inside the crush complex held: meal -6.64% [N172], oil +4.01% [N173], palm +4.8% [N174]. Read that as: the crush identity transmits reliably; the cross-oilseed substitution link did not, in-sample, on that window only.\n\n## Cross-commodity\n\nThe largest moves carried here are also declared on five other markets -- CBOT soybean meal, CME palm oil, DCE palm olein, DCE soybean meal and ICE cocoa -- each with its own sign and lag. The warm Pacific phase is declared to move CME palm oil and DCE palm olein in the same direction at two-to-four quarters, high confidence; and ICE cocoa in the same direction at one-to-three quarters, medium confidence. Fishmeal substitution, the single largest move on the panel at 4.24 z [N13], 100th percentile of its record since September 2015 [N15], is declared on CBOT soybean meal and DCE soybean meal in the same direction at zero-to-two quarters, medium confidence -- a protein-complex pull that reaches beans through meal.\n\n## What to watch\n\n- **The Pacific warm phase** [N16]: +1.8 degC, July 2026, eight straight months rising, past the strong line at one and a half degC. Its window runs 2026-10-31 to 2027-01-31; next print between 2026-10-01 and 2026-10-05. Wrong if that print turns back inside the line or the run breaks. This is the reading set against the supportive lean.\n- **Board crush** [N109]: 2.43 USD/bu, 23 September 2026, three declared paths run through it onto the price. Window 2026-09-23 to 2026-12-23. Wrong if the next print returns it to the middle of its own record. This prints every session and is the only carried reading that can genuinely turn inside three months.\n- **Export shipments** [N126]: 775.39 thousand MT, week to 17 September 2026, past the ahead line, three weeks rising. Window 2026-09-17 to 2026-12-17; next print 2026-10-01. Wrong if it turns back inside that line or the run breaks.\n- **Fishmeal** [N13]: 4.24 z, August 2026, top decile. Window 2026-08-01 to 2027-02-01. Wrong if the next print returns it to the middle of its record.\n- **US dry-spell length** [N37]: -0.69 z, August 2026, the wetter side; two declared upstream paths land on price through it. Window 2026-08-31 to 2026-11-30. Wrong if it returns to the middle of its record.\n\nWeighed and left: the stocks-to-use ratio [N76] and harvested area [N94] are both past declared lines, but their next print on 2026-10-09 restates a period already reported -- standing context inside a three-month horizon, not a watch item. Scheduled publication dates are the publishers' and stay in the record's own note.",
+"postverify_tldr": "CBOT soybeans read price-supportive into the turn of the year: the US balance sheet is tight at a 10.72% stocks-to-use ratio for 2026/27 [N76], its 23rd percentile and falling three straight years [N78], with crush economics firm at a 2.43 USD/bu board crush margin [N109] and shipments running ahead at 775.39 thousand MT in the week to 17 September 2026 [N126] -- thirteen of the readings served here settle toward a higher price against six toward a lower one, beside a November 2026 delivery settle of 1,317.5 US cents/bushel [N1]. The counterweight is real and named: the tropical Pacific is at +1.8 degC in July 2026 [N16], a warm phase the model signs against soybeans, and managed money sits at the 100th percentile of its own record since August 2023 [N27], which the model reads as reversal risk, not as added fuel. On the three-month horizon the record gives no price range -- the chain from macro demand into soybeans answers the question, but the front price does not reach back to the past times these readings sat this far out.",
+"postverify_mechanism": "## Mechanism\n\nThe physical chain is a demand-pull crush story sitting on a thin cushion. Crush value, not a weather shock, is doing the pulling: firm energy and biofuel demand lift the oil side of the crush, wide crush margins make processors bid for beans, and the drawn-down carryout leaves little slack to absorb any further call on supply. The model signs the tight stocks-to-use ratio as price-supportive at high confidence, the crush margin as price-supportive at high confidence, and a fast export pace as price-supportive at high confidence. Those three point the same way.\n\nAgainst them: a strong warm phase in the tropical Pacific, which the model signs against soybeans at medium confidence with a one-to-two-quarter lag -- the channel is better South American yields, expanding crushable supply. Harvested area is also signed as loosening, at medium confidence. And the crowd is the wrinkle -- the positioning card reads an extreme position as large managed-money net length that amplifies and can overextend price moves, while extreme positioning flags reversal risk. I lean supportive because the balance-sheet and crush legs are high-confidence and already measured, while the warm-phase leg is medium-confidence and works through a South American crop not yet made. That is a model ranking, not a measured attribution.\n\nTwo convergence patterns are partly showing and neither is at its threshold: the crush demand-pull pattern names four conditions and one is counted here; the South American weather squeeze names five and one is counted here (the tight stocks-to-use ratio), with drought and heat stress carrying no series read on this turn. The supply-glut pattern is worse off still -- one condition showing, and the stocks-to-use reading counts against it.\n\n## The record\n\nBalance sheet, known 2026-09-11: 2026/27 ending stocks 310 Million Bushels [N9] against 325 Million Bushels for 2025/26 [N3]; stocks-to-use 10.72% [N11], at the 23rd percentile of its own record [N78]. USDA's own read of 2026/27 is a projection, not a settled year: average farm price 12 $/bu [N10] against the 2025/26 estimate of 10.5 $/bu [N4].\n\nDrivers, in the chain order the record carries. Macro demand: no series is served at this link, and the model expects it to tighten the stocks-to-use ratio, with the readings not settling it; the dated action behind it is Mexico removing soybean oil from its anti-inflation decree in December 2025, still inside the lag the model allows [E19]. Stocks-to-use at 10.72% [N76], 23rd percentile [N78], falling since 2023 -- the model expects this to pull managed money the other way, and the readings agree. Managed money at 265,159 contracts [N25], +2.2 sigma [N26], 100th percentile [N27] -- the model expects it to move price the same way with a zero-to-one-quarter lag, and the readings do not settle it. The record is thin at that last link: it holds no past time positioning sat this far out with a price reading to measure, and the front price does not reach back.\n\nThe energy-side chain agrees where it can be measured: Brent against its own five-year record peaked at the 98th percentile in April 2026 [N116] and reads 0.51 z [N113] at the 68th [N115]; the model expects that to lift the board crush margin, and the readings agree. Of the past times Brent sat this far out, eight had a crush reading to measure -- five moved as the model expects, three the other way; eight more had no reading inside the lag. The crush peaked at the 96th percentile in July 2026 [N112], now the 89th [N111]. Dated report behind that link: soybean oil prices projected to rise by 8 percent in 2026, published 1 April 2026 [E39].\n\nOther current readings: export shipments 775.39 thousand MT [N126], having bottomed at the 3rd percentile in August 2026 [N129] and now the 62nd [N128], rising three weeks; Argentine exports 6.45 MMT for 2026/27 [N117]; harvested area 34.76 M ha [N94] at the 91st percentile [N96]; US dry-spell length at -0.69 z [N37], the wetter side, 11th percentile [N39]. Price: November 2026 delivery settled 1,317.5 US cents/bushel [N1] -- the front-month rule could not run because open interest is not yet published for the session, so this is the nearest listed delivery outside its delivery month, not \"the front month.\" World Bank soybeans August 2026: 482 USD/mt [N12].\n\nDated context, 2026: US soybean exports for 2026/27 raised 30 million bushels on stronger global demand, reported 10 July 2026 [E29]; global oilseed crush projected up 4 percent in 2026/27, reported 12 May 2026 [E5]; strong Chinese demand fuelled record Brazilian area for 2025/26 [E30]. Dry conditions in March and April 2026 depleted soil moisture in northeastern countries [E33], a window now closed.\n\nThe cross-market record from the 2025-01 to 2025-04 episode, an older window, read one way per pair: CBOT soybeans -3.18% [N168] against ZCE rapeseed meal +2.54% [N169] -- the declared same-direction demand-competition relation sat at odds over that window, read on each board's own currency, US dollars and Chinese yuan, with the yuan-per-dollar rate +0.32% [N170] inside that comparison and not removed from it. Soybeans against ZCE rapeseed oil +10.06% [N171] also sat at odds, same currency caveat. Soybeans against CBOT soybean meal -6.64% [N172]: the crush relation held. Soybean meal against soybean oil +4.01% [N173]: the declared opposite-direction relation held. Soybean oil against CME palm oil +4.8% [N174]: held. MATIF rapeseed cannot be read -- that window predates the board's own price history.\n\nSeason-average farm price across the analogue years, USDA survey actuals and not futures settles: fell from $12.40/bu [N166] in MY2023/24 to $10.00/bu [N167] in MY2024/25.\n\nRecency: figures read as of 2026-09-29, newest known 2026-09-28, oldest 2026-04-09; the newest dated document is 2026-08-12; the board price tape runs through 2026-09-28.\n\n## Where the record disagrees\n\nThe measured record splits on this exact chain. Over the 2025-01 to 2025-04 window the model's soy-to-rapeseed demand-competition links sat at odds -- soybeans fell 3.18% [N168] while ZCE rapeseed meal rose 2.54% [N169] and ZCE rapeseed oil rose 10.06% [N171] -- while every link inside the crush complex held: meal -6.64% [N172], oil +4.01% [N173], palm +4.8% [N174]. Read that as: the crush identity transmits reliably; the cross-oilseed substitution link did not, in-sample, on that window only.\n\n## Cross-commodity\n\nThe largest moves carried here are also declared on five other markets -- CBOT soybean meal, CME palm oil, DCE palm olein, DCE soybean meal and ICE cocoa -- each with its own sign and lag. The warm Pacific phase is declared to move CME palm oil and DCE palm olein in the same direction at two-to-four quarters, high confidence; and ICE cocoa in the same direction at one-to-three quarters, medium confidence. Fishmeal substitution, the single largest move on the panel at 4.24 z [N13], 100th percentile of its record since September 2015 [N15], is declared on CBOT soybean meal and DCE soybean meal in the same direction at zero-to-two quarters, medium confidence -- a protein-complex pull that reaches beans through meal.\n\n## What to watch\n\n- **The Pacific warm phase** [N16]: +1.8 degC, July 2026, eight straight months rising, past the strong line at one and a half degC. Its window runs 2026-10-31 to 2027-01-31; next print between 2026-10-01 and 2026-10-05. Wrong if that print turns back inside the line or the run breaks. This is the reading set against the supportive lean.\n- **Board crush** [N109]: 2.43 USD/bu, 23 September 2026, three declared paths run through it onto the price. Window 2026-09-23 to 2026-12-23. Wrong if the next print returns it to the middle of its own record. This prints every session and is the only carried reading that can genuinely turn inside three months.\n- **Export shipments** [N126]: 775.39 thousand MT, week to 17 September 2026, past the ahead line, three weeks rising. Window 2026-09-17 to 2026-12-17; next print 2026-10-01. Wrong if it turns back inside that line or the run breaks.\n- **Fishmeal** [N13]: 4.24 z, August 2026, top decile. Window 2026-08-01 to 2027-02-01. Wrong if the next print returns it to the middle of its record.\n- **US dry-spell length** [N37]: -0.69 z, August 2026, the wetter side; two declared upstream paths land on price through it. Window 2026-08-31 to 2026-11-30. Wrong if it returns to the middle of its record.\n\nWeighed and left: the stocks-to-use ratio [N76] and harvested area [N94] are both past declared lines, but their next print on 2026-10-09 restates a period already reported -- standing context inside a three-month horizon, not a watch item. Scheduled publication dates are the publishers' and stay in the record's own note."
+},
+"served_rows": [
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "1317.5",
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 3,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "1317.5",
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "ending_stocks",
+"country": "united_states",
+"status": "ok",
+"row_count": 2,
+"rows": [
+{
+"period": "2025/26",
+"estimate_role": "estimate",
+"value": "325.0",
+"unit": "Million Bushels",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+},
+{
+"period": "2025/26",
+"estimate_role": "estimate",
+"value": "8.85",
+"unit": "MMT",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "avg_farm_price",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2025/26",
+"estimate_role": "estimate",
+"value": "10.5",
+"unit": "$/bu",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2025",
+"estimate_role": null,
+"value": "0.11746971950701232",
+"unit": null,
+"country": "United States",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "gold_board_crush",
+"metric": "crush_margin_usd_bu",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "cbot_board_crush_v1",
+"value": "2.4323000000000015",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-09-23"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "265159",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-09-22"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net_z_3yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "2.1612",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-09-22"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "ending_stocks",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026/27",
+"estimate_role": "projection",
+"value": "310.0",
+"unit": "Million Bushels",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "avg_farm_price",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026/27",
+"estimate_role": "projection",
+"value": "12.0",
+"unit": "$/bu",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026",
+"estimate_role": null,
+"value": "0.10719961351182984",
+"unit": null,
+"country": "United States",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "soybeans_usd_t",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": "482.0",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "fish_meal_usd_t_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 4.240515768649893,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "fish_meal_usd_t_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.7,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "fish_meal_usd_t_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 100,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.8,
+"unit": "degC",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.4,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 93,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 404097.0,
+"unit": "contracts",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.2,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 98,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "beginning_stocks_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 177.148,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "beginning_stocks_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -2.2,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "beginning_stocks_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 84,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 265159.0,
+"unit": "contracts",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.2,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 100,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_production_livestock",
+"metric": "live_animals",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 87.1574,
+"unit": "million head",
+"country": null,
+"knowledge_date": "2026-08-26"
+}
+]
+},
+{
+"table": "silver_production_livestock",
+"metric": "live_animals",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.9,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-08-26"
+}
+]
+},
+{
+"table": "silver_production_livestock",
+"metric": "live_animals",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-08-26"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.041646761887121,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.7,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "cny_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 6.7105,
+"unit": "local currency per USD",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "cny_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.3,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "cny_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 15,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.6934105262343867,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.3,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 11,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 35.817,
+"unit": "M ha",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.2,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 98,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "consumption_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 14.501999999999999,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "consumption_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.1,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "consumption_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 96,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Feed Waste Dom. Cons.",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 14.022,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Feed Waste Dom. Cons.",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.1,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Feed Waste Dom. Cons.",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 96,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 11.802,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.1,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 98,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Crush",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 20.0,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Crush",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.1,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Crush",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 98,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1900.0469999999998,
+"unit": "1000 MT",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.0,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 85,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "FSI Consumption",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 176.665,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "FSI Consumption",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.9,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "FSI Consumption",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 98,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "imports_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.8,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "imports_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.9,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "imports_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 94,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Feed Dom. Consumption",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 151.137,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Feed Dom. Consumption",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.9,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Feed Dom. Consumption",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 95,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.5315172188774722,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.8,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 26,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Ukraine",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 22.0,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Ukraine",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.7,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Ukraine",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 81,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "imports_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 5.0,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "imports_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.7,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "imports_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 89,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 10.719961351182985,
+"unit": "%",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.7,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 23,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "natural_gas_us_usd_mmbtu_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.5361503933627537,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "natural_gas_us_usd_mmbtu_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.7,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "natural_gas_us_usd_mmbtu_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 34,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 12.139340211469118,
+"unit": "%",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.6,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 16,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Russia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3.6999999999999997,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Russia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.6,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Russia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 74,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.11253557279815038,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.5,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 63,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "Canada",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.3054411819984705,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "Canada",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.5,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "Canada",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 74,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 34.755,
+"unit": "M ha",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.4,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 91,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "dap_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.248211231434669,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "dap_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.4,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "dap_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 81,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "gdd_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.7468087578393264,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "gdd_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.3,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "gdd_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 67,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_noaa_iod",
+"metric": "dmi_value",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.11,
+"unit": "degC",
+"country": null,
+"knowledge_date": "2026-09-14"
+}
+]
+},
+{
+"table": "silver_noaa_iod",
+"metric": "dmi_value",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.3,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-14"
+}
+]
+},
+{
+"table": "silver_noaa_iod",
+"metric": "dmi_value",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 37,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-14"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "mxn_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 17.765,
+"unit": "local currency per USD",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "mxn_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.3,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "mxn_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 32,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "gold_board_crush",
+"metric": "crush_margin_usd_bu",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.4323000000000015,
+"unit": "USD/bu",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "gold_board_crush",
+"metric": "crush_margin_usd_bu",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.3,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "gold_board_crush",
+"metric": "crush_margin_usd_bu",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 89,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "gold_board_crush",
+"metric": "crush_margin_usd_bu",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 96,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.5072943423080404,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.1,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 68,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 98,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Argentina",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 6.449999999999999,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Argentina",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.1,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Argentina",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 61,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Peru",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.025,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-04-09"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Peru",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.1,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-04-09"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Peru",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 44,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-04-09"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "brl_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 5.2018,
+"unit": "local currency per USD",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "brl_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.0,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "brl_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 47,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 775.3919999999998,
+"unit": "1000 MT",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.0,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 62,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "heat_stress_z",
+"country": "Canada",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.10677333922468396,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "heat_stress_z",
+"country": "Canada",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 59,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2337.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -10.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -52.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -20.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 63 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 97.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 71,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 10134.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -102.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 21.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 63 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 480.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 85,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 527.5,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.5,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -3.0,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 4.0,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 63 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 88.0,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 94,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "fish_meal_usd_t_zscore_5yr",
+"country": "",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.0,
+"unit": "z",
+"country": null,
+"knowledge_date": "2023-03-13"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "fish_meal_usd_t_zscore_5yr",
+"country": "",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.0778,
+"unit": "z",
+"country": null,
+"knowledge_date": "2023-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "fish_meal_usd_t_zscore_5yr",
+"country": "",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.0,
+"unit": "z",
+"country": null,
+"knowledge_date": "2021-08-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "fish_meal_usd_t_zscore_5yr",
+"country": "",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.0135,
+"unit": "z",
+"country": null,
+"knowledge_date": "2022-02-10"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": "United States",
+"status": "ok",
+"row_count": 4,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "-0.46",
+"unit": null,
+"country": null,
+"knowledge_date": null
+},
+{
+"period": null,
+"estimate_role": null,
+"value": 0.02,
+"unit": "degC",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": "United States",
+"status": "ok",
+"row_count": 3,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "-0.57",
+"unit": null,
+"country": null,
+"knowledge_date": null
+},
+{
+"period": null,
+"estimate_role": null,
+"value": -0.6,
+"unit": "degC",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.8,
+"unit": "degC",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": 0.5072943423080404,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2027",
+"estimate_role": null,
+"value": 775.392,
+"unit": "1000 MT",
+"country": null,
+"knowledge_date": "20260924",
+"_fold": {
+"axis": "destination",
+"rule": "sum",
+"n": 36
+}
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026",
+"estimate_role": null,
+"value": 1.496,
+"unit": "1000 MT",
+"country": null,
+"knowledge_date": "20260924",
+"_fold": {
+"axis": "destination",
+"rule": "sum",
+"n": 27
+}
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom_pace_change",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.41,
+"unit": "degC",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom_pace_streak",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 5,
+"unit": "months",
+"country": null,
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.5124,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 164.219,
+"unit": "1000 MT",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt_pace_streak",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3,
+"unit": "weeks",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.698,
+"unit": "1000 MT",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "avg_farm_price",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "actual",
+"value": 12.4,
+"unit": "$/bu",
+"country": null,
+"knowledge_date": "2026-04-09"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "avg_farm_price",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "actual",
+"value": 10.0,
+"unit": "$/bu",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle_change_pct",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -3.1828,
+"unit": "%",
+"country": null,
+"knowledge_date": "2025-04-01"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle_change_pct",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.5362,
+"unit": "%",
+"country": null,
+"knowledge_date": "2025-04-01"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "exchange rate change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.3201,
+"unit": "percent change in Chinese yuan per US dollar",
+"country": null,
+"knowledge_date": "2025-04-01"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle_change_pct",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 10.0615,
+"unit": "%",
+"country": null,
+"knowledge_date": "2025-04-01"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle_change_pct",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -6.6432,
+"unit": "%",
+"country": null,
+"knowledge_date": "2025-04-01"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle_change_pct",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 4.0123,
+"unit": "%",
+"country": null,
+"knowledge_date": "2025-04-01"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle_change_pct",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 4.8007,
+"unit": "%",
+"country": null,
+"knowledge_date": "2025-04-01"
+}
+]
+}
+],
+"state_board": {
+"asof": "2026-09-29",
+"ask_netting": {
+"opposing": [
+16
+],
+"tape": 136,
+"by_market": {
+"rapeseed_meal_zce": {
+"opposing": [
+{
+"handle": 16,
+"row_id": "rapeseed_meal_zce|El_Nino|oni_climate|_global|",
+"side": "against",
+"value": 1.8,
+"unit": "degC"
+}
+],
+"tape": {
+"handle": 136,
+"window": "63 sessions",
+"direction": "up",
+"value": 97.0,
+"unit": "CNY/t",
+"row_id": "rapeseed_meal_zce||silver_futures_eod|rapeseed_meal_zce|2027-01"
+}
+},
+"rapeseed_oil_zce": {
+"opposing": [
+{
+"handle": 16,
+"row_id": "rapeseed_oil_zce|El_Nino|oni_climate|_global|",
+"side": "against",
+"value": 1.8,
+"unit": "degC"
+}
+],
+"tape": {
+"handle": 142,
+"window": "63 sessions",
+"direction": "up",
+"value": 480.0,
+"unit": "CNY/t",
+"row_id": "rapeseed_oil_zce||silver_futures_eod|rapeseed_oil_zce|2027-01"
+}
+},
+"corn_cbot": {
+"opposing": [
+{
+"handle": 16,
+"row_id": "corn_cbot|El_Nino|oni_climate|_global|",
+"side": "against",
+"value": 1.8,
+"unit": "degC"
+}
+],
+"tape": {
+"handle": 148,
+"window": "63 sessions",
+"direction": "up",
+"value": 88.0,
+"unit": "US cents/bushel",
+"row_id": "corn_cbot||silver_futures_eod|corn_cbot|2026-12"
+}
+}
+}
+},
+"chains": [
+{
+"rendered": true,
+"hops": [
+{
+"driver_id": "macro_demand",
+"measured": false
+},
+{
+"driver_id": "psd_ending_stock_su_ratio",
+"measured": true
+},
+{
+"driver_id": "cot_mm_positioning",
+"measured": true
+}
+]
+},
+{
+"rendered": true,
+"hops": [
+{
+"driver_id": "crude_oil",
+"measured": true
+},
+{
+"driver_id": "soybean_crush_margin",
+"measured": true
+},
+{
+"driver_id": "psd_ending_stock_su_ratio",
+"measured": true
+}
+]
+},
+{
+"rendered": true,
+"hops": [
+{
+"driver_id": "import_tariff",
+"measured": false
+},
+{
+"driver_id": "export_pace_lag",
+"measured": true
+},
+{
+"driver_id": "psd_ending_stock_su_ratio",
+"measured": true
+}
+]
+},
+{
+"rendered": true,
+"hops": [
+{
+"driver_id": "macro_demand",
+"measured": false
+},
+{
+"driver_id": "psd_ending_stock_su_ratio",
+"measured": true
+},
+{
+"driver_id": "cot_mm_positioning",
+"measured": true
+}
+]
+}
+],
+"block_sentences": [
+{
+"cls": "SB-C",
+"text": "- crush demand-pull rally (price-supportive) on soybeans: one of the four conditions it names is showing here (the board crush margin, read here for soybean crush margin, with its own [N] z);"
+},
+{
+"cls": "SB-C",
+"text": "soybean crush margin and board crush are one reading and count once here;"
+},
+{
+"cls": "SB-C",
+"text": "two more are named by the pattern with no series read here, so not counted (biodiesel mandate and RFS);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for two, and one is counted here;"
+},
+{
+"cls": "SB-C",
+"text": "none of them carries a declared desk band"
+},
+{
+"cls": "SB-C",
+"text": "- supply glut (price-pressuring) on soybeans: one of the five conditions it names is showing here (harvested area for United States, read here for area, with its own [N] z);"
+},
+{
+"cls": "SB-C",
+"text": "one of them reads in the tail opposite the one the pattern names (the stocks-to-use ratio for United States, read here for psd ending stock su ratio), so it counts against the pattern here;"
+},
+{
+"cls": "SB-C",
+"text": "two more are named by the pattern with no series read here, so not counted (soy dollar and USD index);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for three, and one is counted here;"
+},
+{
+"cls": "SB-C",
+"text": "none of them carries a declared desk band"
+},
+{
+"cls": "SB-C",
+"text": "- South American weather squeeze (price-supportive) on soybeans: one of the five conditions it names is showing here (the stocks-to-use ratio for United States, read here for psd ending stock su ratio, with its own [N] z);"
+},
+{
+"cls": "SB-C",
+"text": "two more are named by the pattern with no series read here, so not counted (drought and heat stress);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for three, and one is counted here;"
+},
+{
+"cls": "SB-C",
+"text": "one carries a declared desk band"
+},
+{
+"cls": "SB-C",
+"text": "- protein-meal glut with demand loss (price-pressuring) on ZCE rapeseed meal: two of the seven conditions it names are showing here (imports for China, read here for china rapeseed import and production for China, read here for brazil soybean supply, each with its own [N] z);"
+},
+{
+"cls": "SB-C",
+"text": "china rapeseed import and china soybean import are one reading and count once here;"
+},
+{
+"cls": "SB-C",
+"text": "one more is named by the pattern with no series read here, so not counted (china rsm stocks);"
+},
+{
+"cls": "SB-C",
+"text": "one more is named by the pattern as a dated policy action, and no action in the direction the pattern names stands on the record at this date, so not counted (domestic feed and waste use for China, read here for china feed protein destocking);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for three, and two are counted here;"
+},
+{
+"cls": "SB-C",
+"text": "none of them carries a declared desk band"
+},
+{
+"cls": "SB-C",
+"text": "- Canadian feedstock squeeze (price-supportive) on ZCE rapeseed meal: four of the seven conditions it names are showing here (the longest dry-day run in the month, as a z-score for Canada, read here for prairie drought, which reads on the high side (longer dry spells than usual, so drier), the heat-stress anomaly for Canada, read here for heat stress, which reads on the high side (more heat stress than usual), production for China, read here for EU rapeseed supply and the Indian Ocean dipole index, read here for IOD positive, each with its own [N] z);"
+},
+{
+"cls": "SB-C",
+"text": "one of them reads in the tail opposite the one the pattern names (imports for China, read here for china rapeseed import), so it counts against the pattern here;"
+},
+{
+"cls": "SB-C",
+"text": "one more is named by the pattern with no series read here, so not counted (china canada canola dispute);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for three, and four are counted here;"
+},
+{
+"cls": "SB-C",
+"text": "none of them carries a declared desk band"
+},
+{
+"cls": "SB-C",
+"text": "- protein substitution pull (price-supportive) on ZCE rapeseed meal: two of the six conditions it names are showing here (domestic consumption for China, read here for aquaculture feed demand and domestic feed and waste use for China, read here for hog herd demand, each with its own [N] z);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for three, and two are counted here;"
+},
+{
+"cls": "SB-C",
+"text": "none of them carries a declared desk band"
+}
+]
+}
+},
+"page": "**TL;DR.** CBOT soybeans read price-supportive into the turn of the year: the US balance sheet is tight at a 10.72% stocks-to-use ratio for 2026/27 [N11], its 23rd percentile and falling three straight years [N78], with crush economics firm at a 2.43 USD/bu board crush margin [N109] and shipments running ahead at 775.39 thousand MT in the week to 17 September 2026 [N126] -- thirteen of the readings served here settle toward a higher price against six toward a lower one, beside a November 2026 delivery settle of 1,317.5 US cents/bushel [N1]. The counterweight is real and named: the tropical Pacific is at +1.8 degC in July 2026 [N16], a warm phase the model signs against soybeans, and managed money sits at the 100th percentile of its own record since August 2023 [N27], which the model reads as reversal risk, not as added fuel. On the three-month horizon the record gives no price range -- the chain from macro demand into soybeans answers the question, but the front price does not reach back to the past times these readings sat this far out.\n\n## Mechanism\n\nThe physical chain is a demand-pull crush story sitting on a thin cushion. Crush value, not a weather shock, is doing the pulling: firm energy and biofuel demand lift the oil side of the crush, wide crush margins make processors bid for beans, and the drawn-down carryout leaves little slack to absorb any further call on supply. The model signs the tight stocks-to-use ratio as price-supportive at high confidence, the crush margin as price-supportive at high confidence, and a fast export pace as price-supportive at high confidence. Those three point the same way.\n\nAgainst them: a strong warm phase in the tropical Pacific, which the model signs against soybeans at medium confidence with a one-to-two-quarter lag -- the channel is better South American yields, expanding crushable supply. Harvested area is also signed as loosening, at medium confidence. And the crowd is the wrinkle -- the positioning card reads an extreme position as large managed-money net length that amplifies and can overextend price moves, while extreme positioning flags reversal risk. I lean supportive because the balance-sheet and crush legs are high-confidence and already measured, while the warm-phase leg is medium-confidence and works through a South American crop not yet made. That is a model ranking, not a measured attribution.\n\nTwo convergence patterns are partly showing and neither is at its threshold: the crush demand-pull pattern names four conditions and one is counted here; the South American weather squeeze names five and one is counted here (the tight stocks-to-use ratio), with drought and heat stress carrying no series read on this turn (a served reading bears on this: [N130] = 0.11 z, August 2026, read 2026-09-05). The supply-glut pattern is worse off still -- one condition showing, and the stocks-to-use reading counts against it.\n\n## The record\n\nBalance sheet, known 2026-09-11: 2026/27 ending stocks 310 Million Bushels [N9] against 325 Million Bushels for 2025/26 [N3]; stocks-to-use 10.72% [N11], at the 23rd percentile of its own record [N78]. USDA's own read of 2026/27 is a projection, not a settled year: average farm price 12 $/bu [N10] against the 2025/26 estimate of 10.5 $/bu [N4].\n\nDrivers, in the chain order the record carries. Macro demand: no series is served at this link, and the model expects it to tighten the stocks-to-use ratio, with the readings not settling it; the dated action behind it is Mexico removing soybean oil from its anti-inflation decree in December 2025, still inside the lag the model allows [E19]. Stocks-to-use at 10.72% [N11], 23rd percentile [N78], falling since 2023 -- the model expects this to pull managed money the other way, and the readings agree. Managed money at 265,159 contracts [N25], +2.2 sigma [N26], 100th percentile [N27] -- the model expects it to move price the same way with a zero-to-one-quarter lag, and the readings do not settle it. The record is thin at that last link: it holds no past time positioning sat this far out with a price reading to measure, and the front price does not reach back.\n\nThe energy-side chain agrees where it can be measured: Brent against its own five-year record peaked at the 98th percentile in April 2026 [N116] and reads 0.51 z [N113] at the 68th [N115]; the model expects that to lift the board crush margin, and the readings agree. Of the past times Brent sat this far out, eight had a crush reading to measure -- five moved as the model expects, three the other way; eight more had no reading inside the lag. The crush peaked at the 96th percentile in July 2026 [N112], now the 89th [N111]. Dated report behind that link: soybean oil prices projected to rise by 8 percent in 2026, published 1 April 2026 [E39].\n\nOther current readings: export shipments 775.39 thousand MT [N126], having bottomed at the 3rd percentile in August 2026 [N129] and now the 62nd [N128], rising three weeks; Argentine exports 6.45 MMT for 2026/27 [N117]; harvested area 34.76 M ha [N94] at the 91st percentile [N96]; US dry-spell length at -0.69 z [N37], the wetter side, 11th percentile [N39]. Price: November 2026 delivery settled 1,317.5 US cents/bushel [N1] -- the front-month rule could not run because open interest is not yet published for the session, so this is the nearest listed delivery outside its delivery month, not \"the front month.\" World Bank soybeans August 2026: 482 USD/mt [N12].\n\nDated context, 2026: US soybean exports for 2026/27 raised 30 million bushels on stronger global demand, reported 10 July 2026 [E29]; global oilseed crush projected up 4 percent in 2026/27, reported 12 May 2026 [E5]; strong Chinese demand fuelled record Brazilian area for 2025/26 [E30]. Dry conditions in March and April 2026 depleted soil moisture in northeastern countries [E33], a window now closed.\n\nThe cross-market record from the 2025-01 to 2025-04 episode, an older window, read one way per pair: CBOT soybeans -3.18% [N168] against ZCE rapeseed meal +2.54% [N169] -- the declared same-direction demand-competition relation sat at odds over that window, read on each board's own currency, US dollars and Chinese yuan, with the yuan-per-dollar rate +0.32% [N170] inside that comparison and not removed from it. Soybeans against ZCE rapeseed oil +10.06% [N171] also sat at odds, same currency caveat. Soybeans against CBOT soybean meal -6.64% [N172]: the crush relation held. Soybean meal against soybean oil +4.01% [N173]: the declared opposite-direction relation held. Soybean oil against CME palm oil +4.8% [N174]: held. MATIF rapeseed cannot be read -- that window reaches back before our own price history for that market.\n\nSeason-average farm price across the analogue years, USDA survey actuals and not futures settles: fell from $12.40/bu [N166] in MY2023/24 to $10.00/bu [N167] in MY2024/25.\n\nRecency: figures read as of 2026-09-29, newest known 2026-09-28, oldest 2026-04-09; the newest dated document is 2026-08-12; the board price tape runs through 2026-09-28.\n\n## Where the record disagrees\n\nThe measured record splits on this exact chain. Over the 2025-01 to 2025-04 window the model's soy-to-rapeseed demand-competition links sat at odds -- soybeans fell 3.18% [N168] while ZCE rapeseed meal rose 2.54% [N169] and ZCE rapeseed oil rose 10.06% [N171] -- while every link inside the crush complex held: meal -6.64% [N172], oil +4.01% [N173], palm +4.8% [N174]. Read that as: the crush identity transmits reliably; the cross-oilseed substitution link did not, in-sample, on that window only.\n\n## Cross-commodity\n\nThe largest moves carried here are also declared on five other markets -- CBOT soybean meal, CME palm oil, DCE palm olein, DCE soybean meal and ICE cocoa -- each with its own sign and lag. The warm Pacific phase is declared to move CME palm oil and DCE palm olein in the same direction at two-to-four quarters, high confidence; and ICE cocoa in the same direction at one-to-three quarters, medium confidence. Fishmeal substitution, the single largest move on the panel at 4.24 z [N13], 100th percentile of its record since September 2015 [N15], is declared on CBOT soybean meal and DCE soybean meal in the same direction at zero-to-two quarters, medium confidence -- a protein-complex pull that reaches beans through meal.\n\n## What to watch\n\n- **The Pacific warm phase** [N16]: +1.8 degC, July 2026, eight straight months rising, past the strong line at one and a half degC. Its window runs 2026-10-31 to 2027-01-31; next print between 2026-10-01 and 2026-10-05. Wrong if that print turns back inside the line or the run breaks. This is the reading set against the supportive lean.\n- **Board crush** [N109]: 2.43 USD/bu, 23 September 2026, three declared paths run through it onto the price. Window 2026-09-23 to 2026-12-23. Wrong if the next print returns it to the middle of its own record. This prints every session and is the only carried reading that can genuinely turn inside three months.\n- **Export shipments** [N126]: 775.39 thousand MT, week to 17 September 2026, past the ahead line, three weeks rising. Window 2026-09-17 to 2026-12-17; next print 2026-10-01. Wrong if it turns back inside that line or the run breaks.\n- **Fishmeal** [N13]: 4.24 z, August 2026, top decile. Window 2026-08-01 to 2027-02-01. Wrong if the next print returns it to the middle of its record.\n- **US dry-spell length** [N37]: -0.69 z, August 2026, the wetter side; two declared upstream paths land on price through it. Window 2026-08-31 to 2026-11-30. Wrong if it returns to the middle of its record.\n\nWeighed and left: the stocks-to-use ratio [N11] and harvested area [N94] are both past declared lines, but their next print on 2026-10-09 restates a period already reported -- standing context inside a three-month horizon, not a watch item. Scheduled publication dates are the publishers' and stay in the record's own note.\n\n**Cascade / convergence**\n\n## Sources\n[E5] USDA WASDE (2026-05-12): Combined global oilseed crush for major oilseeds \u2013 soybeans, rapeseed, and sunflowerseed \u2013 is projected to increase by 4 percent in 2026/27 ...\n[E29] USDA WASDE (2026-07-10): U.S. soybean exports for 2026/27 are raised 30 million bushels on increased supplies and stronger global demand.\n[E30] USDA World Agricultural Production (2026-01-01): Strong global demand, especially from China, has fueled Brazil soybean area expansion to a new record for MY 2025/26.\n[E33] USDA World Agricultural Production (2026-05-01): Dryness during March and April depleted soil moisture levels in northeastern countries.\n[E19] USDA FAS GAIN Report \u2014 Soybean Meal (2026-03-31): From January 1, 2025, through December 31, 2026, soybean oil imports from countries without a free trade agreement with Mexico, including Ar...\n[E39] World Bank Commodity Markets Outlook (2026-04-01): Soybean oil prices are projected to rise by 8 percent in 2026.\n[N1] FUTURES EOD settlement price CBOT soybeans 2026 nearest listed delivery 2026-11 = 1,317.5 US cents/bushel, 2026 (exchange settlement, USD)  [known 2026-09-25]\n[N3] USDA WASDE ending stocks soybeans united_states MY2025/26 USDA estimate = 325 Million Bushels for 2025/26 [2 rows served; newest shown]  [known 2026-09-11]\n[N4] USDA WASDE average farm price soybeans united_states MY2025/26 USDA estimate = $10.50/bu for 2025/26  [known 2026-09-11]\n[N9] USDA WASDE ending stocks soybeans united_states MY2026/27 USDA projection = 310 Million Bushels for 2026/27  [known 2026-09-11]\n[N10] USDA WASDE average farm price soybeans united_states MY2026/27 USDA projection = $12.00/bu for 2026/27  [known 2026-09-11]\n[N11] USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) CBOT soybeans United States MY2026 = 10.72 % of domestic use for 2026/27  [known 2026-09-11]\n[N12] World Bank Pink Sheet soybeans price 2026-08-01 = $482.00/mt, August 2026  [known 2026-09-10]\n[N13] World Bank Pink Sheet fish meal price 5-year z-score  global 2026-08-01 = 4.24 z, August 2026  [known 2026-09-10]\n[N15] World Bank Pink Sheet fish meal price 5-year z-score  global 2026-08-01 = 100 percentile, August 2026  [known 2026-09-10]\n[N16] NOAA ONI ONI anomaly  global 2026-07 = +1.8 degC, July 2026  [known 2026-09-05]\n[N25] COT managed-money net position CBOT soybeans 2026-09-22 = 265,159 contracts, week to 22 September 2026  [known 2026-09-28]\n[N26] COT managed-money net position CBOT soybeans 2026-09-22 vs 156 points of its own history = 2.2 sigma, week to 22 September 2026  [known 2026-09-28]\n[N27] COT managed-money net position CBOT soybeans 2026-09-22 = 100 percentile, week to 22 September 2026  [known 2026-09-28]\n[N37] GOLD WEATHER Z drought z-score CBOT soybeans the mean over the United States growing cells 2026-08 = -0.69 z, August 2026  [known 2026-09-25]\n[N39] GOLD WEATHER Z drought z-score CBOT soybeans the mean over the United States growing cells 2026-08 = 11 percentile, August 2026  [known 2026-09-25]\n[N78] USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) CBOT soybeans United States MY2026 = 23 percentile for 2026/27  [known 2026-09-11]\n[N94] USDA PSD area harvested CBOT soybeans United States MY2026 = 34.76 M ha for 2026/27  [known 2026-09-11]\n[N96] USDA PSD area harvested CBOT soybeans United States MY2026 = 91 percentile for 2026/27  [known 2026-09-11]\n[N109] GOLD BOARD CRUSH board crush margin  global 2026-09-23 = $2.43/bu, 23 September 2026  [known 2026-09-24]\n[N111] GOLD BOARD CRUSH board crush margin  global 2026-09-23 = 89 percentile, 23 September 2026  [known 2026-09-24]\n[N112] GOLD BOARD CRUSH board crush margin  global 2026-07-17 highest reading inside 2026-06-29..2026-09-29 = 96 percentile, 17 July 2026  [known 2026-09-24]\n[N113] World Bank Pink Sheet brent crude price 5-year z-score  global 2026-08-01 = 0.51 z, August 2026  [known 2026-09-10]\n[N115] World Bank Pink Sheet brent crude price 5-year z-score  global 2026-08-01 = 68 percentile, August 2026  [known 2026-09-10]\n[N116] World Bank Pink Sheet brent crude price 5-year z-score  global 2026-04-01 highest reading inside 2026-03-29..2026-09-29 = 98 percentile, April 2026  [known 2026-09-10]\n[N117] USDA PSD exports CBOT soybeans Argentina MY2026 = 6.45 MMT for 2026/27  [known 2026-09-11]\n[N126] USDA FAS Export Sales (ESR) weekly exports CBOT soybeans summed over every destination 2026-09-17 = 775.39 1000 MT shipped in the week, week to 17 September 2026  [known 2026-09-24]\n[N128] USDA FAS Export Sales (ESR) weekly exports CBOT soybeans summed over every destination 2026-09-17 = 62 percentile, week to 17 September 2026  [known 2026-09-24]\n[N129] USDA FAS Export Sales (ESR) weekly exports CBOT soybeans summed over every destination 2026-08-06 lowest reading inside 2026-06-29..2026-09-29 = 3 percentile, week to 6 August 2026  [known 2026-09-24]\n[N130] GOLD WEATHER Z heat-stress z-score ZCE rapeseed meal the mean over the Canada growing cells 2026-08 = 0.11 z, August 2026  [known 2026-09-05]\n[N166] USDA WASDE average farm price soybeans united_states MY2023/24 USDA actual = $12.40/bu for 2023/24 (latest available 2026-04-09; as-of 2026-09-29)  [known 2026-04-09]\n[N167] USDA WASDE average farm price soybeans united_states MY2024/25 USDA actual = $10.00/bu for 2024/25  [known 2026-09-11]\n[N168] FUTURES EOD settle_change_pct CBOT soybeans 2025-01..2025-04 delivery 2025-05 = -3.18 %, 2025-01 to 2025-04 (exchange settlement, USD) (latest available 2025-04-02; as-of 2026-09-29)  [known 2025-04-02]\n[N169] FUTURES EOD settle_change_pct ZCE rapeseed meal 2025-01..2025-04 delivery 2025-05 = 2.54 %, 2025-01 to 2025-04 (exchange settlement, CNY) (latest available 2025-04-02; as-of 2026-09-29)  [known 2025-04-02]\n[N170] ECB reference rates exchange rate change Chinese yuan per US dollar 2025-01-24..2025-04-01 = 0.32 percent change in Chinese yuan per US dollar, 2025-01-24 to 2025-04-01 (latest available 2025-04-01; as-of 2026-09-29)  [known 2025-04-01]\n[N171] FUTURES EOD settle_change_pct ZCE rapeseed oil 2025-01..2025-04 delivery 2025-05 = 10.06 %, 2025-01 to 2025-04 (exchange settlement, CNY) (latest available 2025-04-02; as-of 2026-09-29)  [known 2025-04-02]\n[N172] FUTURES EOD settle_change_pct CBOT soybean meal 2025-01..2025-04 delivery 2025-05 = -6.64 %, 2025-01 to 2025-04 (exchange settlement, USD) (latest available 2025-04-02; as-of 2026-09-29)  [known 2025-04-02]\n[N173] FUTURES EOD settle_change_pct CBOT soybean oil 2025-01..2025-04 delivery 2025-05 = 4.01 %, 2025-01 to 2025-04 (exchange settlement, USD) (latest available 2025-04-02; as-of 2026-09-29)  [known 2025-04-02]\n[N174] FUTURES EOD settle_change_pct CME palm oil 2025-01..2025-04 delivery 2025-05 = 4.8 %, 2025-01 to 2025-04 (exchange settlement, USD) (latest available 2025-04-02; as-of 2026-09-29)  [known 2025-04-02]\n"
+}

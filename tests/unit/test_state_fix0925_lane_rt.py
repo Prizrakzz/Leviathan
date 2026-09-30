@@ -221,7 +221,11 @@ def test_RT2_a_ranked_cell_identity_says_which_cell_and_every_other_identity_is_
     mean = dataclasses.replace(ident, cell_rule="mean_of_cells")
     assert mean.grain_words() == "" and "mean over the United States growing cells" in mean.scope_words()
     f = list(ROWS.RowIdentity.__dataclass_fields__)
-    assert f[-2:] == ["cell_rank", "cell_extreme"], "appended at the TAIL; readers read defensively"
+    # 09-29 FIX SITTING 4 (lane R, R4-1, CONTRACT C4-9) -- MOVED PIN, CAUSE: `short` (the series' short name) is appended
+    # AT THE TAIL after cell_extreme; the claim is unchanged -- the RT-2 fields ride the tail, every earlier one keeps
+    # its place, and readers read defensively.
+    assert f[-3:-1] == ["cell_rank", "cell_extreme"], "appended at the TAIL; readers read defensively"
+    assert f[-1:] == ["short"]
 
 
 # ── RT-3: THE SIDE A READING SITS ON, IN THE SERIES' OWN WORDS ────────────────────────────────────────────────

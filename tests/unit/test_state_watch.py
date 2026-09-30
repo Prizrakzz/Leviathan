@@ -304,8 +304,15 @@ def test_a_PARTIAL_fill_never_denies_the_rows_printed_above_it():
     for line in lines:
         assert R.classify(line) == ("SB-X",), line
         assert not any(ch.isdigit() for ch in line)
-    # and the coverage instrument's zero-admission probe keys on the FULL line, never the partial one
-    assert lines[0].startswith("BOARD ABSENCE a forward item on this page")
+    # and the coverage instrument's zero-admission probe keys on the FULL absence, never the partial one.
+    # 09-29 FIX SITTING 4 (AN4-1) MOVED THIS PIN, CAUSE QUOTED: it read the label's literal "BOARD ABSENCE a forward
+    # item on this page", which was the probe's key until sitting 3's lane R moved the probe onto the manifest's
+    # REASON word (render.py `watch_absence`); the label now reads that word through `watch.WATCH_ABSENCE_LABELS` in
+    # the book's words ("here", the register table's column for the charged token "this page"). THE CLAIM IS KEPT:
+    # the FULL line carries the full absence's own label and the partial line does not.
+    assert lines[0].startswith("BOARD ABSENCE %s:" % WA.WATCH_ABSENCE_LABELS["watch_floor_unmet"])
+    assert not lines[1].startswith("BOARD ABSENCE %s:" % WA.WATCH_ABSENCE_LABELS["watch_floor_unmet"])
+    assert "this page" not in lines[0] + lines[1]
 
 
 def test_the_floor_clauses_are_five_and_the_tail_clause_never_reads_a_convention():

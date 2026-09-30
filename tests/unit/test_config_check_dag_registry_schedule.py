@@ -120,8 +120,12 @@ def test_the_roster_is_forty_two_lints():
     # The message matters more than the count (round-2 review MINOR-5): the 45th clause anyone adds
     # ANYWHERE in the estate reds a deck named for this lane, and a bare assert would tell its
     # author nothing about why a file they never opened is failing.
-    assert labels[-3] == "dag_registry_schedule" and labels[-2] == "numbers_card_fields"
-    assert len(labels) == 44 and labels[-1] == "wasde_line_map", (
+    # MOVED 2026-09-29 (FIX SITTING 4, LANE T, CONTRACT C4-15, DECLARED): 45 -- `product_class_words` (the book key
+    # `registry.product_class` reads) APPENDED at the tail; `wasde_line_map` second-to-last, `numbers_card_fields`
+    # third-, `dag_registry_schedule` fourth-to-last, each in its own place. The claim kept: append-never-insert.
+    assert labels[-4] == "dag_registry_schedule" and labels[-3] == "numbers_card_fields"
+    assert labels[-2] == "wasde_line_map"
+    assert len(labels) == 45 and labels[-1] == "product_class_words", (
         f"the config_check roster is now {len(labels)} clauses ending {labels[-1]!r}. If you "
         f"APPENDED a clause at the tail, that is the law this roster keeps (append-never-insert) "
         f"and this count is the thing to update -- here and in check_dag_registry_schedule's "

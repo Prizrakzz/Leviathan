@@ -1,0 +1,1767 @@
+{
+"source": "smoke 2026-09-29 run 1 (cold), treatment quick",
+"source_sha256": "c87355b96db1891f2120dd68dcc36c41d97f712e2112ab0d046f72a82dd0c959",
+"tree": "596f4452",
+"reduction": "census-read keys only, every kept value verbatim (see README.txt)",
+"record": {
+"id": "rv_corn_wheat",
+"writer_seam": {
+"outcome": "ok",
+"prose_words": 678,
+"prose_ceiling": 450,
+"prose_over_budget": 228,
+"superlatives_corrected": 0,
+"classes_corrected": 0,
+"superlatives_seen": 1,
+"superlatives_unbound": 1,
+"classes_unbound": 0,
+"superlative_articles_fixed": 0,
+"superlatives_negated": 0,
+"stale_rows_dated": 3,
+"stale_sentences": 2,
+"lag_windows_checked": 0,
+"lag_windows_corrected": 0,
+"lag_windows_subject_bound": 0,
+"lag_windows_negated": 0,
+"watch_bullets": 3,
+"watch_figures_added": 0,
+"watch_no_figure": 0,
+"watch_no_window": 1,
+"watch_no_falsifier": 0,
+"watch_over_ceiling": 0,
+"watch_section_seen": 1,
+"watch_figures_rounded": 0,
+"decline_words_corrected": 0,
+"metric_labels_corrected": 0,
+"absence_claims_checked": 0,
+"absence_rows_appended": 0,
+"served_row_duplicate_groups": 5,
+"served_rows_duplicated": 5,
+"ceiling_cut_proposed_paragraphs": 2,
+"ceiling_cut_proposed_handles": [
+14,
+16,
+54
+],
+"ceiling_cut_proposed_words": 88,
+"ceiling_kept_over": 1,
+"name_binding": {
+"outcome": "ok",
+"sentences": 19,
+"bindings": 31,
+"routing_corrected": 0,
+"commodity_corrected": 0,
+"unit_corrected": 0,
+"period_corrected": 0,
+"name_unbound": 0,
+"period_duration_kept": 0,
+"period_unanchored": 0,
+"noun_unlicensed_kept": 5
+},
+"mandate_census": {
+"words": 2312,
+"sentences": 92,
+"asks": 46,
+"facts_required": 27,
+"rules": 19,
+"exactly_as": 0,
+"undeclared_words": 0,
+"foreign_words": 200,
+"by_part": {
+"panel": 37,
+"state_board_mandate": 1111,
+"writer_seam": 317,
+"ask_head": 59,
+"ask_call": 116,
+"watch_selection": 200,
+"desk_register": 472
+}
+}
+},
+"raw_draft": {
+"tldr": "Corn's US sheet is the tight one and wheat's is the loose one: corn's stocks-to-use sits at 12.14% of domestic use [N11], in the 16th percentile of its own record [N49] and past the desk's tight line, against 65.22% for all-classes US wheat [N12] \u2014 so the feed-substitution edge runs in wheat's favour, with corn the dearer grain per bushel ([N63] 527.5 US cents/bushel for December 2026 corn against [N69] 707 for December 2026 CBOT srw wheat, a gap the record prints only as the spread [N13] of -179.5 US cents/bushel, corn under wheat). Corn's own reading count leans four up, three down beside a front price in the 94th percentile of its sessions [N68] and up 88 US cents over sixty-three sessions [N67]; wheat's leans two up, seven down beside [N73] and a collapsed harvested area [N14], so on the pair I lean corn-supportive and wheat's flat price carried by acreage, not by feed demand.",
+"mechanism": "## Mechanism\nThe tracked link is two-way and opposite in sign. Cheap feed wheat substitutes for corn in rations, pulling corn feed demand down; higher corn prices lift the feed-wheat floor and support wheat. Which leg dominates is set by the relative price, and on this settle corn sits under wheat [N13] \u2014 meaning wheat is not the cheap ration grain here, so the substitution channel is not currently draining corn feed demand.\n\nCorn's supportive readings: export shipments at 1,900 1000 MT in the week to 17 September 2026 [N38], ahead of its band, running into a stocks-to-use ratio past the tight line [N47] \u2014 the model records these two as amplifying each other, fast exports against a thin buffer. That is two of the three conditions the demand-pull pattern names. Against it, the warm-phase Pacific reading at +1.8 degC [N17], +2.4 sigma [N18], is declared to push corn the other way on a one-to-three-quarter lag.\n\nWheat's own sheet is loose on stocks but its area reading is the largest move on this board: 12.97 M ha [N14], 1st percentile [N16], falling two years. Low area is price-supportive with a one-to-three-quarter lag; weak shipments at 43.1 1000 MT [N54], behind, offset it.\n\n## Cross-commodity\n- CBOT corn, United States: 12.14% of domestic use [N11].\n- Wheat, all classes, United States: 65.22% of domestic use [N12].\nEach on its own marketing year; corn's buffer is razor-thin against wheat's ample cushion, so a corn supply shock is convex and right-tailed while wheat's absorbs one. The largest moves here are also declared on CME palm oil, in that market's own direction and lag.\n\n## The record\nCorn: production 15,800 Million Bushels [N1], ending stocks 1,567 [N2], domestic use 12,905 [N3], farm price 4.8 $/bu [N4] (2026/27 USDA projection). Wheat: production 1,531 [N5], ending stocks 717 [N6], domestic use 1,099 [N7], farm price 6.4 $/bu [N8]. Feed use runs 151,137 1000 MT corn [N9] against 2,177 for wheat [N10]. Past episode: the season-average corn farm price, a survey-based USDA actual, rose from $3.56/bu [N90] to $4.53/bu [N91]. The corn chain the record follows \u2014 fertilizer into area into stocks into price \u2014 is dark at two links; its fertilizer reading [N50] runs against the direction the model expects. Dated documents reach only 2024-04-24; the feed-substitution items are older ([E1] 2021, [E4] 2011), so the mechanism is documented but not current.\n\n## What to watch\n- Warm-phase Pacific anomaly [N17]: +1.8 degC, July 2026, past the strong line, eight months rising; effect window 2026-10-31 to 2027-04-30; wrong if the next print turns back inside 1.5 degC.\n- US wheat harvested area [N14]: 12.97 M ha, known 2026-09-11, bottom decile; wrong if the next print returns it to mid-record.\n- Blended fertilizer reading [N51]: -0.5 sigma, August 2026, four months falling toward the depressed line; window 2026-11-01 to 2027-05-01; wrong if the run breaks first.\nLeft aside: the palm oil spillover, which belongs to that market.",
+"preverify_tldr": "Corn's US sheet is the tight one and wheat's is the loose one: corn's stocks-to-use sits at 12.14% of domestic use [N11], in the 16th percentile of its own record [N49] and past the desk's tight line, against 65.22% for all-classes US wheat [N12] \u2014 so the feed-substitution edge runs in wheat's favour, with corn the dearer grain per bushel ([N63] 527.5 US cents/bushel for December 2026 corn against [N69] 707 for December 2026 CBOT srw wheat, a gap the record prints only as the spread [N13] of -179.5 US cents/bushel, corn under wheat). Corn's own reading count leans four up, three down beside a front price in the 94th percentile of its sessions [N68] and up 88 US cents over sixty-three sessions [N67]; wheat's leans two up, seven down beside [N73] and a collapsed harvested area [N14], so on the pair I lean corn-supportive and wheat's flat price carried by acreage, not by feed demand.",
+"preverify_mechanism": "## Mechanism\nThe tracked link is two-way and opposite in sign. Cheap feed wheat substitutes for corn in rations, pulling corn feed demand down; higher corn prices lift the feed-wheat floor and support wheat. Which leg dominates is set by the relative price, and on this settle corn sits under wheat [N13] \u2014 meaning wheat is not the cheap ration grain here, so the substitution channel is not currently draining corn feed demand.\n\nCorn's supportive readings: export shipments at 1,900 1000 MT in the week to 17 September 2026 [N38], ahead of its band, running into a stocks-to-use ratio past the tight line [N47] \u2014 the model records these two as amplifying each other, fast exports against a thin buffer. That is two of the three conditions the demand-pull pattern names. Against it, the warm-phase Pacific reading at +1.8 degC [N17], +2.4 sigma [N18], is declared to push corn the other way on a one-to-three-quarter lag.\n\nWheat's own sheet is loose on stocks but its area reading is the largest move on this board: 12.97 M ha [N14], 1st percentile [N16], falling two years. Low area is price-supportive with a one-to-three-quarter lag; weak shipments at 43.1 1000 MT [N54], behind, offset it.\n\n## Cross-commodity\n- CBOT corn, United States: 12.14% of domestic use [N11].\n- Wheat, all classes, United States: 65.22% of domestic use [N12].\nEach on its own marketing year; corn's buffer is razor-thin against wheat's ample cushion, so a corn supply shock is convex and right-tailed while wheat's absorbs one. The largest moves here are also declared on CME palm oil, in that market's own direction and lag.\n\n## The record\nCorn: production 15,800 Million Bushels [N1], ending stocks 1,567 [N2], domestic use 12,905 [N3], farm price 4.8 $/bu [N4] (2026/27 USDA projection). Wheat: production 1,531 [N5], ending stocks 717 [N6], domestic use 1,099 [N7], farm price 6.4 $/bu [N8]. Feed use runs 151,137 1000 MT corn [N9] against 2,177 for wheat [N10]. Past episode: the season-average corn farm price, a survey-based USDA actual, rose from $3.56/bu [N90] to $4.53/bu [N91]. The corn chain the record follows \u2014 fertilizer into area into stocks into price \u2014 is dark at two links; its fertilizer reading [N50] runs against the direction the model expects. Dated documents reach only 2024-04-24; the feed-substitution items are older ([E1] 2021, [E4] 2011), so the mechanism is documented but not current.\n\n## What to watch\n- Warm-phase Pacific anomaly [N17]: +1.8 degC, July 2026, past the strong line, eight months rising; effect window 2026-10-31 to 2027-04-30; wrong if the next print turns back inside 1.5 degC.\n- US wheat harvested area [N14]: 12.97 M ha, known 2026-09-11, bottom decile; wrong if the next print returns it to mid-record.\n- Blended fertilizer reading [N51]: -0.5 sigma, August 2026, four months falling toward the depressed line; window 2026-11-01 to 2027-05-01; wrong if the run breaks first.\nLeft aside: the palm oil spillover, which belongs to that market.",
+"postverify_tldr": "Corn's US sheet is the tight one and wheat's is the loose one: corn's stocks-to-use sits at 12.14% of domestic use [N11], in the 16th percentile of its own record [N49] and past the desk's tight line, against 65.22% for all-classes US wheat [N12] \u2014 so the feed-substitution edge runs in wheat's favour, with corn the dearer grain per bushel ([N63] 527.5 US cents/bushel for December 2026 corn against [N69] 707 for December 2026 CBOT srw wheat, a gap the record prints only as the spread [N13] of -179.5 US cents/bushel, corn under wheat). Corn's own reading count leans four up, three down beside a front price in the 94th percentile of its sessions [N68] and up 88 US cents over sixty-three sessions [N67]; wheat's leans two up, seven down beside [N73] and a collapsed harvested area [N14], so on the pair I lean corn-supportive and wheat's flat price carried by acreage, not by feed demand.",
+"postverify_mechanism": "## Mechanism\nThe tracked link is two-way and opposite in sign. Cheap feed wheat substitutes for corn in rations, pulling corn feed demand down; higher corn prices lift the feed-wheat floor and support wheat. Which leg dominates is set by the relative price, and on this settle corn sits under wheat [N13] \u2014 meaning wheat is not the cheap ration grain here, so the substitution channel is not currently draining corn feed demand.\n\nCorn's supportive readings: export shipments at 1,900 1000 MT in the week to 17 September 2026 [N38], ahead of its band, running into a stocks-to-use ratio past the tight line [N47] [N49] \u2014 the model records these two as amplifying each other, fast exports against a thin buffer. That is two of the three conditions the demand-pull pattern names. Against it, the warm-phase Pacific reading at +1.8 degC [N17], +2.4 sigma [N18], is declared to push corn the other way on a one-to-three-quarter lag.\n\nWheat's own sheet is loose on stocks but its area reading is the largest move on this board: 12.97 M ha [N14], 1st percentile [N16], falling two years. Low area is price-supportive with a one-to-three-quarter lag; weak shipments at 43.1 1000 MT [N54], behind, offset it.\n\n## Cross-commodity\n- CBOT corn, United States: 12.14% of domestic use [N11].\n- Wheat, all classes, United States: 65.22% of domestic use [N12].\nEach on its own marketing year; corn's buffer is razor-thin against wheat's ample cushion, so a corn supply shock is convex and right-tailed while wheat's absorbs one. The largest moves here are also declared on CME palm oil, in that market's own direction and lag.\n\n## The record\nCorn: production 15,800 Million Bushels [N1], ending stocks 1,567 [N2], domestic use 12,905 [N3], farm price 4.8 $/bu [N4] (2026/27 USDA projection). Wheat: production 1,531 [N5], ending stocks 717 [N6], domestic use 1,099 [N7], farm price 6.4 $/bu [N8]. Feed use runs 151,137 1000 MT corn [N9] against 2,177 for wheat [N10]. Past episode: the season-average corn farm price, a survey-based USDA actual, rose from $3.56/bu [N90] to $4.53/bu [N91]. The corn chain the record follows \u2014 fertilizer into area into stocks into price \u2014 is dark at two links; its fertilizer reading [N50] runs against the direction the model expects. Dated documents reach only 2024-04-24; the feed-substitution items are older ( 2021, [E4] 2011), so the mechanism is documented but not current.\n\n## What to watch\n- Warm-phase Pacific anomaly [N17]: +1.8 degC, July 2026, past the strong line, eight months rising; effect window 2026-10-31 to 2027-04-30; wrong if the next print turns back inside 1.5 degC.\n- US wheat harvested area [N14]: 12.97 M ha, known 2026-09-11, bottom decile; wrong if the next print returns it to mid-record.\n- Blended fertilizer reading [N51]: -0.5 sigma, August 2026, four months falling toward the depressed line; window 2026-11-01 to 2027-05-01; wrong if the run breaks first.\nLeft aside: the palm oil spillover, which belongs to that market."
+},
+"served_rows": [
+{
+"table": "silver_wasde",
+"metric": "production",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026/27",
+"estimate_role": "projection",
+"value": "15800.0",
+"unit": "Million Bushels",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "ending_stocks",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026/27",
+"estimate_role": "projection",
+"value": "1567.0",
+"unit": "Million Bushels",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "domestic_total",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026/27",
+"estimate_role": "projection",
+"value": "12905.0",
+"unit": "Million Bushels",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "avg_farm_price",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026/27",
+"estimate_role": "projection",
+"value": "4.8",
+"unit": "$/bu",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "production",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026/27",
+"estimate_role": "projection",
+"value": "1531.0",
+"unit": "Million Bushels",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "ending_stocks",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026/27",
+"estimate_role": "projection",
+"value": "717.0",
+"unit": "Million Bushels",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "domestic_total",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026/27",
+"estimate_role": "projection",
+"value": "1099.0",
+"unit": "Million Bushels",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "avg_farm_price",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026/27",
+"estimate_role": "projection",
+"value": "6.4",
+"unit": "$/bu",
+"country": "united_states",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Feed Dom. Consumption",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026",
+"estimate_role": null,
+"value": "151137.0",
+"unit": "(1000 MT)",
+"country": "United States",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Feed Dom. Consumption",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026",
+"estimate_role": null,
+"value": "2177.0",
+"unit": "(1000 MT)",
+"country": "United States",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026",
+"estimate_role": null,
+"value": "0.12139340211469118",
+"unit": null,
+"country": "United States",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026",
+"estimate_role": null,
+"value": "0.6521782740980976",
+"unit": null,
+"country": "United States",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle difference, CBOT corn minus CBOT srw wheat",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -179.5,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 12.971,
+"unit": "M ha",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -2.5,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.8,
+"unit": "degC",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.4,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 93,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 404097.0,
+"unit": "contracts",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.2,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_cot",
+"metric": "mm_net",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 98,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "beginning_stocks_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 177.148,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "beginning_stocks_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -2.2,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "beginning_stocks_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 84,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_production_livestock",
+"metric": "live_animals",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 87.1574,
+"unit": "million head",
+"country": null,
+"knowledge_date": "2026-08-26"
+}
+]
+},
+{
+"table": "silver_production_livestock",
+"metric": "live_animals",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.9,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-08-26"
+}
+]
+},
+{
+"table": "silver_production_livestock",
+"metric": "live_animals",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-08-26"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.041646761887121,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.7,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.076313327214626,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.6,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 35.817,
+"unit": "M ha",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.2,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 98,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1900.0469999999998,
+"unit": "1000 MT",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.0,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 85,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.5315172188774722,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.8,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 26,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "natural_gas_us_usd_mmbtu_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.5361503933627537,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "natural_gas_us_usd_mmbtu_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.7,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "natural_gas_us_usd_mmbtu_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 34,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 12.139340211469118,
+"unit": "%",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.6,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "United States",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 16,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.11253557279815038,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.5,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 63,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 79,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 43.105,
+"unit": "1000 MT",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.5,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 38,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "dap_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.248211231434669,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "dap_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.4,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "dap_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 81,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.5072943423080404,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.1,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 68,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 527.5,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.5,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -3.0,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 4.0,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 63 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 88.0,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 94,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 707.0,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -1.5,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -20.0,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3.75,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 63 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 83.0,
+"unit": "US cents/bushel",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 92,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 233.25,
+"unit": "EUR/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -3.5,
+"unit": "EUR/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -10.5,
+"unit": "EUR/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -3.5,
+"unit": "EUR/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 19,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": -0.5315172188774722,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": -0.5315172188774722,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "imports_mt",
+"country": "China",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2026",
+"estimate_role": null,
+"value": 5.0,
+"unit": "MMT",
+"country": "China",
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": "2027",
+"estimate_role": null,
+"value": 43.105,
+"unit": "1000 MT",
+"country": null,
+"knowledge_date": "20260924",
+"_fold": {
+"axis": "destination",
+"rule": "sum",
+"n": 30
+}
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.0487,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr_pace_streak",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 4,
+"unit": "months",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.0487,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr_pace_streak",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 4,
+"unit": "months",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -30.8,
+"unit": "1000 MT",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_esr",
+"metric": "weekly_exports_1000mt_pace_streak",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2,
+"unit": "weeks",
+"country": null,
+"knowledge_date": "20260924"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "avg_farm_price",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "actual",
+"value": 3.56,
+"unit": "$/bu",
+"country": null,
+"knowledge_date": "2022-04-08"
+}
+]
+},
+{
+"table": "silver_wasde",
+"metric": "avg_farm_price",
+"country": "united_states",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "actual",
+"value": 4.53,
+"unit": "$/bu",
+"country": null,
+"knowledge_date": "2023-04-11"
+}
+]
+}
+],
+"state_board": {
+"asof": "2026-09-29",
+"ask_netting": {
+"opposing": [
+17
+],
+"tape": 67,
+"by_market": {
+"corn_cbot": {
+"opposing": [
+{
+"handle": 17,
+"row_id": "corn_cbot|El_Nino|oni_climate|_global|",
+"side": "against",
+"value": 1.8,
+"unit": "degC"
+}
+],
+"tape": {
+"handle": 67,
+"window": "63 sessions",
+"direction": "up",
+"value": 88.0,
+"unit": "US cents/bushel",
+"row_id": "corn_cbot||silver_futures_eod|corn_cbot|2026-12"
+}
+},
+"soft_red_winter_wheat_cbot": {
+"opposing": [
+{
+"handle": 14,
+"row_id": "soft_red_winter_wheat_cbot|area|area|soft_red_winter_wheat_cbot|United States",
+"side": "for",
+"value": 12.971,
+"unit": "M ha"
+}
+],
+"tape": {
+"handle": 73,
+"window": "63 sessions",
+"direction": "up",
+"value": 83.0,
+"unit": "US cents/bushel",
+"row_id": "soft_red_winter_wheat_cbot||silver_futures_eod|soft_red_winter_wheat_cbot|2026-12"
+}
+},
+"french_wheat_matif": {
+"opposing": [
+{
+"handle": 41,
+"row_id": "french_wheat_matif|urea_cost|urea_z|_global|",
+"side": "against",
+"value": -0.5315172188774722,
+"unit": "z"
+}
+],
+"tape": {
+"handle": 78,
+"window": "21 sessions",
+"direction": "down",
+"value": -3.5,
+"unit": "EUR/t",
+"row_id": "french_wheat_matif||silver_futures_eod|french_wheat_matif|2026-12"
+}
+}
+}
+},
+"chains": [
+{
+"rendered": true,
+"hops": [
+{
+"driver_id": "area",
+"measured": true
+},
+{
+"driver_id": "ending_stocks",
+"measured": false
+},
+{
+"driver_id": "calendar_spread",
+"measured": false
+}
+]
+},
+{
+"rendered": true,
+"hops": [
+{
+"driver_id": "fertilizer_cost",
+"measured": true
+},
+{
+"driver_id": "area",
+"measured": true
+},
+{
+"driver_id": "ending_stocks",
+"measured": false
+},
+{
+"driver_id": "calendar_spread",
+"measured": false
+}
+]
+}
+],
+"block_sentences": [
+{
+"cls": "SB-C",
+"text": "- demand-pull rally (price-supportive) on CBOT corn: two of the eight conditions it names are showing here (weekly export shipments, read here for export pace and the stocks-to-use ratio for United States, read here for ending stocks su ratio, each with its own [N] z);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for three, and two are counted here;"
+},
+{
+"cls": "SB-C",
+"text": "two carry a declared desk band"
+}
+]
+}
+},
+"page": "**TL;DR.** Corn's US sheet is the tight one and wheat's is the loose one: corn's stocks-to-use sits at 12.14% of domestic use [N11], in the 16th percentile of its own record [N49] and past the desk's tight line, against 65.22% for all-classes US wheat [N12] \u2014 so the feed-substitution edge runs in wheat's favour, with corn the dearer grain per bushel ([N63] 527.5 US cents/bushel for December 2026 corn against [N69] 707 for December 2026 CBOT srw wheat, a gap the record prints only as the spread [N13] of -179.5 US cents/bushel, corn under wheat). Corn's own reading count leans four up, three down beside a front price in the 94th percentile of its sessions [N68] and up 88 US cents over sixty-three sessions [N67]; wheat's leans two up, seven down beside [N73] and a collapsed harvested area [N14], so on the pair I lean corn-supportive and wheat's flat price carried by acreage, not by feed demand.\n\n## Mechanism\nThe tracked link is two-way and opposite in sign. Cheap feed wheat substitutes for corn in rations, pulling corn feed demand down; higher corn prices lift the feed-wheat floor and support wheat. Which leg dominates is set by the relative price, and on this settle corn sits under wheat [N13] \u2014 meaning wheat is not the cheap ration grain here, so the substitution channel is not currently draining corn feed demand (read 2026-09-24).\n\nCorn's supportive readings: export shipments at 1,900 1000 MT in the week to 17 September 2026 [N38], ahead of its band, running into a stocks-to-use ratio past the tight line [N11] [N49] \u2014 the model records these two as amplifying each other, fast exports against a thin buffer. That is two of the three conditions the demand-pull pattern names. Against it, the warm-phase Pacific reading at +1.8 degC [N17], +2.4 sigma [N18], is declared to push corn the other way on a one-to-three-quarter lag.\n\nWheat's own sheet is loose on stocks but its area reading is the largest move on this board: 12.97 M ha [N14], 1st percentile [N16], falling two years (N14, N16 read 2026-09-11). Low area is price-supportive with a one-to-three-quarter lag; weak shipments at 43.1 1000 MT [N54], behind, offset it.\n\nOne chain the data carries runs from harvested area, all classes, for United States [N14] through calendar spread to KCBT hrw wheat; the readings agree with the direction the model expects at zero of three links.\n\n## Cross-commodity\n- CBOT corn, United States: 12.14% of domestic use [N11].\n- Wheat, all classes, United States: 65.22% of domestic use [N12].\nEach on its own marketing year; corn's buffer is razor-thin against wheat's ample cushion, so a corn supply shock is convex and right-tailed while wheat's absorbs one. The largest moves here are also declared on CME palm oil, in that market's own direction and lag.\n\n## The record\nCorn: production 15,800 Million Bushels [N1], ending stocks 1,567 [N2], domestic use 12,905 [N3], farm price 4.8 $/bu [N4] (2026/27 USDA projection). Wheat: production 1,531 [N5], ending stocks 717 [N6], domestic use 1,099 [N7], farm price 6.4 $/bu [N8]. Feed use runs 151,137 1000 MT corn [N9] against 2,177 for wheat [N10]. Past episode: the season-average corn farm price, a survey-based USDA actual, rose from $3.56/bu [N90] to $4.53/bu [N91]. The corn chain the record follows \u2014 fertilizer into area into stocks into price \u2014 is dark at two links; its fertilizer reading [N50] runs against the direction the model expects. Dated documents reach only 2024-04-24; the feed-substitution items are older (2021, [E4] 2011), so the mechanism is documented but not current.\n\n## What to watch\n- Warm-phase Pacific anomaly [N17]: +1.8 degC, July 2026, past the strong line, eight months rising; effect window 2026-10-31 to 2027-04-30; wrong if the next print turns back inside 1.5 degC.\n- US wheat harvested area [N14]: 12.97 M ha, known 2026-09-11, bottom decile; wrong if the next print returns it to mid-record.\n- Blended fertilizer reading [N51]: -0.5 sigma, August 2026, four months falling toward the depressed line; window 2026-11-01 to 2027-05-01; wrong if the run breaks first.\nLeft aside: the palm oil spillover, which belongs to that market.\n\n**Cascade / convergence**\n\n## Sources\n[E4] USDA WASDE (2011-04-08): U.S. corn feed and residual use is lowered 50 million bushels as increased prospects for 2011 SRW wheat production and higher year-to-year c...\n[N1] USDA WASDE production corn united_states MY2026/27 USDA projection = 15,800 Million Bushels for 2026/27  [known 2026-09-11]\n[N2] USDA WASDE ending stocks corn united_states MY2026/27 USDA projection = 1,567 Million Bushels for 2026/27  [known 2026-09-11]\n[N3] USDA WASDE total domestic use corn united_states MY2026/27 USDA projection = 12,905 Million Bushels for 2026/27  [known 2026-09-11]\n[N4] USDA WASDE average farm price corn united_states MY2026/27 USDA projection = $4.80/bu for 2026/27  [known 2026-09-11]\n[N5] USDA WASDE production wheat united_states MY2026/27 USDA projection = 1,531 Million Bushels for 2026/27  [known 2026-09-11]\n[N6] USDA WASDE ending stocks wheat united_states MY2026/27 USDA projection = 717 Million Bushels for 2026/27  [known 2026-09-11]\n[N7] USDA WASDE total domestic use wheat united_states MY2026/27 USDA projection = 1,099 Million Bushels for 2026/27  [known 2026-09-11]\n[N8] USDA WASDE average farm price wheat united_states MY2026/27 USDA projection = $6.40/bu for 2026/27  [known 2026-09-11]\n[N9] PSD ATTRIBUTES feed use CBOT corn United States MY2026 = 151,137 (1000 MT) for 2026/27  [known 2026-09-11]\n[N10] PSD ATTRIBUTES feed use wheat (all classes) United States MY2026 = 2,177 (1000 MT) for 2026/27  [known 2026-09-11]\n[N11] USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) CBOT corn United States MY2026 = 12.14 % of domestic use for 2026/27  [known 2026-09-11]\n[N12] USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) wheat (all classes) United States MY2026 = 65.22 % of domestic use for 2026/27  [known 2026-09-11]\n[N13] FUTURES EOD settle difference, CBOT corn minus CBOT srw wheat CBOT corn 2026-09-24 = -179.5 US cents/bushel, 2026-09-24  [known 2026-09-24]\n[N14] USDA PSD area harvested wheat (all classes) United States MY2026 = 12.97 M ha for 2026/27  [known 2026-09-11]\n[N16] USDA PSD area harvested wheat (all classes) United States MY2026 = 1 percentile for 2026/27  [known 2026-09-11]\n[N17] NOAA ONI ONI anomaly  global 2026-07 = +1.8 degC, July 2026  [known 2026-09-05]\n[N18] NOAA ONI ONI anomaly  global 2026-07 vs 120 points of its own history = 2.4 sigma, July 2026  [known 2026-09-05]\n[N38] USDA FAS Export Sales (ESR) weekly exports CBOT corn summed over every destination 2026-09-17 = 1,900 1000 MT shipped in the week, week to 17 September 2026  [known 2026-09-24]\n[N49] USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) CBOT corn United States MY2026 = 16 percentile for 2026/27  [known 2026-09-11]\n[N50] World Bank Pink Sheet blended NPK fertilizer index 5-year z-score  global 2026-08-01 = -0.11 z, August 2026  [known 2026-09-10]\n[N51] World Bank Pink Sheet blended NPK fertilizer index 5-year z-score  global 2026-08-01 vs 60 points of its own history = -0.5 sigma, August 2026  [known 2026-09-10]\n[N54] USDA FAS Export Sales (ESR) weekly exports CBOT srw wheat summed over every destination 2026-09-17 = 43.1 1000 MT shipped in the week, week to 17 September 2026  [known 2026-09-24]\n[N63] FUTURES EOD settlement price CBOT corn 2026-12 = 527.5 US cents/bushel, 2026-12  [known 2026-09-25]\n[N67] FUTURES EOD settle change over 63 sessions CBOT corn 2026-12 = 88 US cents/bushel, 2026-12  [known 2026-09-25]\n[N68] FUTURES EOD settle percentile CBOT corn 2026-12 = 94 percentile, 2026-12  [known 2026-09-25]\n[N69] FUTURES EOD settlement price CBOT srw wheat 2026-12 = 707 US cents/bushel, 2026-12  [known 2026-09-25]\n[N73] FUTURES EOD settle change over 63 sessions CBOT srw wheat 2026-12 = 83 US cents/bushel, 2026-12  [known 2026-09-25]\n[N90] USDA WASDE average farm price corn united_states MY2019/20 USDA actual = $3.56/bu for 2019/20 (latest available 2022-04-08; as-of 2026-09-29)  [known 2022-04-08]\n[N91] USDA WASDE average farm price corn united_states MY2020/21 USDA actual = $4.53/bu for 2020/21 (latest available 2023-04-11; as-of 2026-09-29)  [known 2023-04-11]\n"
+}

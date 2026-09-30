@@ -40,6 +40,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass, field, replace
+from dataclasses import fields as dataclass_fields
 from concurrent.futures import ThreadPoolExecutor
 from typing import NamedTuple, Optional
 
@@ -449,7 +450,7 @@ def resolve_anchors(*, contracts=(), named=(), attached_event: Optional[str] = N
                     focus_driver: str = "", graph=None, max_contracts: int = 2,
                     positioning_ids=(), cold_start: bool = False, cold_start_priced=None,
                     cold_start_knobs: Optional[B.BoardKnobs] = None, key_fn=None,
-                    subject=()) -> tuple:
+                    subject=(), question_class=None) -> tuple:
     """The ANCHOR SET and every anchor's `source` (sec 3.1 + sec 16 Amendments 1 and 2).
 
     THE PRECEDENCE, and each step is a decision the design records:
@@ -495,13 +496,84 @@ def resolve_anchors(*, contracts=(), named=(), attached_event: Optional[str] = N
          admitted order into wave 1 so the cap admits the priced set and NAMES the rest.
 
     Duplicates collapse to their STRONGEST source, in this order -- a market that is both named and
-    inferred is a NAMED anchor and is never truncated."""
+    inferred is a NAMED anchor and is never truncated.
+
+    **THE ANCHOR OF A PRICED QUESTION IS A PRICED CONTRACT** (the 09-29 fix sitting 4, lane W's call site; CONTRACT
+    C4-18, S4-1 / S4-2). Every seat goes through ONE call, ``board.priced_anchor`` (lane S's resolver over the
+    contract registry: ``futures_eod_contracts.PRICE_COVERAGE_START`` + ``commodity_hierarchy.yaml``; zero reads),
+    before it is collapsed: a slug with a price record stays ITSELF with HEAD's anchor byte for byte (``priced``);
+    a generic graph slug with ONE priced contract of its product is seated on that contract, and a slug the resolver
+    keeps (several priced, none priced) carries the resolver's note naming why -- the smoke's max page anchored the
+    graph DAG ``soybeans`` (no per-contract tape: 8 front declines, 0 price reads) where arm A anchored
+    ``soybeans_cbot``. ``question_class`` (the class group the question's own words name,
+    ``subject.named_product_class``, passed by the caller) is handed ONLY for the seats the QUESTION named -- a
+    ``named`` market and a ``planner_inferred`` seed, the planner's reading of the question's markets -- so
+    "rapeseed oil" seats the oil and never the seed -- with the turn's own seats beside it (``seated``: the named
+    markets and the planner's seeds, the facts the resolver's class move is fail-closed without, passed where its
+    signature takes them); a board anchored because it carries a driver (``focus_driver``,
+    ``subject``), an attached event and a cold start are resolved with no class, because the question's product
+    is not theirs. ``B.priced_anchor`` absent (or raising) -> HEAD's seat as given. The dispatch seeds and every
+    flag-off path never reach this function (owner decision O-S4-2). The rejected lexical form: an alias table from
+    product words to contracts."""
     picked: dict = {}
+    _pa = getattr(B, "priced_anchor", None)
+    # the resolver's own word for "this seat is its own priced contract" (lane S's ANCHOR_RESOLUTION_REASONS[0])
+    _priced = str((tuple(getattr(B, "ANCHOR_RESOLUTION_REASONS", ())) or ("priced",))[0])
+    _resolved: dict = {}
+    _anchor_fields = {f.name for f in dataclass_fields(B.Anchor)}
+    # THE TURN'S OWN SEATS -- the markets the question named and the planner's seeds -- are the facts the resolver's
+    # class move is fail-closed without (lane S's ``seated``); read by a signature probe, never passed blind.
+    _seats = tuple(dict.fromkeys(str(x).strip() for x in tuple(named or ()) + tuple(contracts or ())
+                                 if str(x or "").strip()))
+    try:
+        import inspect as _inspect
+        _pa_seated = _pa is not None and "seated" in _inspect.signature(_pa).parameters
+    except (TypeError, ValueError):                     # an unintrospectable resolver takes HEAD's call shape
+        _pa_seated = False
+
+    def _resolve(slug: str, qclass) -> tuple:
+        """``(contract, note, reason)`` for one seed -- ``(slug, "", "priced")`` wherever the resolver keeps HEAD's
+        seat or is absent. Memoised per ``(slug, class)`` so a seed resolves once per call."""
+        key = (slug, None if qclass is None else str(qclass))
+        if not slug:
+            return (slug, "", _priced)
+        if key in _resolved:
+            return _resolved[key]
+        got = (slug, "", _priced)
+        if _pa is not None:
+            try:
+                _kw = {"seated": _seats} if (_pa_seated and qclass is not None) else {}
+                res = _pa(slug, graph=graph, question_class=qclass, **_kw)
+            except Exception:                           # noqa: BLE001 -- a resolver failure keeps HEAD's seat
+                res = None
+            reason = str((res or {}).get("reason") or "") if isinstance(res, dict) else ""
+            if reason and reason != _priced:
+                got = (str(res.get("contract") or "").strip() or slug, str(res.get("note") or ""), reason)
+        _resolved[key] = got
+        return got
 
     def _add(slug, source, *, rank=0, driver_id="", subject=False, group=(), note=""):
         slug = str(slug or "").strip()
         if not slug:
             return
+        seed = slug
+        # THE COLD START'S BOARDS ARE NOT RESOLVED (09-29 fix sitting 4, the verifier's integration seam for lane S's
+        # BLOCKER-S2): `cold_start_keys` picks each `board_loudest` board BECAUSE the priced keys sit on it, and the
+        # plan IS that priced set -- seating a board on another contract would leave the plan naming keys on a board
+        # the board no longer carries and its note counting a board that is not on the page (MEASURED: the generic
+        # `soybeans` DAG collapsed into `soybeans_cbot`, 36 priced boards -> 35 anchors). A cold start is no priced
+        # question's anchor; every other source goes through the one resolver as C4-18 names.
+        if source == "board_loudest":
+            _rnote, _reason = "", _priced
+        else:
+            slug, _rnote, _reason = _resolve(seed, question_class if source in ("named", "planner_inferred")
+                                             else None)
+        if _rnote:
+            note = _rnote
+        # the resolution rides the anchor where lane S's Anchor declares the trace's own names (CONTRACT C4-18's
+        # ``anchor_resolution`` {"seed", "contract", "reason"}); a "priced" seat sets none, so it is HEAD's anchor.
+        _res_kw = ({k: v for k, v in (("seed", seed), ("reason", _reason)) if k in _anchor_fields}
+                   if _reason != _priced else {})
         prior = picked.get(slug)
         # `named` IS MONOTONIC ACROSS THE COLLAPSE, and that is the whole reason it is a field rather
         # than a source word: the precedence ranks `focus_driver` above `named`, so a market the user
@@ -518,7 +590,7 @@ def resolve_anchors(*, contracts=(), named=(), attached_event: Optional[str] = N
                 picked[slug] = replace(prior, named=was_named or prior.named, group=was_group)
             return
         picked[slug] = B.Anchor(contract=slug, source=source, rank=rank, driver_id=driver_id,
-                                subject=subject, named=was_named, group=was_group, note=note)
+                                subject=subject, named=was_named, group=was_group, note=note, **_res_kw)
 
     if attached_event:
         _add(attached_event, "attached_event", note="attached to the question")
@@ -559,7 +631,9 @@ def resolve_anchors(*, contracts=(), named=(), attached_event: Optional[str] = N
     for i, slug in enumerate(named or ()):
         _add(slug, "named", rank=i, note="named in the question")
 
-    inferred = [c for c in (contracts or ()) if str(c).strip() not in picked]
+    # A seed that resolves to a contract already seated is already picked (S4: the resolved contract is the key).
+    inferred = [c for c in (contracts or ()) if str(c).strip() not in picked
+                and _resolve(str(c).strip(), question_class)[0] not in picked]
     for i, slug in enumerate(inferred[:max(0, int(max_contracts))]):
         _add(slug, "planner_inferred", rank=i)
 
@@ -1137,12 +1211,83 @@ def row_side(row) -> Optional[int]:
 #: as-of; ``held_as_last_revised`` -- a served marketing-year level the store holds only as last revised
 #: (``feeders.held_as_last_revised``, the MEASURED retention stamp), a level that is no reading of the present.
 #: APPEND-NEVER-SORT; the render prints each in the book's ``quorum_words`` (lane R).
-QUORUM_UNREAD_REASONS: tuple = ("regime_action_unread", "held_as_last_revised")
+#:
+#: THE 09-29 FIX SITTING 4 (lane W; CONTRACT C4-12 -- R4-4 a, W4-1, W4-2) APPENDS THREE, and narrows the first:
+#: ``regime_action_unread`` now means ONLY that documents dated on the link were read and none is an action in
+#: force (:func:`regime_state`'s ``in_force`` False: a report, a forecast); ``regime_action_none_read`` -- NOTHING
+#: dated on the link was read at all (``in_force`` None), so the page may not say an action is absent from the
+#: record, only that none was read (MEASURED: 10 SB-C sentences on 9 of the 13 smoke / probe boards printed "no
+#: action ... stands on the record" of a node nothing was read for); ``marker_orientation_undeclared`` -- a
+#: ``state_marker`` member (:data:`MARKER_NODE_TYPES`) whose series binding declares no orientation, so the
+#: series' tail is no reading of the marker's condition (rice counted "tenderable collapse" off US ending stocks
+#: at the 75th percentile, i.e. ample stocks, and two lines later the channel was "NOT in its tail");
+#: ``regime_action_polarity_undeclared`` -- a regime action IN FORCE whose record declares no direction
+#: (:data:`REGIME_ACTION_POLARITY_FIELD`), so it cannot be read as the node present or absent (a lifting read as
+#: the newest action is not the policy in force).
+QUORUM_UNREAD_REASONS: tuple = ("regime_action_unread", "held_as_last_revised", "regime_action_none_read",
+                                "marker_orientation_undeclared", "regime_action_polarity_undeclared")
 
 #: THE EVENT KINDS THAT ARE A REGIME ACTION IN FORCE on a regime node (:func:`hop_event`'s regime branch: the
 #: newest realised action, ``regime_in_force``, or the same action while its own lag window still runs,
 #: ``action_open``). Read from :data:`EVENT_KINDS`, never a second vocabulary.
 REGIME_IN_FORCE_KINDS: tuple = ("regime_in_force", "action_open")
+
+#: THE FIELD OF A DATED ACTION'S RECORD THAT DECLARES ITS DIRECTION (the 09-29 fix sitting 4, lane W; CONTRACT C4-12,
+#: W4-2), or ``None`` where no record declares one. MEASURED at this build: a dated action reaches the walk in the
+#: retrieval receipt shape -- ``pgstore._project``'s ten keys (``date``, ``source``, ``source_key``, ``text``,
+#: ``event_date``, ``event_date_precision``, ``date_kind``, ``char_start``, ``char_end``, ``offset_kind``) plus the
+#: action ledger's ``origin`` (``feeders._ledger_record``) -- and NONE of them declares whether the action imposes
+#: or lifts, raises or cuts (``REGIME_RECEIPT_KIND``'s own note: "until the evidence carries a polarity"); the 13
+#: banked smoke / probe traces carry the ledger's counts only. So the name is ``None``: nothing is read, and every
+#: action in force is named unread (``regime_action_polarity_undeclared``) -- an honest under-claim, never a count
+#: of a lifting as the policy in force. The day the extraction docket puts a direction on the record, this one name
+#: is set to its field, whose value is a :data:`causal.schema.Sign` (``+`` the action puts the node's condition in
+#: force -- imposes, raises; ``-`` it takes it away -- lifts, cuts; ``0`` no committed direction). A word of the
+#: action's text is never read for it (the rejected lexical form: "lifted" / "cut" / "ban" keywords).
+REGIME_ACTION_POLARITY_FIELD: Optional[str] = None
+
+#: THE NODE TYPE WHOSE CONDITION IS A STATE OF A QUANTITY, READ OFF A SERIES OF IT (the 09-29 fix sitting 4, lane W;
+#: CONTRACT C4-12, W4-1): the causal schema's own declared type (``causal/author._DRIVER_TYPES``), read off the
+#: graph's driver ``type`` -- the :data:`REGIME_NODE_TYPES` precedent -- never a list of ids or a suffix rule.
+MARKER_NODE_TYPES: frozenset = frozenset({"state_marker"})
+
+#: THE FIELD OF A MARKER'S BINDING THAT DECLARES WHETHER ITS SERIES MEASURES THE MARKER'S QUANTITY (``+``) OR ITS
+#: INVERSE (``-``) -- or ``None`` where no binding declares one (CONTRACT C4-12, W4-1). MEASURED at this build: the
+#: causal schema's ``Driver`` (``causal/schema.py``, ``extra="forbid"``) carries no such field and the board's map
+#: rows (``cascade_map.yaml`` refs, 23 keys over 49 rows) declare none, while the graph binds markers to series of
+#: their INVERSE quantity (rice ``tenderable_collapse`` on US ending stocks, soybeans ``export_pace_lag`` on export
+#: shipments, robusta ``certified_stocks_decline`` on stocks) beside markers bound to their own (``export_pace`` on
+#: export shipments). A tail of the series is therefore no reading of the condition until the binding says which,
+#: and every read marker member is named unread by name. The generator docket (sitting 3's S3-6 ii, 78 members)
+#: adds the declaration; this one name is then set to it. A type-name, suffix or id rule standing in for it is
+#: REJECTED.
+MARKER_ORIENTATION_FIELD: Optional[str] = None
+
+
+def _declared_sign(obj, field: Optional[str]) -> Optional[int]:
+    """``+1`` / ``-1`` / ``0`` for a :data:`causal.schema.Sign` the object DECLARES under ``field`` (a mapping key or
+    an attribute), else ``None`` -- no field named, no value, or a value outside the schema's three signs. Never
+    a word of any text."""
+    if not field or obj is None:
+        return None
+    v = obj.get(field) if isinstance(obj, dict) else getattr(obj, field, None)
+    v = str(v or "").strip()
+    return {"+": 1, "-": -1, "0": 0}.get(v) if v else None
+
+
+def action_polarity(receipt) -> Optional[str]:
+    """The DIRECTION a dated action's record declares (:data:`REGIME_ACTION_POLARITY_FIELD`), as the schema's sign
+    word, or ``None`` where it declares none (CONTRACT C4-12, W4-2)."""
+    s = _declared_sign(receipt, REGIME_ACTION_POLARITY_FIELD)
+    return None if s is None else {1: "+", -1: "-", 0: "0"}[s]
+
+
+def marker_orientation(driver) -> Optional[int]:
+    """``+1`` where the marker's binding declares its series measures the marker's own quantity, ``-1`` where it
+    measures the inverse, ``None`` where it declares nothing (CONTRACT C4-12, W4-1). A declared ``0`` orients
+    nothing and reads as undeclared."""
+    s = _declared_sign(driver, MARKER_ORIENTATION_FIELD)
+    return s if s in (1, -1) else None
 
 
 def regime_state(bd, row, *, receipts: Optional[dict] = None, routed: Optional[dict] = None) -> dict:
@@ -1162,20 +1307,27 @@ def regime_state(bd, row, *, receipts: Optional[dict] = None, routed: Optional[d
     walk's own regime doctrine (:data:`CHAIN_REGIME_WORDS`: "a policy is read as in force until a later dated
     action on the same link"). The side a pattern asks of the node is its card's (the pattern's direction times
     the node's declared sign), exactly as for every other member. The rejected lexical forms: an "export ban"
-    keyword, a policy-name list, a percentile threshold on the policy's trade-flow series."""
+    keyword, a policy-name list, a percentile threshold on the policy's trade-flow series.
+
+    **THE ACTION'S POLARITY, WHERE ITS RECORD DECLARES ONE** (the 09-29 fix sitting 4, lane W; CONTRACT C4-12, W4-2):
+    the answer carries ``polarity`` (APPENDED) -- the sign word the action's own record declares under
+    :data:`REGIME_ACTION_POLARITY_FIELD` (:func:`action_polarity`), else ``None``. :func:`convergence_rows` reads the
+    node PRESENT or ABSENT by it, and names an in-force action with no declared polarity unread. A non-regime row's
+    answer is HEAD's three keys."""
     if row is None or str(getattr(row, "type", "") or "") not in REGIME_NODE_TYPES:
         return {"in_force": None, "action": None, "why": "not_regime"}
     hp = chain_hop(bd, row, receipts=receipts, routed=routed)
     kind = str(getattr(hp, "event_kind", "") or "none")
     in_force = True if kind in REGIME_IN_FORCE_KINDS else (None if kind == "none" else False)
     action = None
+    rc = getattr(hp, "event_receipt", None) or {}
     if getattr(hp, "event_date", None):
-        rc = getattr(hp, "event_receipt", None) or {}
         action = {"kind": kind, "event_date": str(hp.event_date or "")[:10],
                   "precision": str(getattr(hp, "event_precision", "") or ""),
                   "document_date": str((rc.get("date") if isinstance(rc, dict) else "") or "")[:10],
                   "origin": str((rc.get("origin") if isinstance(rc, dict) else "") or "draw")}
-    return {"in_force": in_force, "action": action, "why": kind}
+    return {"in_force": in_force, "action": action, "why": kind,
+            "polarity": action_polarity(rc) if (action is not None and isinstance(rc, dict)) else None}
 
 
 def quorum_member_facts(bd, loud_rows, read_ids, *, receipts: Optional[dict] = None,
@@ -1261,9 +1413,38 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
 
     The reasons ride the row's TAIL as ``unread_reason`` (``{driver_id: QUORUM_UNREAD_REASONS word}``), OMITTED
     WHEN EMPTY. A phase-pair member keeps HEAD's path (the render's phase fold judges it, review round 2
-    MAJOR 10); an unread member with no series keeps HEAD's words. What this does NOT decide (docketed for the
-    generator, S3-6 ii): a ``state_marker`` member bound to a series of its INVERSE quantity -- no card declares
-    a binding's orientation, and a type-name or suffix rule standing in for it is REJECTED."""
+    MAJOR 10); an unread member with no series keeps HEAD's words.
+
+    **THE 09-29 FIX SITTING 4 (lane W; CONTRACT C4-12 -- R4-4 a, W4-1, W4-2)** reads three more facts the walk holds,
+    each on the same side-aware path and each for a READ member only:
+
+    * R4-4 (a): a regime member with NOTHING dated read on its link (``in_force`` None) is named
+      ``regime_action_none_read``; ``regime_action_unread`` is kept for documents read with none in force (False).
+      Two facts, two words -- the page may say an action is absent from the record only where the record was read.
+    * W4-2: an action IN FORCE is read WITH ITS POLARITY (:func:`regime_state`'s ``polarity``, the record's own
+      declared direction): ``+`` the node PRESENT, ``-`` ABSENT, ``0`` no committed direction -- then the card's
+      tail rule as every other member; an in-force action whose record declares no direction is named
+      ``regime_action_polarity_undeclared`` and never counted (a lifting is not the policy in force). A regime
+      member COUNTED by its action is listed by it: ``counted_by`` (``{driver_id: {"action_date", "e_handle",
+      "polarity"}}``, APPENDED at the row's tail, omitted when empty) so the render names the dated action, never
+      "its own [N] z" of the effect series (``e_handle`` is the action's ``[E]`` address where the reading carries
+      one; the walk mints no handle, so the render resolves it).
+    * W4-1: a ``state_marker`` member (:data:`MARKER_NODE_TYPES`, the graph's own declared type) read with a tail
+      (:func:`row_side` not ``None``) is read through its binding's declared orientation
+      (:func:`marker_orientation`: its series measures the marker's quantity, or the inverse); a binding that
+      declares none -- every binding on the graph today -- is named ``marker_orientation_undeclared`` and never
+      counted, never against, never unsided. A marker with no tail to read keeps HEAD's path.
+
+    THE TWO UNDECLARED REASONS (orientation, polarity) name the member in ``matched_unmeasured`` and keep it OUT of
+    ``matched`` -- the ORDERING count the rows sort by and the watch's admission floor reads -- so the four populations
+    are: ``matched`` (= ``matched_measured`` + the unread members of HEAD's ordering), ``against``, ``unsided``, and
+    the undeclared members; ``matched_measured`` + ``matched_unmeasured`` = ``matched`` + the undeclared. A member
+    whose side the walk cannot read adds no weight to its pattern (the first cut's measured inflation is recorded at
+    ``undeclared`` below).
+
+    With no regime / held fact passed and no marker member read, the row is HEAD's byte for byte. The rejected
+    lexical forms: a policy-word list for polarity, a suffix / id rule ("collapse", "lag", "decline") for
+    orientation."""
     loud, banded = set(loud_ids), set(band_ids)
     measured = None if measured_ids is None else set(measured_ids)
     side_of = None if sides is None else dict(sides)
@@ -1273,11 +1454,24 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
     contract_obj = (getattr(graph, "contracts", {}) or {}).get(contract)
     declared = {str(getattr(d, "id", "") or ""): str(getattr(d, "sign", "") or "")
                 for d in (getattr(contract_obj, "drivers", ()) or ())}
+    # W4-1: the graph's own driver objects, for the declared node type and the binding's declared orientation.
+    drv_of = {str(getattr(d, "id", "") or ""): d for d in (getattr(contract_obj, "drivers", ()) or ())}
     for s in (getattr(contract_obj, "convergence", ()) or ()):
         loud_members = [d for d in s.drivers if d in loud]
         against: list = []
         unsided: list = []
         reasons: dict = {}
+        by_action: dict = {}
+        # THE MEMBERS THE WALK CANNOT ORIENT (W4-1 / W4-2: no declared orientation, no declared polarity) are NAMED in
+        # ``matched_unmeasured`` with their reason and are in NONE of the three verdict lists -- never counted, never
+        # against, never unsided (C4-12) -- and NOT in ``matched``, the ORDERING count. MEASURED on the first cut, which
+        # put them in ``matched`` as Z10 does for a regime member with no action: a member HEAD read AGAINST joined the
+        # ordering count, so 22 of 774 quorum rows on the 53 banked boards crossed their threshold on names the page
+        # does not count, the watch's admission floor (3) drew 11 rows as "a declared pattern at its own threshold",
+        # 27 pages re-ordered their patterns, and sitting 2's NEW2 pin (no watch item off a pattern short of its
+        # threshold) went red. A member whose side cannot be read is not a condition showing and is no weight in the
+        # pattern's order either.
+        undeclared: list = []
         if side_of is None:
             matched = loud_members
         else:
@@ -1285,14 +1479,27 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
             pole = _SIGN_INT.get(str(getattr(s, "direction", "") or ""))
             for d in loud_members:
                 read = measured is None or d in measured
+                marker = str(getattr(drv_of.get(d), "type", "") or "") in MARKER_NODE_TYPES
                 if read and d in reg_of:
-                    # Z10 (i): a REGIME member is read by its dated action. In force -> the node PRESENT (+1),
-                    # through the card's tail rule below; none in force -> named with its reason, not counted.
-                    if (reg_of.get(d) or {}).get("in_force") is not True:
+                    # Z10 (i): a REGIME member is read by its dated action. In force -> the node PRESENT or ABSENT by
+                    # the action's declared polarity (W4-2), through the card's tail rule below; none in force ->
+                    # named with its reason, not counted -- nothing read (None) and read-but-none-in-force (False)
+                    # are two facts with two words (R4-4 a).
+                    rs = reg_of.get(d) or {}
+                    inf = rs.get("in_force")
+                    if inf is not True:
                         matched.append(d)
-                        reasons[d] = QUORUM_UNREAD_REASONS[0]
+                        reasons[d] = QUORUM_UNREAD_REASONS[2] if inf is None else QUORUM_UNREAD_REASONS[0]
                         continue
-                    got = 1
+                    pol = _declared_sign(rs, "polarity")
+                    if pol is None:
+                        # W4-2: an action in force whose record declares no direction is no reading of the node --
+                        # NAMED with its reason, outside the ordering count (see ``undeclared`` below).
+                        undeclared.append(d)
+                        reasons[d] = QUORUM_UNREAD_REASONS[4]
+                        continue
+                    got = pol
+                    by_action[d] = rs
                 elif read and d in held_ids:
                     # Z10 (ii) / M-4: a level held only as last revised is no reading of the present.
                     matched.append(d)
@@ -1301,8 +1508,16 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
                 elif side_of.get(d) is None:
                     matched.append(d)              # no reading's tail to read (row_side): HEAD
                     continue
+                elif read and marker and marker_orientation(drv_of.get(d)) is None:
+                    # W4-1: the series' tail is no reading of a marker whose binding declares no orientation --
+                    # NAMED with its reason, outside the ordering count (see ``undeclared`` below).
+                    undeclared.append(d)
+                    reasons[d] = QUORUM_UNREAD_REASONS[3]
+                    continue
                 else:
                     got = int(side_of.get(d) or 0)
+                    if read and marker:
+                        got *= int(marker_orientation(drv_of.get(d)) or 0)   # declared: +1 its own, -1 inverse
                 want = _SIGN_INT.get(declared.get(d, ""))
                 need = (pole * want) if (pole is not None and want is not None) else 0
                 if not need or not got:
@@ -1314,9 +1529,12 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
         seen_state = matched if measured is None else [d for d in matched if d in measured]
         unread = [] if measured is None else [d for d in matched if d not in measured]
         if reasons:
-            # THE REASONED MEMBERS LEAVE THE COUNTED SET AND JOIN THE UNREAD ONE, in HEAD's matched order.
+            # THE REASONED MEMBERS LEAVE THE COUNTED SET AND JOIN THE UNREAD ONE, in HEAD's matched order (the loud
+            # order, which ``matched`` keeps); the undeclared ones join it from outside the ordering count.
             seen_state = [d for d in seen_state if d not in reasons]
-            unread = [d for d in matched if d in reasons or (measured is not None and d not in measured)]
+            unread = [d for d in loud_members
+                      if (d in matched and (d in reasons or (measured is not None and d not in measured)))
+                      or d in undeclared]
         inter = []
         for it in (getattr(s, "interactions", ()) or ()):
             when = list(it.when)
@@ -1354,6 +1572,14 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
             if reasons:
                 # Z10: each named-not-counted member's reason, at the row's TAIL, omitted when empty.
                 out[-1]["unread_reason"] = dict(reasons)
+            # W4-2 (CONTRACT C4-12): each regime member COUNTED by its dated action, with the action it is counted
+            # by, at the row's TAIL, omitted when empty.
+            counted_by = {d: {"action_date": str(((rs.get("action") or {}).get("event_date")) or "")[:10],
+                              "e_handle": ((rs.get("action") or {}).get("e_handle") or None),
+                              "polarity": str(rs.get("polarity") or "")}
+                          for d, rs in by_action.items() if d in seen_state}
+            if counted_by:
+                out[-1]["counted_by"] = counted_by
     out.sort(key=lambda r: (-r["n_matched"], r["name"]))
     return out
 

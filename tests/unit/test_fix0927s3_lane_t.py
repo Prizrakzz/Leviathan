@@ -67,7 +67,12 @@ def test_u8_no_exchange_rate_row_is_HEADs_call_byte_for_byte_on_every_guard():
     for a, b, kw in cases:
         assert _lvl(a, b, **kw) == _lvl(a, b, fx_a=None, fx_b=None, **kw)
     head = _lvl(MATIF, PALM, **KW_MP)
-    assert head["guard"] == S.CURRENCY_GUARD and "does not hold" in head["reason"]   # HEAD's seat words, kept
+    # MOVED 2026-09-29 (FIX SITTING 4, LANE T, T4-3 -- "the seat-path 'does not hold' words"): the currency refusal's
+    # last clause said an exchange rate "this platform does not hold" -- false (the card holds fourteen crosses); it
+    # now states the true fact, in the CW_XCCY_CLAUSE precedent's words. The claim kept: both rows None is the
+    # function the seat calls, byte for byte (the equality above), and the refusal is the currency guard's.
+    assert head["guard"] == S.CURRENCY_GUARD and "does not hold" not in head["reason"]
+    assert "no exchange rate is applied to either figure" in head["reason"]
 
 
 def test_u8_a_rate_row_on_a_pair_whose_currencies_agree_changes_nothing():
@@ -107,11 +112,25 @@ def test_u8_palm_against_MATIF_rapeseed_refuses_by_unit_and_names_both_units():
     leg is quoted per "t", the palm leg per "metric ton": the estate's declared unit vocabulary does not equate the
     two spellings, and this module never maps a unit (U8-b, U8-f), so the refusal NAMES both -- and it no longer
     claims the platform holds no exchange rate (it holds fourteen). Also fences U8-d: no seed-versus-oil spread."""
+    # MOVED 2026-09-29 (FIX SITTING 4, LANE T, T4-2 -- the spread's two laws ruled together): tables.yaml now declares
+    # "t" and "metric ton" members of the "mt" class, so the clause "which the declared unit spellings do not show to
+    # be one quantity" is true only where the declaration was READ. With no reader handed (this call) the refusal
+    # names both units and claims nothing about the declaration (FX_UNIT_UNREAD_DECLINE); with the reader handed the
+    # two are one tonne, and the seed-versus-oil fence (U8-d) is now the PRODUCT-CLASS decline, decided before any
+    # unit or rate step. The claims kept: both units named, never "they differ", never "does not hold", and no
+    # seed-versus-oil spread on the board (which passes the classes).
     r = _lvl(MATIF, PALM, fx_a=EUR_ROW, fx_b={}, **KW_MP)
     assert r["declined"] is True and r["guard"] == S.UNIT_GUARD and r["value"] is None
-    assert r["reason"] == S.FX_UNIT_DECLINE.format(base="USD", a="USD/t from EUR/t", b="USD/metric ton")
-    assert "do not show to be one quantity" in r["reason"]                  # never "they differ": a tonne is a tonne
-    assert "does not hold" not in r["reason"]
+    assert r["reason"] == S.FX_UNIT_UNREAD_DECLINE.format(base="USD", a="USD/t from EUR/t", b="USD/metric ton")
+    assert "USD/t from EUR/t" in r["reason"] and "USD/metric ton" in r["reason"] and "differ" not in r["reason"]
+    assert "does not hold" not in r["reason"] and "declared unit spellings" not in r["reason"]
+    words = {"oilseeds": "a seed", "vegetable_oils": "an oil"}
+    ca = R.product_class("french_rapeseed_matif", class_words=words)
+    cb = R.product_class("malaysian_crude_palm_oil_cme", class_words=words)
+    board = _lvl(MATIF, PALM, fx_a=EUR_ROW, fx_b={}, class_a=ca, class_b=cb, same_quantity=R.same_quantity, **KW_MP)
+    assert board["declined"] is True and board["guard"] == S.CLASS_GUARD and "converted" not in board
+    assert board["reason"] == ("MATIF rapeseed is a seed and CME palm oil is an oil -- a spread is read only between "
+                               "two legs of one product class, so no figure is computed")
 
 
 @pytest.mark.parametrize("fx,why", [
@@ -219,11 +238,13 @@ def test_u8_fx_metric_for_reads_the_unit_words_never_the_iso_code():
 
 
 def test_u8_TRIPWIRE_the_declared_unit_vocabulary_equates_no_two_contract_quantities():
-    """WHY stats compares the converted units by its ONE normalisation (strip + casefold) and imports no registry:
-    measured over every per-delivery-month contract the board can seat, the estate's declared unit vocabulary
-    (tables.yaml `unit_spellings`, the class `verify._unit_equal` reads) puts no two DIFFERENT quantity spellings in
-    one class -- so the pure rule and the vocabulary rule agree on every leg. The day a spelling class joins two
-    (say "t" and "metric ton"), this reds: route the equality through the declared vocabulary at that point."""
+    """MOVED 2026-09-29 (FIX SITTING 4, LANE T, T4-2 a -- the tripwire FIRED as designed): tables.yaml `unit_spellings`
+    now joins "t" and "metric ton" in the "mt" class, and the remedy this pin named is taken -- the equality is routed
+    through the declared vocabulary: `registry.same_quantity` is its reader and `stats.pair_level_spread` takes it as
+    an argument (`same_quantity`), still importing no registry. The claim kept, restated for the new state: over
+    every per-delivery-month contract quantity the board can seat, the stats rule WITH the reader handed agrees with
+    the declared classes pair for pair, and exactly ONE pair of different spellings is joined today (t, metric ton)
+    -- a second join reds here and is read before it ships."""
     from leviathan.silver import futures_eod_contracts as FC
     quantities = sorted({str(r.get("unit") or "").partition("/")[2].strip().casefold()
                          for r in FC.CONTRACT_MAP.values() if "/" in str(r.get("unit") or "")} - {""})
@@ -233,10 +254,17 @@ def test_u8_TRIPWIRE_the_declared_unit_vocabulary_equates_no_two_contract_quanti
         for m in members:
             cls[R.normalise_unit_phrase(m)] = canon
     classes = {q: cls.get(R.normalise_unit_phrase(q), q) for q in quantities}
+    joined = set()
     for q1 in quantities:
         for q2 in quantities:
-            if q1 != q2:
-                assert classes[q1] != classes[q2], (q1, q2)
+            if q1 == q2:
+                continue
+            same = classes[q1] == classes[q2]
+            assert S._units_one("USD/" + q1, "USD/" + q2, R.same_quantity) is same, (q1, q2)
+            assert S._units_one("USD/" + q1, "USD/" + q2) is False, (q1, q2)           # no reader: HEAD's rule
+            if same:
+                joined.add(tuple(sorted((q1, q2))))
+    assert joined == {("metric ton", "t")}, joined
 
 
 def test_u8_stats_stays_a_pure_leaf_and_the_engine_tuple_is_unchanged():
@@ -246,7 +274,11 @@ def test_u8_stats_stays_a_pure_leaf_and_the_engine_tuple_is_unchanged():
         assert banned not in src, banned
     assert "pair_level_spread" in S.ENGINE_STAT_NAMES and "fx_quote_parts" not in S.STAT_REGISTRY
     sig = inspect.signature(S.pair_level_spread).parameters
-    assert list(sig)[-2:] == ["fx_a", "fx_b"] and sig["fx_a"].default is None and sig["fx_b"].default is None
+    # MOVED 2026-09-29 (FIX SITTING 4, LANE T, CONTRACT C4-15): the tail gains `class_a` / `class_b` (the product
+    # class decline) and `same_quantity` (the declared unit vocabulary's reader, handed in -- never imported). The
+    # claim kept: a pure leaf whose every added keyword defaults to None, so a caller that passes none is HEAD's.
+    assert list(sig)[-5:] == ["fx_a", "fx_b", "class_a", "class_b", "same_quantity"]
+    assert all(sig[k].default is None for k in ("fx_a", "fx_b", "class_a", "class_b", "same_quantity"))
 
 
 # ═══ U-9: THE DECLARED SIGN BESIDE THE CONSEQUENCE VERDICT ═══════════════════════════════════════════════════════
@@ -532,7 +564,11 @@ def test_oi3b_different_facts_are_never_merged_and_an_out_of_step_ledger_is_neve
 def test_orchp4_the_wasde_line_map_lint_is_the_rosters_tail_and_clean():
     src = inspect.getsource(CC.main)
     labels = re.findall(r'\("([a-z0-9_]+)", (?:check_|lint_)', src)
-    assert labels[-1] == "wasde_line_map" and labels[-2] == "numbers_card_fields" and len(labels) == 44
+    # MOVED 2026-09-29 (FIX SITTING 4, LANE T, CONTRACT C4-15, DECLARED): `product_class_words` APPENDED at the tail
+    # (45); `wasde_line_map` is second-to-last, in its own place. The claim kept: append-never-insert, and the map
+    # lint rides the roster and is clean.
+    assert labels[-2] == "wasde_line_map" and labels[-3] == "numbers_card_fields" and len(labels) == 45
+    assert labels[-1] == "product_class_words"
     assert '("wasde_line_map", check_wasde_line_map())' in src
     assert CC.check_wasde_line_map() == [] == R.check_wasde_line_map()
 

@@ -1,0 +1,1941 @@
+{
+"source": "smoke 2026-09-29 run 1 (cold), treatment quick",
+"source_sha256": "fa9928324a58873d5f79b89da0c84e8b731219f7da7be8f91dcb922d0ea50ac7",
+"tree": "596f4452",
+"reduction": "census-read keys only, every kept value verbatim (see README.txt)",
+"record": {
+"id": "rv_palm_rapeoil",
+"writer_seam": {
+"outcome": "ok",
+"prose_words": 1124,
+"prose_ceiling": 450,
+"prose_over_budget": 674,
+"superlatives_corrected": 0,
+"classes_corrected": 0,
+"superlatives_seen": 0,
+"superlatives_unbound": 0,
+"classes_unbound": 0,
+"superlative_articles_fixed": 0,
+"superlatives_negated": 0,
+"stale_rows_dated": 10,
+"stale_sentences": 3,
+"lag_windows_checked": 0,
+"lag_windows_corrected": 0,
+"lag_windows_subject_bound": 0,
+"lag_windows_negated": 0,
+"watch_bullets": 3,
+"watch_figures_added": 0,
+"watch_no_figure": 0,
+"watch_no_window": 1,
+"watch_no_falsifier": 0,
+"watch_over_ceiling": 0,
+"watch_section_seen": 1,
+"watch_figures_rounded": 0,
+"decline_words_corrected": 0,
+"metric_labels_corrected": 0,
+"absence_claims_checked": 0,
+"absence_rows_appended": 0,
+"served_row_duplicate_groups": 2,
+"served_rows_duplicated": 2,
+"ceiling_cut_proposed_paragraphs": 4,
+"ceiling_cut_proposed_handles": [
+8,
+13,
+15,
+16,
+28,
+30,
+31,
+34,
+37,
+40,
+42,
+58,
+61
+],
+"ceiling_cut_proposed_words": 341,
+"ceiling_kept_over": 1,
+"name_binding": {
+"outcome": "ok",
+"sentences": 20,
+"bindings": 43,
+"routing_corrected": 2,
+"commodity_corrected": 0,
+"unit_corrected": 0,
+"period_corrected": 0,
+"name_unbound": 0,
+"period_duration_kept": 2,
+"period_unanchored": 0,
+"noun_unlicensed_kept": 20
+},
+"mandate_census": {
+"words": 2321,
+"sentences": 92,
+"asks": 46,
+"facts_required": 27,
+"rules": 19,
+"exactly_as": 0,
+"undeclared_words": 0,
+"foreign_words": 200,
+"by_part": {
+"panel": 37,
+"state_board_mandate": 1111,
+"writer_seam": 317,
+"ask_head": 61,
+"ask_call": 123,
+"watch_selection": 200,
+"desk_register": 472
+}
+}
+},
+"raw_draft": {
+"tldr": "On the two stocks legs you asked for, China's rapeseed oil position moved far more this year \u2014 +170,000 MT, +70.25% January to June 2026 [N10] against a China palm oil build of +14,900 MT, +2.1% [N9] \u2014 while Malaysia's own palm stocks barely budged, +10,289 MT, +0.37% January to August 2026 [N11]. From here the two read differently: Malaysian palm is heavy in the near term (stocks at the 94th percentile of their own record [N62], rising five months) but carries a right-tailed drought reading past the severe line [N13] that the model works with a two-to-four-quarter lag; MATIF rapeseed leans price-pressuring, with seven readings toward a lower price against two higher, headed by an ample EU stocks-to-use reading of 9.42% [N40] and record Black Sea/Australian/Canadian supply. World palm at 1,117 USD/mt [N3] sits below world rapeseed oil at 1,474 USD/mt [N5], the spread between the two printed at -357 USD/mt for August 2026 [N12].",
+"mechanism": "## Mechanism\n\n**Palm \u2014 near-term loose, longer-term right-tailed.** Malaysian closing stocks of 2.82 MMT [N61] with 2.18 months of export cover [N8] are the loosening leg: rising month-end inventory works against price with a zero-to-one-quarter lag, high confidence. Against it sits the largest reading on this estate \u2014 the dry-day run over the SE Asian palm belt at 1.25 z [N13], 97th percentile [N15], rising three months \u2014 which the model moves in the same direction as palm price with a two-to-four-quarter lag, high confidence, plus the warm-phase Pacific reading of +1.8 degC [N16], also same-direction on palm at high confidence. That is where palm's response turns convex: the loose stocks are today's fact, the yield loss is a lagged, biologically irreversible one, and thin export cover is the buffer that would let it tip.\n\n**Rapeseed \u2014 loosening, and more of it.** Four of the seven conditions in the model's glut-with-demand-loss pattern read here: EU stocks-to-use at 9.42% [N40] (past the desk's ample line), Ukraine production 4.35 MMT [N31], Australia 7.8 MMT [N37], Canada 22.5 MMT [N34] \u2014 the model records Black Sea and Australian abundance as amplifying each other into the EU import book. Offsetting, not overturning: EU crush at 25.4 MMT [N28], 95th percentile [N30], is same-direction support.\n\n**The linkage.** Palm sets the floor of the vegetable-oil complex and pulls rapeseed oil with it; canola and rapeseed are one substitution pair. So a lagged palm supply squeeze is the channel that would lift MATIF against its own loose sheet \u2014 which is why the pair reads palm-favoured on a two-to-four-quarter view even while palm's nearby stocks are heavy.\n\n## The record\n\n- China ending stocks, June 2026: palm oil 724,100 MT [N1]; rapeseed oil 412,000 MT [N2]. The moves: rapeseed oil +170,000 MT (+70.25%) [N10] versus palm +14,900 MT (+2.1%) [N9], January to June 2026.\n- Malaysia: palm closing stocks +10,289 MT (+0.37%) January to August 2026 [N11], the level 2.82 MMT [N92], up +0.1966 MMT on the month [N96] and higher in each of the last five months [N97].\n- Boards: MATIF rapeseed November 2026 settled 536.5 EUR/t on 28 September 2026 [N67], the 16th percentile of that contract's own sessions since 6 August 2026 [N71], though up 3.5 EUR/t over twenty-one sessions [N70]. CME palm oil October 2026 settled 1,181 USD/metric ton on 24 September 2026 [N72], the 60th percentile of its own sessions [N77], up 53.5 USD/metric ton over sixty-three sessions [N76] but down 67.5 over twenty-one [N75]. The two settle in different currencies, so no cross-board price comparison is made here.\n- A governed MATIF-versus-palm spread series is not served: the two legs' unit spellings are not shown to be one quantity, so no difference is computed.\n- Dated support is old relative to the as-of: the newest document behind this answer is 12 May 2026, and the crude-oil receipts are dated 2022 [E17] and 2008 [E14], both outside the lag the model allows them. In March 2026 the USDA attach\u00e9 wrote that higher 2024/25 palm prices came from Malaysian and Indonesian biodiesel mandates, shifting demand toward more affordable oils [E15] \u2014 mechanism for the diversion channel, not a current reading.\n\n## Where the record disagrees\n\nWithin palm itself the record points both ways at once, and not by era: stocks at the 94th percentile [N62] settle a lower price on a zero-to-one-quarter clock, while the severe drought reading [N13] settles a higher one on a two-to-four-quarter clock. Same market, different horizons \u2014 the near leg is loose, the far leg right-tailed. The counts say seven readings toward a lower palm price against three higher; I lean to the loose nearby read for now and to the drought leg as the horizon extends, because the drought reading is the furthest-out figure on this estate and its run has not turned.\n\n## What to watch\n\n- **EU rapeseed stocks-to-use** [N40], 9.42% for 2026/27, known 11 September 2026: seventeen declared upstream paths land on MATIF price through this one reading, so it is the single confirming figure for the loosening lean. Wrong if the next print, due between 9 and 12 October 2026, returns it to the middle of its own record.\n- **SE Asia palm-belt dry-day run** [N13], 1.25 z, August 2026: past the severe line (drawn at two sigma) with three months rising; the lag window it would act in runs 28 February 2027 to 31 August 2027. Wrong if the next print turns back inside that line or the run breaks.\n- **The warm-phase Pacific reading** [N16], +1.8 degC, July 2026, eight months rising and past the strong line: it is declared on thirty-four other markets, so a turn here reprices the whole complex, not just these two; its window on MATIF runs 31 October 2026 to 30 April 2027. Wrong if the next print, between 1 and 5 October 2026, returns it to the middle of its own record.\n\nI weighed and left the Canadian production tail [N34] and the EU-crush support [N28]: both are already carried inside the glut pattern and the offsetting note above, and repeating them as watch items would double-count one reading. No past analogue was tested on this turn, so no base rate is claimed.",
+"preverify_tldr": "On the two stocks legs you asked for, China's rapeseed oil position moved far more this year \u2014 +170,000 MT, +70.25% January to June 2026 [N10] against a China palm oil build of +14,900 MT, +2.1% [N9] \u2014 while Malaysia's own palm stocks barely budged, +10,289 MT, +0.37% January to August 2026 [N11]. From here the two read differently: Malaysian palm is heavy in the near term (stocks at the 94th percentile of their own record [N62], rising five months) but carries a right-tailed drought reading past the severe line [N13] that the model works with a two-to-four-quarter lag; MATIF rapeseed leans price-pressuring, with seven readings toward a lower price against two higher, headed by an ample EU stocks-to-use reading of 9.42% [N40] and record Black Sea/Australian/Canadian supply. World palm at 1,117 USD/mt [N3] sits below world rapeseed oil at 1,474 USD/mt [N5], the spread between the two printed at -357 USD/mt for August 2026 [N12].",
+"preverify_mechanism": "## Mechanism\n\n**Palm \u2014 near-term loose, longer-term right-tailed.** Malaysian closing stocks of 2.82 MMT [N61] with 2.18 months of export cover [N8] are the loosening leg: rising month-end inventory works against price with a zero-to-one-quarter lag, high confidence. Against it sits the largest reading on this estate \u2014 the dry-day run over the SE Asian palm belt at 1.25 z [N13], 97th percentile [N15], rising three months \u2014 which the model moves in the same direction as palm price with a two-to-four-quarter lag, high confidence, plus the warm-phase Pacific reading of +1.8 degC [N16], also same-direction on palm at high confidence. That is where palm's response turns convex: the loose stocks are today's fact, the yield loss is a lagged, biologically irreversible one, and thin export cover is the buffer that would let it tip.\n\n**Rapeseed \u2014 loosening, and more of it.** Four of the seven conditions in the model's glut-with-demand-loss pattern read here: EU stocks-to-use at 9.42% [N40] (past the desk's ample line), Ukraine production 4.35 MMT [N31], Australia 7.8 MMT [N37], Canada 22.5 MMT [N34] \u2014 the model records Black Sea and Australian abundance as amplifying each other into the EU import book. Offsetting, not overturning: EU crush at 25.4 MMT [N28], 95th percentile [N30], is same-direction support.\n\n**The linkage.** Palm sets the floor of the vegetable-oil complex and pulls rapeseed oil with it; canola and rapeseed are one substitution pair. So a lagged palm supply squeeze is the channel that would lift MATIF against its own loose sheet \u2014 which is why the pair reads palm-favoured on a two-to-four-quarter view even while palm's nearby stocks are heavy.\n\n## The record\n\n- China ending stocks, June 2026: palm oil 724,100 MT [N1]; rapeseed oil 412,000 MT [N2]. The moves: rapeseed oil +170,000 MT (+70.25%) [N10] versus palm +14,900 MT (+2.1%) [N9], January to June 2026.\n- Malaysia: palm closing stocks +10,289 MT (+0.37%) January to August 2026 [N11], the level 2.82 MMT [N92], up +0.1966 MMT on the month [N96] and higher in each of the last five months [N97].\n- Boards: MATIF rapeseed November 2026 settled 536.5 EUR/t on 28 September 2026 [N67], the 16th percentile of that contract's own sessions since 6 August 2026 [N71], though up 3.5 EUR/t over twenty-one sessions [N70]. CME palm oil October 2026 settled 1,181 USD/metric ton on 24 September 2026 [N72], the 60th percentile of its own sessions [N77], up 53.5 USD/metric ton over sixty-three sessions [N76] but down 67.5 over twenty-one [N75]. The two settle in different currencies, so no cross-board price comparison is made here.\n- A governed MATIF-versus-palm spread series is not served: the two legs' unit spellings are not shown to be one quantity, so no difference is computed.\n- Dated support is old relative to the as-of: the newest document behind this answer is 12 May 2026, and the crude-oil receipts are dated 2022 [E17] and 2008 [E14], both outside the lag the model allows them. In March 2026 the USDA attach\u00e9 wrote that higher 2024/25 palm prices came from Malaysian and Indonesian biodiesel mandates, shifting demand toward more affordable oils [E15] \u2014 mechanism for the diversion channel, not a current reading.\n\n## Where the record disagrees\n\nWithin palm itself the record points both ways at once, and not by era: stocks at the 94th percentile [N62] settle a lower price on a zero-to-one-quarter clock, while the severe drought reading [N13] settles a higher one on a two-to-four-quarter clock. Same market, different horizons \u2014 the near leg is loose, the far leg right-tailed. The counts say seven readings toward a lower palm price against three higher; I lean to the loose nearby read for now and to the drought leg as the horizon extends, because the drought reading is the furthest-out figure on this estate and its run has not turned.\n\n## What to watch\n\n- **EU rapeseed stocks-to-use** [N40], 9.42% for 2026/27, known 11 September 2026: seventeen declared upstream paths land on MATIF price through this one reading, so it is the single confirming figure for the loosening lean. Wrong if the next print, due between 9 and 12 October 2026, returns it to the middle of its own record.\n- **SE Asia palm-belt dry-day run** [N13], 1.25 z, August 2026: past the severe line (drawn at two sigma) with three months rising; the lag window it would act in runs 28 February 2027 to 31 August 2027. Wrong if the next print turns back inside that line or the run breaks.\n- **The warm-phase Pacific reading** [N16], +1.8 degC, July 2026, eight months rising and past the strong line: it is declared on thirty-four other markets, so a turn here reprices the whole complex, not just these two; its window on MATIF runs 31 October 2026 to 30 April 2027. Wrong if the next print, between 1 and 5 October 2026, returns it to the middle of its own record.\n\nI weighed and left the Canadian production tail [N34] and the EU-crush support [N28]: both are already carried inside the glut pattern and the offsetting note above, and repeating them as watch items would double-count one reading. No past analogue was tested on this turn, so no base rate is claimed.",
+"postverify_tldr": "On the two stocks legs you asked for, China's rapeseed oil position moved far more this year \u2014 +170,000 MT, +70.25% January to June 2026 [N10] against a China palm oil build of +14,900 MT, +2.1% [N9] \u2014 while Malaysia's own palm stocks barely budged, +10,289 MT, +0.37% January to August 2026 [N11]. From here the two read differently: Malaysian palm is heavy in the near term (stocks at the 94th percentile of their own record [N62], rising five months) but carries a right-tailed drought reading past the severe [N14] line [N13] that the model works with a two-to-four-quarter lag; MATIF rapeseed leans price-pressuring, with seven readings toward a lower price against two higher, headed by an ample EU stocks-to-use reading of 9.42% [N40] and record Black Sea/Australian/Canadian supply. World palm at 1,117 USD/mt [N3] sits below world rapeseed oil at 1,474 USD/mt [N5], the spread between the two printed at -357 USD/mt for August 2026 [N12].",
+"postverify_mechanism": "## Mechanism\n\n**Palm \u2014 near-term loose, longer-term right-tailed.** Malaysian closing stocks of 2.82 MMT [N61] with 2.18 months of export cover [N8] are the loosening leg: rising month-end inventory works against price with a zero-to-one-quarter lag, high confidence. Against it sits the largest reading on this estate \u2014 the dry-day run over the SE Asian palm belt at 1.25 z [N13], 97th percentile [N15], rising three months \u2014 which the model moves in the same direction as palm price with a two-to-four-quarter lag, high confidence, plus the warm-phase Pacific reading of +1.8 degC [N16], also same-direction on palm at high confidence. That is where palm's response turns convex: the loose stocks are today's fact, the yield loss is a lagged, biologically irreversible one, and thin export cover is the buffer that would let it tip.\n\n**Rapeseed \u2014 loosening, and more of it.** Four of the seven conditions in the model's glut-with-demand-loss pattern read here: EU stocks-to-use at 9.42% [N40] (past the desk's ample [N42] line), Ukraine production 4.35 MMT [N31], Australia 7.8 MMT [N37], Canada 22.5 MMT [N34] \u2014 the model records Black Sea and Australian abundance as amplifying each other into the EU import book. Offsetting, not overturning: EU crush at 25.4 MMT [N28], 95th percentile [N30], is same-direction support.\n\n**The linkage.** Palm sets the floor of the vegetable-oil complex and pulls rapeseed oil with it; canola and rapeseed are one substitution pair. So a lagged palm supply squeeze is the channel that would lift MATIF against its own loose sheet \u2014 which is why the pair reads palm-favoured on a two-to-four-quarter view even while palm's nearby stocks are heavy.\n\n## The record\n\n- China ending stocks, June 2026: palm oil 724,100 MT [N1]; rapeseed oil 412,000 MT [N2]. The moves: rapeseed oil +170,000 MT (+70.25%) [N10] versus palm +14,900 MT (+2.1%) [N9], January to June 2026.\n- Malaysia: palm closing stocks +10,289 MT (+0.37%) January to August 2026 [N11], the level 2.82 MMT [N92], up +0.1966 MMT on the month [N96] and higher in each of the last five months [N97].\n- Boards: MATIF rapeseed November 2026 settled 536.5 EUR/t on 28 September 2026 [N67], the 16th percentile of that contract's own sessions since 6 August 2026 [N71], though up 3.5 EUR/t over twenty-one sessions [N70]. CME palm oil October 2026 settled 1,181 USD/metric ton on 24 September 2026 [N72], the 60th percentile of its own sessions [N77], up 53.5 USD/metric ton over sixty-three sessions [N76] but down 67.5 over twenty-one [N75]. The two settle in different currencies, so no cross-board price comparison is made here.\n- A governed MATIF-versus-palm spread series is not served: the two legs' unit spellings are not shown to be one quantity, so no difference is computed.\n- Dated support is old relative to the as-of: the newest document behind this answer is 12 May 2026, and the crude-oil receipts are dated 2022 [E17] and 2008 [E14], both outside the lag the model allows them. In March 2026 the USDA attach\u00e9 wrote that higher 2024/25 palm prices came from Malaysian and Indonesian biodiesel mandates, shifting demand toward more affordable oils [E15] \u2014 mechanism for the diversion channel, not a current reading.\n\n## Where the record disagrees\n\nWithin palm itself the record points both ways at once, and not by era: stocks at the 94th percentile [N62] settle a lower price on a zero-to-one-quarter clock, while the severe drought reading [N13] settles a higher one on a two-to-four-quarter clock. Same market, different horizons \u2014 the near leg is loose, the far leg right-tailed. The counts say seven readings toward a lower palm price against three higher; I lean to the loose nearby read for now and to the drought leg as the horizon extends, because the drought reading is the furthest-out figure on this estate and its run has not turned.\n\n## What to watch\n\n- **EU rapeseed stocks-to-use** [N40], 9.42% for 2026/27, known 11 September 2026: seventeen declared upstream paths land on MATIF price through this one reading, so it is the single confirming figure for the loosening lean. Wrong if the next print, due between 9 and 12 October 2026, returns it to the middle of its own record.\n- **SE Asia palm-belt dry-day run** [N13], 1.25 z, August 2026: past the severe [N14] line (drawn at two sigma) with three months rising; the lag window it would act in runs 28 February 2027 to 31 August 2027. Wrong if the next print turns back inside that line or the run breaks.\n- **The warm-phase Pacific reading** [N16], +1.8 degC, July 2026, eight months rising and past the strong line: it is declared on thirty-four other markets, so a turn here reprices the whole complex, not just these two; its window on MATIF runs 31 October 2026 to 30 April 2027. Wrong if the next print, between 1 and 5 October 2026, returns it to the middle of its own record.\n\nI weighed and left the Canadian production tail [N34] and the EU-crush support [N28]: both are already carried inside the glut pattern and the offsetting note above, and repeating them as watch items would double-count one reading. No past analogue was tested on this turn, so no base rate is claimed."
+},
+"served_rows": [
+{
+"table": "silver_mpoc_stock_comparison",
+"metric": "ending_stocks_mt",
+"country": "china",
+"status": "ok",
+"row_count": 6,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "709200.0",
+"unit": null,
+"country": "china",
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_mpoc_stock_comparison",
+"metric": "ending_stocks_mt",
+"country": "china",
+"status": "ok",
+"row_count": 6,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "242000.0",
+"unit": null,
+"country": "china",
+"knowledge_date": null
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "palm_oil_cpo_usd_t",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": "1117.0",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "palm_oil_cpo_usd_t_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": "0.26909550274305843",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "rapeseed_oil_usd_t",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": "1474.0",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "rapeseed_oil_usd_t_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": "0.44601942263873484",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_mpob",
+"metric": "closing_stocks_palm_oil_mt",
+"country": null,
+"status": "ok",
+"row_count": 8,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "2814199.0",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-01-01"
+}
+]
+},
+{
+"table": "silver_mpob",
+"metric": "su_ratio",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": "2.1816378612520313",
+"unit": null,
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "compute_stat",
+"metric": "window_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 14900.0,
+"unit": "MT",
+"country": "china",
+"knowledge_date": null
+}
+]
+},
+{
+"table": "compute_stat",
+"metric": "window_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 170000.0,
+"unit": "MT",
+"country": "china",
+"knowledge_date": null
+}
+]
+},
+{
+"table": "compute_stat",
+"metric": "window_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 10289.0,
+"unit": "MT",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "compute_stat",
+"metric": "pair_spread",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -357.0,
+"unit": "USD/mt",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "SE Asia Palm Belt",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.2491708897603446,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "SE Asia Palm Belt",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.7,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "gold_weather_z",
+"metric": "drought_z",
+"country": "SE Asia Palm Belt",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 97,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.8,
+"unit": "degC",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.4,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_noaa_oni",
+"metric": "oni_anom",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 93,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-05"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Russia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 7.0,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Russia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.0,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Russia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 99,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "eur_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.87889,
+"unit": "local currency per USD",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "eur_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.9,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_fred_fx",
+"metric": "eur_usd",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 30,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-28"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Russia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 7.806,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Russia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.7,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Russia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 99,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Crush",
+"country": "European Union",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 25.400000000000002,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Crush",
+"country": "European Union",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.4,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd_attributes",
+"metric": "Crush",
+"country": "European Union",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 95,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Ukraine",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 4.35,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Ukraine",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.3,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Ukraine",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 96,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Canada",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 22.5,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Canada",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.2,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Canada",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 99,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Australia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 7.8,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Australia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.0,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Australia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 97,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "European Union",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 9.417142857142856,
+"unit": "%",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "European Union",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.0,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "su_ratio",
+"country": "European Union",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 77,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.5315172188774722,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.8,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "urea_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 26,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Indonesia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 23.5,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Indonesia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.8,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "exports_mt",
+"country": "Indonesia",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 87,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.11253557279815038,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.5,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "blended_npk_index_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 63,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Ukraine",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 5.418,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Ukraine",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.5,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "production_mt",
+"country": "Ukraine",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 81,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_noaa_iod",
+"metric": "dmi_value",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.11,
+"unit": "degC",
+"country": null,
+"knowledge_date": "2026-09-14"
+}
+]
+},
+{
+"table": "silver_noaa_iod",
+"metric": "dmi_value",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.3,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-14"
+}
+]
+},
+{
+"table": "silver_noaa_iod",
+"metric": "dmi_value",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 37,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-14"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.5072943423080404,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.1,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 68,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_mpob",
+"metric": "closing_stocks_palm_oil_mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.8244879999999997,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-09-13"
+}
+]
+},
+{
+"table": "silver_mpob",
+"metric": "closing_stocks_palm_oil_mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 94,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-13"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 98,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-10"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "European Union",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 6.335,
+"unit": "M ha",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "European Union",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1.0,
+"unit": "sigma",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_psd",
+"metric": "area_harvested_1000ha",
+"country": "European Union",
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 70,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-11"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 536.5,
+"unit": "EUR/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -11.5,
+"unit": "EUR/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -19.75,
+"unit": "EUR/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3.5,
+"unit": "EUR/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 16,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 1181.0,
+"unit": "USD/metric ton",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.75,
+"unit": "USD/metric ton",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -37.0,
+"unit": "USD/metric ton",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -67.5,
+"unit": "USD/metric ton",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 63 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 53.5,
+"unit": "USD/metric ton",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 60,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-25"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 824.6,
+"unit": "CAD/t",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.5,
+"unit": "CAD/t",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -2.2,
+"unit": "CAD/t",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 52.7,
+"unit": "CAD/t",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 63 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 90.3,
+"unit": "CAD/t",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 96,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-24"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 10134.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 1 session",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -102.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 5 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 21.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 21 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle change over 63 sessions",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 480.0,
+"unit": "CNY/t",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_futures_eod",
+"metric": "settle percentile",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 85,
+"unit": "percentile",
+"country": null,
+"knowledge_date": "2026-09-29"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": 0.5072943423080404,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": 0.5072943423080404,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_mpob",
+"metric": "closing_stocks_palm_oil_mt",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 2.8244879999999997,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "potassium_usd_mt_zscore_5yr",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": "2026M09",
+"value": -0.38509706209967837,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.5124,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "brent_crude_usd_bbl_zscore_5yr_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.5124,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_mpob",
+"metric": "closing_stocks_palm_oil_mt_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 0.1966,
+"unit": "MMT",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_mpob",
+"metric": "closing_stocks_palm_oil_mt_pace_streak",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 5,
+"unit": "months",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "potassium_usd_mt_zscore_5yr_pace_change",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": -0.0199,
+"unit": "z",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+},
+{
+"table": "silver_pink_sheet",
+"metric": "potassium_usd_mt_zscore_5yr_pace_streak",
+"country": null,
+"status": "ok",
+"row_count": 1,
+"rows": [
+{
+"period": null,
+"estimate_role": null,
+"value": 3,
+"unit": "months",
+"country": null,
+"knowledge_date": "2026-08-01"
+}
+]
+}
+],
+"state_board": {
+"asof": "2026-09-29",
+"ask_netting": {
+"opposing": [
+40
+],
+"tape": 70,
+"by_market": {
+"french_rapeseed_matif": {
+"opposing": [
+{
+"handle": 40,
+"row_id": "french_rapeseed_matif|ending_stocks_su_ratio|psd_ending_stock_su_ratio|french_rapeseed_matif|European Union",
+"side": "for",
+"value": 9.417142857142856,
+"unit": "%"
+}
+],
+"tape": {
+"handle": 70,
+"window": "21 sessions",
+"direction": "up",
+"value": 3.5,
+"unit": "EUR/t",
+"row_id": "french_rapeseed_matif||silver_futures_eod|french_rapeseed_matif|2026-11"
+}
+},
+"malaysian_crude_palm_oil_cme": {
+"opposing": [
+{
+"handle": 13,
+"row_id": "malaysian_crude_palm_oil_cme|drought|drought_z|malaysian_crude_palm_oil_cme|SE Asia Palm Belt",
+"side": "for",
+"value": 1.2491708897603446,
+"unit": "z"
+}
+],
+"tape": {
+"handle": 76,
+"window": "63 sessions",
+"direction": "up",
+"value": 53.5,
+"unit": "USD/metric ton",
+"row_id": "malaysian_crude_palm_oil_cme||silver_futures_eod|malaysian_crude_palm_oil_cme|2026-10"
+}
+},
+"canola_ice": {
+"opposing": [
+{
+"handle": 16,
+"row_id": "canola_ice|La_Nina|oni_climate|_global|",
+"side": "for",
+"value": 1.8,
+"unit": "degC"
+},
+{
+"handle": 16,
+"row_id": "canola_ice|El_Nino|oni_climate|_global|",
+"side": "against",
+"value": 1.8,
+"unit": "degC"
+}
+],
+"tape": {
+"handle": 82,
+"window": "63 sessions",
+"direction": "up",
+"value": 90.3,
+"unit": "CAD/t",
+"row_id": "canola_ice||silver_futures_eod|canola_ice|2026-11"
+}
+},
+"rapeseed_oil_zce": {
+"opposing": [
+{
+"handle": 16,
+"row_id": "rapeseed_oil_zce|La_Nina|oni_climate|_global|",
+"side": "for",
+"value": 1.8,
+"unit": "degC"
+},
+{
+"handle": 16,
+"row_id": "rapeseed_oil_zce|El_Nino|oni_climate|_global|",
+"side": "against",
+"value": 1.8,
+"unit": "degC"
+}
+],
+"tape": {
+"handle": 88,
+"window": "63 sessions",
+"direction": "up",
+"value": 480.0,
+"unit": "CNY/t",
+"row_id": "rapeseed_oil_zce||silver_futures_eod|rapeseed_oil_zce|2027-01"
+}
+}
+}
+},
+"chains": [
+{
+"rendered": true,
+"hops": [
+{
+"driver_id": "crude_oil_price",
+"measured": true
+},
+{
+"driver_id": "rubber_area_substitution",
+"measured": false
+},
+{
+"driver_id": "ending_stocks",
+"measured": true
+}
+]
+},
+{
+"rendered": true,
+"hops": [
+{
+"driver_id": "crude_oil",
+"measured": true
+},
+{
+"driver_id": "fertilizer_costs",
+"measured": false
+},
+{
+"driver_id": "eu_rapeseed_area",
+"measured": true
+},
+{
+"driver_id": "ending_stocks_su_ratio",
+"measured": true
+}
+]
+}
+],
+"block_sentences": [
+{
+"cls": "SB-C",
+"text": "- glut with demand loss (price-pressuring) on MATIF rapeseed: four of the seven conditions it names are showing here (the stocks-to-use ratio for European Union, read here for ending stocks su ratio, production for Ukraine, read here for ukraine rapeseed supply, production for Australia, read here for australia canola supply and production for Canada, read here for canadian canola supply, each with its own [N] z);"
+},
+{
+"cls": "SB-C",
+"text": "it asks for three, and four are counted here;"
+},
+{
+"cls": "SB-C",
+"text": "one carries a declared desk band"
+}
+]
+}
+},
+"page": "**TL;DR.** On the two stocks legs you asked for, China's rapeseed oil position moved far more this year \u2014 +170,000 MT, +70.25% January to June 2026 [N10] against a China palm oil build of +14,900 MT, +2.1% [N9] \u2014 while Malaysia's own palm stocks barely budged, +10,289 MT, +0.37% January to August 2026 [N11]. From here the two read differently: Malaysian palm is heavy in the near term (stocks at the 94th percentile of their own record [N62], rising five months) but carries a right-tailed reading (the longest dry-day run in the month, as a z-score for SE Asia Palm Belt) past the severe [N14] line [N13] that the model works with a two-to-four-quarter lag; MATIF rapeseed leans price-pressuring, with seven readings toward a lower price against two higher, headed by an ample EU stocks-to-use reading of 9.42% [N40] and record Black Sea/Australian/Canadian supply. World palm at 1,117 USD/mt [N3] sits below world rapeseed oil at 1,474 USD/mt [N5], the spread between the two printed at -357 USD/mt for August 2026 [N12].\n\n## Mechanism\n\n**Palm \u2014 near-term loose, longer-term right-tailed.** Malaysian closing stocks of 2.82 MMT [N61] with 2.18 months of export cover [N8] are the loosening leg: rising month-end inventory works against price with a zero-to-one-quarter lag, high confidence (N61, N8 the 2026-08 reading, read 2026-09-13). Against it sits the largest reading on this estate \u2014 the dry-day run over the SE Asian palm belt at 1.25 z [N13], 97th percentile [N15], rising three months \u2014 which the model moves in the same direction as palm price with a two-to-four-quarter lag, high confidence, plus the warm-phase Pacific reading of +1.8 degC [N16], also same-direction on palm at high confidence (N13, N15 the 2026-08 reading, read 2026-09-25; N16 the 2026-07 reading, read 2026-09-05). That is where palm's response turns convex: the loose stocks are today's fact, the yield loss is a lagged, biologically irreversible one, and thin export cover is the buffer that would let it tip.\n\n**Rapeseed \u2014 loosening, and more of it.** Four of the seven conditions in the model's glut-with-demand-loss pattern read here: EU stocks-to-use at 9.42% [N40] (past the desk's ample [N42] line), Ukraine production 4.35 MMT [N31], Australia 7.8 MMT [N37], Canada 22.5 MMT [N34] \u2014 the model records Black Sea and Australian abundance as amplifying each other into the EU import book (N40, N42, N31, N37, N34 read 2026-09-11). Offsetting, not overturning: EU crush at 25.4 MMT [N28], 95th percentile [N30], is same-direction support.\n\n**The linkage.** Palm sets the floor of the vegetable-oil complex and pulls rapeseed oil with it; canola and rapeseed are one substitution pair. So a lagged palm supply squeeze is the channel that would lift MATIF against its own loose sheet \u2014 which is why the pair reads palm-favoured on a two-to-four-quarter view even while palm's nearby stocks are heavy.\n\nOne chain the data carries runs from the Brent crude price against its own five-year record [N58] through Malaysian closing palm oil stocks [N61] to CBOT soybean oil; the readings agree with the direction the model expects at zero of three links.\n\n## The record\n\n- China ending stocks, June 2026: palm oil 724,100 MT [N1]; rapeseed oil 412,000 MT [N2]. The moves: rapeseed oil +170,000 MT (+70.25%) [N10] versus palm +14,900 MT (+2.1%) [N9], January to June 2026.\n- Malaysia: palm closing stocks +10,289 MT (+0.37%) January to August 2026 [N11], the level 2.82 MMT [N92], up +0.1966 MMT on the month [N96] and higher in each of the last five months [N97].\n- Markets: MATIF rapeseed November 2026 settled 536.5 EUR/t on 28 September 2026 [N67], the 16th percentile of that contract's own sessions since 6 August 2026 [N71], though up 3.5 EUR/t over twenty-one sessions [N70]. CME palm oil October 2026 settled 1,181 USD/metric ton on 24 September 2026 [N72], the 60th percentile of its own sessions [N77], up 53.5 USD/metric ton over sixty-three sessions [N76] but down 67.5 over twenty-one [N75]. The two settle in different currencies, so no cross-board price comparison is made here.\n- A governed MATIF-versus-palm spread series is not served: the two legs' unit spellings are not shown to be one quantity, so no difference is computed.\n- Dated support is old relative to the as-of: the newest document behind this answer is 12 May 2026, and the crude-oil dated reports are dated 2022 [E17] and 2008 [E14], both outside the lag the model allows them. In March 2026 the USDA attach\u00e9 wrote that higher 2024/25 palm prices came from Malaysian and Indonesian biodiesel mandates, shifting demand toward more affordable oils [E15] \u2014 mechanism for the diversion channel, not a current reading.\n\n## Where the record disagrees\n\nWithin palm itself the record points both ways at once, and not by era: stocks at the 94th percentile [N62] settle a lower price on a zero-to-one-quarter clock, while the severe reading (the longest dry-day run in the month, as a z-score for SE Asia Palm Belt) [N13] settles a higher one on a two-to-four-quarter clock. Same market, different horizons \u2014 the near leg is loose, the far leg right-tailed. The counts say seven readings toward a lower palm price against three higher; I lean to the loose nearby read for now and to the drought leg as the horizon extends, because the drought reading is the furthest-out figure on this estate and its run has not turned.\n\n## What to watch\n\n- **EU rapeseed stocks-to-use** [N40], 9.42% for 2026/27, known 11 September 2026: seventeen declared upstream paths land on MATIF price through this one reading, so it is the single confirming figure for the loosening lean. Wrong if the next print, due between 9 and 12 October 2026, returns it to the middle of its own record.\n- **SE Asia palm-belt dry-day run** [N13], 1.25 z, August 2026: past the severe [N14] line (drawn at two sigma) with three months rising; the lag window it would act in runs 28 February 2027 to 31 August 2027. Wrong if the next print turns back inside that line or the run breaks.\n- **The warm-phase Pacific reading** [N16], +1.8 degC, July 2026, eight months rising and past the strong line: it is declared on thirty-four other markets, so a turn here reprices the whole complex, not just these two; its window on MATIF runs 31 October 2026 to 30 April 2027. Wrong if the next print, between 1 and 5 October 2026, returns it to the middle of its own record.\n\nI weighed and left the Canadian production tail [N34] and the EU-crush support [N28]: both are already carried inside the glut pattern and the offsetting note above, and repeating them as watch items would double-count one reading. No past analogue was tested on this turn, so no base rate is claimed.\n\n**Cascade / convergence**\n\n## Sources\n[E15] USDA FAS GAIN Report \u2014 Soybean Meal (2026-03-31): In 2024/25, higher palm oil prices resulted from biodiesel mandates in Malaysia and Indonesia, which shifted demand toward more affordable o...\n[E17] Malaysian Palm Oil Council (2022-03-15): If palm oil prices remain high, rapeseed oil used as biodiesel feedstock would be strengthened, at least until the second quarter of 2022, w...\n[E14] USDA FAS GAIN Report \u2014 Palm Oil (2010-03-12): When crude palm oil prices reached above RM3,500/MT in mid-2008, palm oil biodiesel lost some of its luster.\n[N1] MPOC STOCK COMPARISON ending stocks palm oil china 2026-06 = 724,100 MT, June 2026 [6 rows served; newest shown]  [known 2026-06]\n[N2] MPOC STOCK COMPARISON ending stocks rapeseed oil china 2026-06 = 412,000 MT, June 2026 [6 rows served; newest shown]  [known 2026-06]\n[N3] World Bank Pink Sheet crude palm oil price 2026-08-01 = $1,117.00/mt, August 2026  [known 2026-09-10]\n[N5] World Bank Pink Sheet rapeseed oil price 2026-08-01 = $1,474.00/mt, August 2026  [known 2026-09-10]\n[N8] MPOB months of export cover CME palm oil 2026-08-01 = 2.18 months of export cover, August 2026  [known 2026-09-13]\n[N9] MPOC STOCK COMPARISON ending stocks china change from January 2026 to June 2026 = +14,900 MT (+2.1 %)\n[N10] MPOC STOCK COMPARISON ending stocks china change from January 2026 to June 2026 = +170,000 MT (+70.25 %)\n[N11] MPOB palm oil closing stocks change from January 2026 to August 2026 = +10,289 MT (+0.37 %)  [known 2026-09-13]\n[N12] computed statistic spread between the two markets world crude palm oil minus world rapeseed oil 2026-08-01 = -$357.00/mt, August 2026  [known 2026-08-01]\n[N13] GOLD WEATHER Z drought z-score CME palm oil the mean over the SE Asia Palm Belt growing cells 2026-08 = 1.25 z, August 2026  [known 2026-09-25]\n[N14] GOLD WEATHER Z drought z-score CME palm oil the mean over the SE Asia Palm Belt growing cells 2026-08 vs 120 points of its own history = 2.7 sigma, August 2026  [known 2026-09-25]\n[N15] GOLD WEATHER Z drought z-score CME palm oil the mean over the SE Asia Palm Belt growing cells 2026-08 = 97 percentile, August 2026  [known 2026-09-25]\n[N16] NOAA ONI ONI anomaly  global 2026-07 = +1.8 degC, July 2026  [known 2026-09-05]\n[N28] PSD ATTRIBUTES crush MATIF rapeseed European Union MY2026 = 25.4 MMT for 2026/27  [known 2026-09-11]\n[N30] PSD ATTRIBUTES crush MATIF rapeseed European Union MY2026 = 95 percentile for 2026/27  [known 2026-09-11]\n[N31] USDA PSD production MATIF rapeseed Ukraine MY2026 = 4.35 MMT for 2026/27  [known 2026-09-11]\n[N34] USDA PSD production MATIF rapeseed Canada MY2026 = 22.5 MMT for 2026/27  [known 2026-09-11]\n[N37] USDA PSD production MATIF rapeseed Australia MY2026 = 7.8 MMT for 2026/27  [known 2026-09-11]\n[N40] USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) MATIF rapeseed European Union MY2026 = 9.42 % of domestic use for 2026/27  [known 2026-09-11]\n[N42] USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) MATIF rapeseed European Union MY2026 = 77 percentile for 2026/27  [known 2026-09-11]\n[N58] World Bank Pink Sheet brent crude price 5-year z-score  global 2026-08-01 = 0.51 z, August 2026  [known 2026-09-10]\n[N61] MPOB palm oil closing stocks CME palm oil 2026-08-01 = 2.82 MMT, August 2026  [known 2026-09-13]\n[N62] MPOB palm oil closing stocks CME palm oil 2026-08-01 = 94 percentile, August 2026  [known 2026-09-13]\n[N67] FUTURES EOD settlement price MATIF rapeseed 2026-11 = 536.5 EUR/t, 2026-11  [known 2026-09-29]\n[N70] FUTURES EOD settle change over 21 sessions MATIF rapeseed 2026-11 = 3.5 EUR/t, 2026-11  [known 2026-09-29]\n[N71] FUTURES EOD settle percentile MATIF rapeseed 2026-11 = 16 percentile, 2026-11  [known 2026-09-29]\n[N72] FUTURES EOD settlement price CME palm oil 2026-10 = $1,181.00/metric ton, 2026-10  [known 2026-09-25]\n[N75] FUTURES EOD settle change over 21 sessions CME palm oil 2026-10 = -$67.50/metric ton, 2026-10  [known 2026-09-25]\n[N76] FUTURES EOD settle change over 63 sessions CME palm oil 2026-10 = $53.50/metric ton, 2026-10  [known 2026-09-25]\n[N77] FUTURES EOD settle percentile CME palm oil 2026-10 = 60 percentile, 2026-10  [known 2026-09-25]\n[N92] MPOB palm oil closing stocks CME palm oil 2025-09-29..2026-09-29 = 2.82 MMT, 2025-09-29 to 2026-09-29  [known 2026-09-13]\n[N96] MPOB palm oil closing stocks CME palm oil change from the prior month, August 2026 = 0.2 MMT  [known 2026-09-13]\n[N97] MPOB palm oil closing stocks CME palm oil consecutive months moving the same way, August 2026 = 5 months  [known 2026-09-13]\n"
+}

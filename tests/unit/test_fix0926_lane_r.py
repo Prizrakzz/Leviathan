@@ -353,7 +353,10 @@ def test_P5_the_run_scalar_carries_its_words_its_direction_and_the_rows_declared
 
 def test_P6_a_ledger_read_regime_prints_the_records_words_and_a_drawn_one_keeps_HEADs(monkeypatch):
     head = R._event_words("regime_in_force", event_date="2025-03-10", precision="month", published="2025-03-19")
-    assert "that this turn retrieved" in head
+    # 09-29 FIX SITTING 4 (lane R, R4-4 (c)) -- MOVED PIN, CAUSE: the drawn regime's words named the machine's clock
+    # ("that this turn retrieved"); they now say the same draw in the reader's objects. The claim is unchanged: a
+    # DRAWN regime names its retrieval, the ledger's does not.
+    assert "among those retrieved for this question" in head
     monkeypatch.setattr(R, "_ledger_origin", lambda: "action_ledger")
     assert R._event_words("regime_in_force", event_date="2025-03-10", precision="month", published="2025-03-19",
                           origin="other") == head

@@ -62,7 +62,14 @@ def test_H1b_H4b_a_restated_value_under_the_same_identity_is_a_counted_conflict_
     assert L.address(_oni("El Nino", value=-0.668)) == (1, False)
     assert L.address(_oni("La Nina", value=1.526)) == (2, False)      # same identity, restated value
     assert L.address(_oni("El Nino", value=1.526)) == (2, True)       # the restated value's own handle, reused
-    assert L.stamp() == {"issued": 2, "reused": 1, "identity_value_conflict": 1}
+    # 09-29 FIX SITTING 4 DECLARED MOVE (lane V, CONTRACT C4-16 / T4-1): "stamp() gains 'conflicts': [{row_id,
+    # values: [a, b], handles: [i, j]}] (APPENDED; omitted when empty)". The claim is kept -- the restated value is a
+    # COUNTED conflict, never a merge (the three counts, byte for byte) -- and the conflict is now also NAMED.
+    st = L.stamp()
+    assert {k: st[k] for k in ("issued", "reused", "identity_value_conflict")} == {
+        "issued": 2, "reused": 1, "identity_value_conflict": 1}
+    assert st["conflicts"] == [{"row_id": "corn_cbot|El_Nino|oni_climate|_global|", "values": [-0.668, 1.526],
+                                "handles": [1, 2]}]
 
 
 def test_H1_an_empty_or_blank_read_has_no_identity_and_always_takes_a_new_handle():

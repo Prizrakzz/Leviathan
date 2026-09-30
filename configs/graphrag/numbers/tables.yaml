@@ -5348,7 +5348,7 @@ unit_spellings:
   # (1) keyed by a PRINTED unit -- every member spells exactly that unit
   "%": ["percent"]                              # "%" cards + rows; "percent" a served row unit
   "percentage points": ["percentage point", "pp"]   # minted by the producers (cascade delta 'pp', watch)
-  "mt": ["tonne", "tonnes"]                     # the METRIC tonne the cards describe ("metric tonnes")
+  "mt": ["tonne", "tonnes", "t", "metric ton", "metric tons"]   # the METRIC tonne ("<ccy>/t" = "USD/metric ton")
   "$/bu": ["usd/bu"]                            # the price; both printed on served rows
   "million bushels": ["mmbu"]                   # a served row unit ("Million Bushels")
   "cop per 125 kg carga": ["per 125 kg carga"]  # the price, its currency written before the figure

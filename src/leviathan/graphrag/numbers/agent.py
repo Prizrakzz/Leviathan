@@ -121,6 +121,16 @@ def _ym_lag_on() -> bool:
     return os.environ.get("GRAPHRAG_YM_PUBLICATION_LAG", "off").strip().lower() in ("on", "1", "true")
 
 
+def _desk_register_on() -> bool:
+    """Switch GRAPHRAG_DESK_REGISTER read by THE SEAT (FIX SITTING 4, LANE T, CONTRACT C4-14 -- R4-4 b by file), in
+    the estate's ONE grammar for that flag (`answer._desk_register_on`'s read, spelling for spelling: `on|1|true`,
+    default off; the lane T deck pins the two readers agree). ON -> a served cycle-fallback row's model-facing note is
+    the desk's words (`query.CYCLE_FALLBACK_NOTE_DESK`: the store fact, never "the front-month rule could not run");
+    OFF -> HEAD's note, byte for byte. Read PER CALL, never memoized; it moves no prompt (B9: the note rides a tool
+    payload, not the system prompt)."""
+    return os.environ.get("GRAPHRAG_DESK_REGISTER", "").strip().lower() in ("on", "1", "true")
+
+
 def _ym_lag_kw() -> dict:
     """`{"ym_lag": True}` under `_ym_lag_on()`, else `{}` -- the ONE spelling every seat `Q.run` call spreads, so
     the flag-off call is HEAD's call exactly (no `ym_lag=False` keyword reaches a spy that re-declares `Q.run`)."""
@@ -5064,7 +5074,9 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 # "front month" is never the word for it (owner decision 5). "" for every other row,
                 # so every read the named rule served is byte-identical; APPENDED, never over a note.
                 if vals and str(getattr(spec, "agg", "") or "") == Q.FRONT_EXPIRY_AGG:
-                    _cyc = Q.cycle_fallback_note(vals[0])
+                    # FIX SITTING 4 (C4-14): the desk's words for the same store fact where DESK_REGISTER is lit;
+                    # omit-when-off (the kwarg is ABSENT flag-off, so a spy re-declaring the reader stays valid)
+                    _cyc = Q.cycle_fallback_note(vals[0], **({"desk": True} if _desk_register_on() else {}))
                     if _cyc:
                         _prior = payload.get("scope_note")
                         payload["scope_note"] = f"{_prior} {_cyc}" if _prior else _cyc

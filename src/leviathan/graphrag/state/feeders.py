@@ -2863,6 +2863,49 @@ TAPE_READ_SESSIONS = (CADENCE_HISTORY_WINDOW["daily"] + max(TAPE_CHANGE_SESSIONS
 #: the span can never come in short of the sessions it is meant to hold.
 TAPE_READ_DAYS = int(_math.ceil(TAPE_READ_SESSIONS * (CADENCE_DAYS["daily"] or 1.0)))
 
+#: THE CLOSED WORD A TAPE CHANGE THAT COULD NOT BE PRICED SAYS WHY (the 09-29 fix sitting 4, lane W; CONTRACT C4-1,
+#: F4-1; APPEND-NEVER-SORT): ``base_not_a_price`` -- the window's BASE session is a session of the contract whose
+#: settle the store holds is not a price (:func:`session_price`), so no change is minted over that window. The
+#: session stays on the axis (an unpriced session is still a session) and the window is never re-based on an older
+#: session, so a change labelled "63 sessions" can never span 64. The decline rides the change dict's ``reason``
+#: with the base session on ``base_date``; the render prints it in the book's words (lane R).
+TAPE_CHANGE_DECLINES: tuple = ("base_not_a_price",)
+
+
+def session_price(row: dict) -> Optional[float]:
+    """THE ONE READ OF A SESSION'S SETTLE AS A PRICE (the 09-29 fix sitting 4, lane W; CONTRACT C4-1, F4-1): the
+    row's ``value`` as a float, or ``None`` where the store's value is not a price -- unparseable (a NULL settle),
+    not finite, or a mark of zero or below.
+
+    THE LAW IS THE ESTATE'S OWN, CITED, NEVER RE-ARGUED: the settlement-tape ingest nulls exactly this at its
+    source (``transforms/raw_to_bronze/databento_eod.py``, "A settlement MARK of zero (or below) is not a price
+    ... absent is never zero; a 0 that reached silver would be a phantom -100% move on the first real print").
+    The ICE bar-driven close path is not that function, and it let 219 zero closes into ``silver/futures_eod``
+    (MEASURED on the store, every one on a TRADED session -- arabica 124, frozen OJ 39, cotton 20, cocoa 19, raw
+    sugar 11, canola 6); the as-of probe of 2026-09-29 printed one as "settle change over 63 sessions = $3,630.00
+    /metric ton", the level minus a base of zero. This applies the same law at the READ, for the outright
+    per-contract settle of the tape card (:data:`TAPE_TABLE` / :data:`TAPE_METRIC`) and nowhere else --
+    :func:`tape_state` and :func:`front_moves` read every session through it; a spread or basis card, which may
+    be negative, never passes through here. The producer's own fix (null them at the bar path) is a data docket
+    (owner decision O-S4-3)."""
+    v = _settle_number(row)
+    if v is None or not _math.isfinite(v) or v <= 0.0:
+        return None
+    return v
+
+
+def _settle_number(row: dict) -> Optional[float]:
+    """The row's settle as a NUMBER, or ``None`` where the store holds none (a NULL) -- HEAD's parse, verbatim. It
+    decides which sessions are ON the tape's session axis (F4-1): a NULL settle is ABSENT (the ingest law: "absent is
+    never zero") and stays off the axis exactly as it always was -- MEASURED on the store, the GLBX board publishes a
+    row with a NULL settle, no volume and an open-interest print on US holidays (CME palm 2026-06-19, 2026-07-03,
+    2026-09-07), which is no session, and counting it would shorten every window across it; a number that is not a
+    price (the ICE zero close, on a TRADED session) is on the axis with no price (:func:`session_price`)."""
+    try:
+        return float(str((row or {}).get("value")).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
 
 def tape_known_date(tape) -> Optional[str]:
     """The KNOWN date of the tape's settle -- the session date through the ONE derivation
@@ -2962,7 +3005,19 @@ def tape_state(slug: str, asof: str, *, qfn, newest_first: Any = "all",
 
     ONE READ, and the ledger says so. The percentile ranks the level inside THAT read's own window and
     ``window_note`` prints the window in sessions and dates, so the rank can never claim a span it did
-    not measure."""
+    not measure.
+
+    **A SESSION IS A PRICE ONLY WHEN ITS SETTLE IS ONE** (the 09-29 fix sitting 4, lane W; CONTRACT C4-1, F4-1).
+    Every session of the named contract is read through :func:`session_price`. The SESSION AXIS keeps every
+    session the store holds a settle NUMBER for (HEAD's axis: :func:`_settle_number`; a NULL is absent and stays off
+    it, as it always was), priced or not -- a session whose number is not a price is still a session -- and:
+    the LEVEL is the newest session whose settle is a price (its own date prints as ``level_date``, and every
+    change ends there); a change whose BASE session carries no price DECLINES with the reason
+    :data:`TAPE_CHANGE_DECLINES` names and the base session on ``base_date`` -- never re-based on an older session,
+    never minted from a zero; the percentile's population is the PRICED sessions, and ``coverage`` carries
+    ``unpriced_sessions`` (omitted when 0). MEASURED on the store: the as-of probe's 2026-07 cocoa contract
+    carries ``settle 0.0`` on 2026-01-12, the 64th session back from 2026-04-14, and HEAD served its 63-session
+    change as 3,630 -- the level itself. A fetch with no unpriced session is HEAD's tape byte for byte."""
     out = TapeState(slug=str(slug or ""), asof=str(asof or ""))
     try:
         from leviathan.silver import futures_eod_contracts as FC
@@ -3017,22 +3072,32 @@ def tape_state(slug: str, asof: str, *, qfn, newest_first: Any = "all",
     out.roll_rule_version = str(f.get("roll_rule_version") or "")
 
     # THE SAME-CONTRACT SERIES: the fetched rows for the month the rule named, one value per session.
-    by_date: dict = {}
+    # F4-1 (CONTRACT C4-1): the SESSION AXIS holds every session the store holds a settle number for (HEAD's axis --
+    # a NULL is absent, as it always was); the series the figures are computed on holds the PRICED sessions only
+    # (:func:`session_price`). A priced duplicate of one session wins over an unpriced one; with no unpriced session
+    # the two are HEAD's one series.
+    axis: dict = {}
     for r in rows:
         if str(r.get("contract_month") or "")[:7] != out.contract_month:
             continue
         d = _session_date(r)
-        if not d or d > newest:
+        if not d or d > newest or _settle_number(r) is None:
             continue
-        try:
-            by_date[d] = float(str(r.get("value")).replace(",", ""))
-        except (TypeError, ValueError):
-            continue
+        p = session_price(r)
+        if p is not None or d not in axis:
+            axis[d] = p
+    by_date = {d: p for d, p in axis.items() if p is not None}
     dates = sorted(by_date)
     values = [by_date[d] for d in dates]
+    # THE AXIS THE WINDOWS RUN OVER ENDS AT THE LEVEL'S OWN SESSION (the newest priced one), so every change is a
+    # change INTO the printed settle; an unpriced session after it is counted, never a level.
+    sessions = sorted(d for d in axis if dates and d <= dates[-1])
+    unpriced = sum(1 for p in axis.values() if p is None)
     out.level, out.level_date = (values[-1] if values else None), (dates[-1] if dates else None)
     out.coverage = {"n_obs": len(values), "history_start": dates[0] if dates else None,
                     "history_end": dates[-1] if dates else None, "truncated": truncated}
+    if unpriced:
+        out.coverage["unpriced_sessions"] = int(unpriced)
     out.window_note = (f"{len(values)} sessions on {out.contract_month}"
                        + (f", {dates[0]} to {dates[-1]}" if dates else "")
                        + (f"; the read came back at its {spec.limit}-row cap" if truncated else ""))
@@ -3042,12 +3107,24 @@ def tape_state(slug: str, asof: str, *, qfn, newest_first: Any = "all",
     derivs: list = []
     for w in TAPE_CHANGE_SESSIONS:
         label = f"{w} {'session' if w == 1 else 'sessions'}"
+        # THE WINDOW'S BASE IS READ ON THE SESSION AXIS (F4-1): ``w`` sessions before the level's own session.
+        base = sessions[-(w + 1)] if len(sessions) > w else None
+        if base is not None and axis.get(base) is None:
+            # the base session carries no price: DECLINED BY NAME, nothing computed (no derivation record -- the
+            # percentile-thin precedent below), never re-based on an older session.
+            out.changes.append({"window": label, "n_periods": w, "declined": True,
+                                "reason": TAPE_CHANGE_DECLINES[0], "from_date": base,
+                                "to_date": sessions[-1], "delta": None, "pct": None, "base_date": base})
+            continue
+        # a priced base: its index in the priced series (with no unpriced session this is HEAD's -(w + 1)); a
+        # window longer than the axis keeps HEAD's own out-of-range decline.
+        t1 = (dates.index(base) - len(dates)) if base is not None else -(w + 1)
         ch, rec = TR.run_transform("window_change", bundle, key=key,
-                                   params={"t1": -(w + 1), "t2": -1, "window_label": label})
+                                   params={"t1": t1, "t2": -1, "window_label": label})
         derivs.append(rec)
         out.changes.append({"window": label, "n_periods": w, "declined": ch["declined"],
                             "reason": ch.get("reason"),
-                            "from_date": dates[-(w + 1)] if len(dates) > w else None,
+                            "from_date": base,
                             "to_date": dates[-1] if dates else None,
                             "delta": ch.get("value"), "pct": ch.get("pct_change")})
     if len(values) >= TAPE_MIN_PERCENTILE_N:
@@ -3061,20 +3138,24 @@ def tape_state(slug: str, asof: str, *, qfn, newest_first: Any = "all",
                           "reason": f"{len(values)} sessions on this contract; a rank needs "
                                     f"{TAPE_MIN_PERCENTILE_N}"}
         out.status = f"percentile_thin:{len(values)}"
-    if all(c["declined"] for c in out.changes):
+    # "changes_thin" is a THINNESS word: a window declined only because its base carries no price (F4-1) is named
+    # on its own change and never makes the tape "thin".
+    if all(c["declined"] for c in out.changes) and any(c.get("reason") not in TAPE_CHANGE_DECLINES
+                                                       for c in out.changes):
         out.status = f"changes_thin:{len(values)}"
     # P-2 (the 09-26 fix sitting 2, CONTRACT Y7): THE TAPE'S DERIVED FIGURES ARE KNOWN WHEN THEIR LAST INPUT IS.
     # Each session's knowledge date is the ONE derivation the settle takes (:func:`derive_knowledge_date` on
     # this card: the session plus the card's publication lag -- what :func:`tape_known_date` prints for the
     # settle), and each change / the percentile is stamped with the max over its OWN sessions. MEASURED on arm
     # A: the settle known 2026-09-25 beside its change and percentile stamped 2026-09-24 on every tape.
+    # F4-1: stamped over the SESSION AXIS the windows ran on (with no unpriced session it is HEAD's ``dates``).
     _tk = {}
-    for d in dates:
+    for d in (sessions or dates):
         try:
             _tk[d] = derive_knowledge_date(ts, {"knowledge_date": d})[0]
         except Exception:                               # noqa: BLE001 -- an unstampable session is unread
             _tk[d] = None
-    _tu = stamp_derived_known(out, _tk, dates)
+    _tu = stamp_derived_known(out, _tk, sessions or dates)
     if _tu:
         out.coverage[DERIVED_UNREAD_KEY] = int(_tu)
     out.derivation, out.inputs = derivs, bundle
@@ -3108,8 +3189,12 @@ def _session_date(row: dict) -> str:
 #:   ``read_error`` -- a read failed or declined by name (pool / timeout);
 #:   ``contract_not_live_at_open`` -- APPENDED at this build: the named contract carries no session on or before
 #:       the band's opening (it was not yet trading when the band opened), so its move would not span the band.
+#:   ``base_not_a_price`` -- APPENDED at the 09-29 fix sitting 4 (lane W; CONTRACT C4-1, F4-1): the band's OPENING or
+#:       CLOSING session of the named contract carries a settle the store holds that is not a price
+#:       (:func:`session_price`), so the band's move is not minted (a zero at the opening prints no move, a zero at
+#:       the close a phantom -100%); the move is never re-based on a neighbouring session.
 FRONT_MOVE_DECLINES: tuple = ("pre_coverage", "front_decline", "contract_expired_in_band", "in_flight",
-                              "read_error", "contract_not_live_at_open")
+                              "read_error", "contract_not_live_at_open", "base_not_a_price")
 
 
 def _front_read(slug: str, spec, ts, *, qfn, roll_inputs: bool) -> tuple:
@@ -3165,7 +3250,17 @@ def front_moves(slug: str, firings, band, asof: str, *, qfn, limit: int = READ_L
     distinct front contract (firings grouped by their contract; ``contract_month`` named, the union of their
     windows from the tape's roll margin before the earliest opening to the latest close, PIT at the board's
     as-of). Both reads carry the board's ``limit``; ``reads`` and ``ms`` are stamped. A band that closes after the
-    as-of is ``in_flight`` and read nowhere; a band opening before coverage is ``pre_coverage`` at zero reads."""
+    as-of is ``in_flight`` and read nowhere; a band opening before coverage is ``pre_coverage`` at zero reads.
+
+    **A SESSION IS A PRICE ONLY WHEN ITS SETTLE IS ONE** (the 09-29 fix sitting 4, lane W; CONTRACT C4-1, F4-1):
+    every session of the named contract is read through :func:`session_price`. A session whose settle is not a
+    price is still a SESSION (it decides whether the contract was live at the band's opening and whether it traded
+    to the band's close, as HEAD's parsed sessions did), but it is never a VALUE: the per-firing arrays carry the
+    priced sessions only. The band's OPENING session (the first session on or after its opening) and CLOSING
+    session (the last on or before its close) are found on the whole session axis by the walk's own
+    ``_at_or_after`` / ``_at_or_before`` -- the reading :func:`walk.chain_outcome` makes of the arrays -- and a band
+    whose opening or closing session carries no price declines ``base_not_a_price``. With no unpriced session the
+    answer is HEAD's byte for byte."""
     t0 = time.perf_counter()
     out: dict = {"per_firing": {}, "reads": 0, "ms": 0.0, "declined": {}}
     asof_s = str(asof or "")[:10]
@@ -3271,19 +3366,23 @@ def front_moves(slug: str, firings, band, asof: str, *, qfn, limit: int = READ_L
                 out["declined"][d] = why
             continue
         by_date: dict = {}
+        axis: set = set()
         unit = ""
         for r in rows:
             if str(r.get("contract_month") or "")[:7] != cm:
                 continue
             s = _session_date(r)
-            if not s or s < lo or s > hi or s > asof_s:
+            if not s or s < lo or s > hi or s > asof_s or _settle_number(r) is None:
                 continue
-            try:
-                by_date[s] = float(str(r.get("value")).replace(",", ""))
-            except (TypeError, ValueError):
+            # F4-1: a session the store holds a settle number for is on the contract's axis (HEAD's parsed sessions:
+            # a NULL is absent, as it always was); it is a VALUE only as a price.
+            axis.add(s)
+            p = session_price(r)
+            if p is None:
                 continue
+            by_date[s] = p
             unit = unit or str(r.get("unit") or "")
-        cdates = sorted(by_date)
+        cdates = sorted(axis)
         for d in ds:
             opens, closes = windows[d]
             named_at = (fronts.get(closes) or (None, None, ""))[1] or closes
@@ -3294,8 +3393,14 @@ def front_moves(slug: str, firings, band, asof: str, *, qfn, limit: int = READ_L
             if own[-1] < named_at:
                 out["declined"][d] = "contract_expired_in_band"
                 continue
-            out["per_firing"][d] = {"contract_month": cm, "values": [by_date[s] for s in own],
-                                    "dates": own, "unit": unit, "status": "ok", "named_at": named_at}
+            # F4-1: the band's opening / closing session, on the whole axis, by the walk's own reading of a band.
+            j0, j1 = _w._at_or_after(own, opens), _w._at_or_before(own, closes)
+            if any(j is not None and own[j] not in by_date for j in (j0, j1)):
+                out["declined"][d] = FRONT_MOVE_DECLINES[6]
+                continue
+            priced = [s for s in own if s in by_date]
+            out["per_firing"][d] = {"contract_month": cm, "values": [by_date[s] for s in priced],
+                                    "dates": priced, "unit": unit, "status": "ok", "named_at": named_at}
     out["ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
     return out
 

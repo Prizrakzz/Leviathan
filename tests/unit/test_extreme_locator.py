@@ -1090,10 +1090,18 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # `ask_netting` (the netting facts the ASKED SIDES line printed, default the empty tuple -- read only inside
     # the call clause). DECLARED RE-BANK: the claim kept -- appended at the tail, in the order added, and the
     # default-off value renders HEAD's bytes (checked below).
+    # ...and the 09-29 fix sitting 4 (lane A, A4-4 / CONTRACT C4-17) appends ONE more after `ask_netting`:
+    # `ask_sides_lines` (each ASKED SIDES line's own label and parts, default the empty tuple -- read only inside the
+    # call clause). DECLARED RE-BANK: the claim kept -- appended at the tail, in the order added, and the default-off
+    # value renders HEAD's bytes (checked below).
     _APPENDS = [n for n in ("numbers_budget", "state_board", "desk_register", "watch_selection",
                             "register_licence", "state_chain", "ask_head", "horizon_row",
-                            "positioning_asymmetry", "ask_sides", "ask_sides_balanced", "ask_netting")
+                            "positioning_asymmetry", "ask_sides", "ask_sides_balanced", "ask_netting",
+                            "ask_sides_lines")
                 if n in _tail]
+    if "ask_sides_lines" in _tail:
+        assert params["ask_sides_lines"].default == ()
+        assert an._system(ask_sides_lines=()) == base
     if "ask_netting" in _tail:
         assert params["ask_netting"].default == ()
         assert an._system(ask_netting=()) == base
@@ -1165,8 +1173,12 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
         from leviathan.graphrag.state import narration as _sn_w
         assert _sn_w.MANDATE_WATCH_HEAD_RX in an._system(state_board=True)
         assert _sn_w.MANDATE_WATCH_NONOBVIOUS not in an._system(state_board=True)
+        # MOVED 09-29 (fix sitting 4, lane A, A4-3 -- CONTRACT C4-17, declared DM4): the scheduled-prints RULE left the
+        # WATCH movement and lands right after the absence fact it scopes, so the non-obvious variant is TWO named
+        # substitutions; the claim (the lit mandate is HEAD's with exactly the named substitutions) is kept.
         assert an._system(state_board=True, watch_selection=True) == \
             an._system(state_board=True).replace(_sn_w.MANDATE_WATCH_HEAD_RX, _sn_w.MANDATE_WATCH_NONOBVIOUS) \
+            .replace(_sn_w.MANDATE_ABSENCE_RX, _sn_w.MANDATE_ABSENCE_RX + " " + _sn_w.MANDATE_SCHEDULED_PRINTS) \
             + _sw.WATCH_SELECTION_CLAUSE
     if "state_chain" in _tail:                            # S8's ONE named append, and the LAST
         assert params["state_chain"].default is False

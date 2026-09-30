@@ -48,8 +48,12 @@ def _rec(cell: str, rid: str, mode: str = "deep") -> dict:
 
 # -- 0. THE ROSTER: FIVE ROWS APPENDED IN THE CONTRACT'S ORDER -------------------------------------------------
 def test_the_five_z23_rows_are_appended_after_heads_roster_in_the_contracts_order():
+    # MOVED PIN (fix sitting 4, lane I): the census APPENDED seven rows at its tail (CONTRACT C4-21), so the roster
+    # no longer ENDS with Z23's five -- the claim kept is this pin's own: HEAD's twenty, then Z23's five in the
+    # contract's order, nothing inserted or sorted before them (the tail past them is a later sitting's, and
+    # `test_fix0929s4_lane_i` pins it).
     names = tuple(n for n, _k, _p in gev._INSTRUMENTS)
-    assert names == _HEAD_ROSTER + _Z23
+    assert names[:len(_HEAD_ROSTER) + len(_Z23)] == _HEAD_ROSTER + _Z23
     kinds = {n: k for n, k, _p in gev._INSTRUMENTS}
     assert all(kinds[n] == "count" for n in _Z23)
 

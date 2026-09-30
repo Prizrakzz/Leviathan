@@ -47,6 +47,7 @@ from leviathan.graphrag.state.rows import (PERIOD_KIND_NOUNS, SIGN_WORDS, VINTAG
                                            cell_standing, figure_text, figure_token, percentile_int,
                                            percentile_value, period_behind_words, row_identity,
                                            shown_value, status_word)
+from leviathan.graphrag.state.rows import display_unit  # noqa: E402  -- 09-29 SITTING 4 (R4-2, C4-10)
 
 # ---------------------------------------------------------------------------------------------------
 # THE MARKER (sec 6.1) -- minted ONCE here and imported by the seam gate at S6
@@ -224,15 +225,18 @@ ABSENCE_WHY: dict = {
     "series_planned": "the series is declared as planned work and is not served yet",
     "series_none": "the model declares no series for this driver at all",
     "read_empty": "the read returned nothing for this scope at this as-of",
-    "read_error": "the read did not complete, so this reading has no state this turn",
+    # 09-29 SITTING 4 (lane R, R4-4 (c)): "this turn", "read budget", "reader slot" are the instrument's words for
+    # itself -- the writer copied them ("No past state was tested on this turn", 5 pages); each sentence below now
+    # says the same fact in the reader's objects (the question, the reads made for it), claim for claim.
+    "read_error": "the read did not complete, so this reading carries no state here",
     "thin_history": "the series holds too few points for a standing against its own history",
     "zero_variance": "the series does not vary over its own window, so a standing would divide by "
                      "nothing",
     "history_truncated": "the read came back at its own size cap, so the history behind it is partial "
                          "and no standing is claimed",
-    "budget_cap": "this turn's read budget was spent before these keys, which are named here",
+    "budget_cap": "the reads allotted to this question ran out before these keys, which are named here",
     "outlook_lane": "positioning is not read as a series on this kind of turn",
-    "pool_exhausted": "no reader slot came free for this series inside this turn",
+    "pool_exhausted": "the read of this series could not start in the time this question allows",
     "pg_timeout": "the read for this series did not return inside its own time",
     # edge
     "sign_undeclared": "the model declares no direction on this link",
@@ -257,7 +261,7 @@ ABSENCE_WHY: dict = {
                         "reading behind each of them is still named above",
     "no_measured_hop": "no link on that chain carries a served series, so it can only carry the "
                        "direction the model declares for it",
-    "cross_unpriced": "the further market that chain reaches had nothing read on it this turn, so "
+    "cross_unpriced": "the further market that chain reaches had nothing read on it for this question, so "
                       "the chain stops at this one",
     "when_not_all_loud": "the drivers this amplifier names are not all among the largest moves here",
     # tape
@@ -319,12 +323,12 @@ ABSENCE_WHY: dict = {
     # render / board
     "template_register_trip": "a composed line did not pass its own register check and was "
                               "replaced by this note",
-    "pg_not_live": "the reader behind these readings is not available on this turn",
+    "pg_not_live": "the reader behind these readings is not available for this question",
     "anchor_none": "the question named no market this service covers",
-    "turn_spend_unknown": "this turn's own read count is not available here",
-    "lane_off": "this turn does not read %s" % _RECORD_NAME,
+    "turn_spend_unknown": "the count of reads made for this question is not available here",
+    "lane_off": "%s is not read for this question" % _RECORD_NAME,
     "recency_facts_off": "the per-layer recency grammar these readings are written for is not "
-                         "switched on for this turn",
+                         "switched on for this question",
     # SUBJECT RESOLVER D5. THE ONLY ENTRY IN THIS MAP WHOSE WORD OWES A SECOND SENTENCE, and the
     # sentence below is deliberately the HALF that does not name the drivers: `absence_why` drops
     # every detail (each existing one is a count, and a count in a letters-only class is a digit), so a
@@ -333,6 +337,22 @@ ABSENCE_WHY: dict = {
     "subject_ambiguous": "the question could be about either of two drivers this service covers, and "
                          "it does not say which",
 }
+
+#: 09-29 SITTING 4 (lane R, CONTRACT C4-19, AN4-2): THE FOURTH WATCH ABSENCE WORD'S SENTENCE -- the core stops short
+#: because every further reading weighed restates a period longer than the question's horizon (BUILD_AN B-AN-4:
+#: HEAD had no word for it and printed the capped or the exhausted sentence, neither true of it). The word is
+#: lane AN's (``watch.absence_row``) and the closed tuple that declares it is ``board.WATCH_REASONS``; ``state/lint.py``
+#: clause 9 grades ABSENCE_WHY in BOTH directions, so the sentence enters the map exactly where a closed enum
+#: declares the word -- never a sentence with no word, never a word with no sentence.
+_WATCH_CORE_STANDING_WHY = ("the list stops short because every further reading weighed for this market restates a "
+                            "period longer than the horizon asked about, so it is standing context rather than an "
+                            "item to watch")
+try:
+    from leviathan.graphrag.state import board as _board_words
+    if "watch_core_standing" in tuple(getattr(_board_words, "WATCH_REASONS", ()) or ()):
+        ABSENCE_WHY["watch_core_standing"] = _WATCH_CORE_STANDING_WHY
+except Exception:                                       # noqa: BLE001 -- no vocabulary, no sentence
+    pass
 
 #: The fallback. It is deliberately a SENTENCE and not the raw word: a reader must never be shown a
 #: code token, and ``state/lint.py`` fails when a closed word has no entry above, so this string is
@@ -570,6 +590,13 @@ def cache_clear() -> None:
             fn.cache_clear()
         except Exception:                               # noqa: BLE001
             pass
+    # 09-29 SITTING 4 (lane R): the rows module's own memo of the books it reads (splice heads, short names, unit
+    # words) -- one call still clears the whole lane
+    try:
+        from leviathan.graphrag.state import rows as _rows_memo
+        _rows_memo.cache_clear()
+    except Exception:                                   # noqa: BLE001
+        pass
 
 
 def reading_words(table: str, metric: str) -> str:
@@ -722,6 +749,28 @@ def series_name_words(table: str, metric: str, commodity: str = "", label: str =
     if lab and book.get(f"{t}.*") and not any(ch.isdigit() for ch in lab):
         return ascii_text(lab)
     return ascii_text(book.get(f"{t}.*") or "")
+
+
+def series_short_words(table: str, metric: str, commodity: str = "", label: str = "") -> str:
+    """THE SERIES' SHORT NAME (09-29 fix sitting 4, R4-1, CONTRACT C4-9) -- the book's ``reading_short`` for this metric:
+    a noun phrase with its own head noun and no comma ("the dry-day run z-score"), which the row identity names the
+    row by INLINE (``RowIdentity.short`` -> ``short_words``) so the one splice producer can set it in a writer's slot;
+    the long card description stays the row's name (the SB-1 line and the footer print it). Resolved exactly as
+    :func:`series_name_words` resolves the name: an exact key; where only the CARD-WIDE key exists and the metric's own
+    display label names the series (the FX card), that label IS already the short name. ``""`` where the book declares
+    none -- the identity then names the row by its long name, HEAD's."""
+    t, m, c = str(table or ""), str(metric or ""), str(commodity or "")
+    book = _book("reading_short")
+    exact = (book.get(f"{t}.{m}@{c}") if c else None) or book.get(f"{t}.{m}")
+    if exact:
+        return ascii_text(str(exact))
+    names = _reading_word_table()
+    if names.get(f"{t}.{m}") or (c and names.get(f"{t}.{m}@{c}")):
+        return ""                                       # a declared name with no declared short: HEAD's name
+    lab = str(label or "")
+    if lab and names.get(f"{t}.*") and not any(ch.isdigit() for ch in lab):
+        return ""                                       # the FX label names the series and is short already
+    return ascii_text(str(book.get(f"{t}.*") or ""))
 
 
 def scoped_reading_words(table: str, metric: str, commodity: str = "") -> str:
@@ -1025,7 +1074,9 @@ def row_identity_for(row) -> Optional[RowIdentity]:
                         basin_surfaces=basin_surfaces(),
                         commodity_words=series_commodity_words(_commodity, str(row.contract or "")),
                         period_role=_role,
-                        class_words=family_class_words(table, _commodity))
+                        class_words=family_class_words(table, _commodity),
+                        # 09-29 SITTING 4 (R4-1, C4-9): the series' SHORT name, the inline noun -- the name stays long
+                        short=series_short_words(table, metric, _commodity, str(card.get("label") or "")))
 
 
 def release_role_words(table: str, known_date: str) -> str:
@@ -1072,7 +1123,7 @@ def convention_lines(table: str, metric: str) -> tuple:
 
 
 def shown_figure(value, *, table: str, metric: str, unit: str = "", two_sided: Optional[bool] = None,
-                 grouping: bool = False) -> str:
+                 grouping: bool = False, display: bool = False) -> str:
     """THE ONLY ENTRY POINT A READER CALLS TO PRINT A CARD'S FIGURE (CONTRACT.md C5): the card's
     ``display_scale`` / ``display_unit`` where the value is not already in display units, its
     ``display_decimals`` where declared, the declared LINES (:func:`convention_lines`) and
@@ -1097,7 +1148,11 @@ def shown_figure(value, *, table: str, metric: str, unit: str = "", two_sided: O
     if two_sided is None:
         two_sided = bool(lines)
     dec = cf.get("display_decimals")
-    return figure_text(v, unit=u, decimals=(int(dec) if dec is not None else None), lines=lines,
+    # 09-29 SITTING 4 (R4-2, CONTRACT C4-10): ``display`` -- the BLOCK's own lines print the unit's reader words
+    # (``rows.display_unit``: "1000 MT" -> "thousand tonnes"); every other caller (the footer's backing guard reads
+    # this text back against the unit it passed) keeps the unit as stored, HEAD's bytes.
+    return figure_text(v, unit=(display_unit(u) if display else u),
+                       decimals=(int(dec) if dec is not None else None), lines=lines,
                        two_sided=bool(two_sided), grouping=grouping)
 
 
@@ -1368,7 +1423,33 @@ def sb_header(bd, *, anchor_label: str = "", n_series: Optional[int] = None,
             f"their own series, {words_for_int(n_receipts)} carried as dated receipts; "
             f"{rule_words}. Every figure on a state line below is that reading's LEVEL on the date "
             f"the line names; a figure read over a span of dates is a window statistic and is never a "
-            f"second current value of the same series.")
+            f"second current value of the same series.{anchor_resolution_words(bd)}")
+
+
+def anchor_resolution_words(bd) -> str:
+    """WHY AN ANCHOR IS THE CONTRACT IT IS (09-29 fix sitting 4, S4-1 / S4-2 -- lane R's print of lane S's resolver,
+    CONTRACT C4-18): for each anchor the anchor pass RESOLVED (its reason word is any of ``board.ANCHOR_RESOLUTION_
+    REASONS`` but ``priced``), the resolver's own note as a served fact -- " CBOT soybeans stands for soybeans: the one
+    soybeans contract with a price record." -- led by the anchored market where the contract moved off the seed, the
+    note alone where the seed was kept (its note names the product). ``""`` where no anchor was resolved: every
+    already-priced board, every deck and every flag-off path print HEAD's header byte for byte. The fields are read
+    defensively (lane S's ``resolution`` / ``resolved_from``, lane W's ``reason`` / ``seed``)."""
+    out = []
+    try:
+        from leviathan.graphrag.state import board as _B
+        # the resolver's own closed words: the FIRST is the anchor that stands on its own price record (C4-18)
+        _priced = str((tuple(getattr(_B, "ANCHOR_RESOLUTION_REASONS", ()) or ()) or ("",))[0])
+    except Exception:                                   # noqa: BLE001 -- no vocabulary, no note
+        return ""
+    for a in (getattr(bd, "anchors", None) or ()):
+        why = str(getattr(a, "resolution", "") or getattr(a, "reason", "") or "")
+        note = ascii_text(" ".join(str(getattr(a, "note", "") or "").split())).strip().rstrip(".")
+        if not why or not _priced or why == _priced or not note:
+            continue
+        seed = str(getattr(a, "resolved_from", "") or getattr(a, "seed", "") or "")
+        moved = bool(seed) and seed != str(getattr(a, "contract", "") or "")
+        out.append(" %s%s." % (("%s " % board_label(a.contract)) if moved else "", note))
+    return "".join(out)
 
 
 def _scalar(block, value, **kw) -> None:
@@ -1643,7 +1724,7 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
             parts.append(f"[N{h}] {ztxt} sigma on its trailing window of "
                          f"{words_for_int(win)} {_wn}")
         else:
-            parts.append("its own history carries no standing this turn: "
+            parts.append("its own history carries no standing here: "
                          + absence_why((st.z or {}).get("reason") or "thin_history"))
         if _ok(st.percentile):
             h += 1
@@ -1704,7 +1785,7 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "", block=None, peak_h
         parts.append(f"{d} over the last {period_noun(st.cadence, 1)}" if ln == 1 else
                      f"{d} in each of the last {words_for_int(ln)} {period_noun(st.cadence, ln)}")
     if st.convention and st.convention.get("matched") and st.convention.get("label"):
-        parts.append(f"past the line the desk convention calls {st.convention['label']}")
+        parts.append(f"past the {THRESHOLD_CLAUSE_NOUN} the desk convention calls {st.convention['label']}")
         # 09-27 SITTING 3 (CONTRACT Z6, U-4 producer half): THE THRESHOLD IS A SERVED FACT BOUND TO THE ROW -- the
         # line, its label, the statistic it JUDGES and that figure's own handle here, and the relation the feeder
         # computed -- registered beside the clause (the printed words are HEAD's), so the verifier holds a writer's
@@ -1864,10 +1945,12 @@ def _signed_words(v, unit: str, two_sided: bool, *, table: str = "", metric: str
     # 09-26 SITTING 2 (Y23): the separator is the rows producer's decision (``_grouping_on``), one for every
     # board figure token; HEAD's ungrouped figure where that half of the contract has not landed.
     _g = _grouping_on()
+    # 09-29 SITTING 4 (R4-2): a block line prints the unit's display words (the call keeps the stored unit)
     if table or metric:
-        txt = shown_figure(v, table=table, metric=metric, unit=unit, two_sided=two_sided, grouping=_g)
+        txt = shown_figure(v, table=table, metric=metric, unit=unit, two_sided=two_sided, grouping=_g,
+                           display=True)
     else:
-        txt = figure_text(v, unit=unit, two_sided=two_sided, grouping=_g)
+        txt = figure_text(v, unit=display_unit(unit), two_sided=two_sided, grouping=_g)
     return txt or "no level was read"
 
 
@@ -1949,6 +2032,14 @@ def judged_statistic(st) -> tuple:
     return "", r
 
 
+#: THE NOUN THE THRESHOLD CLAUSES PRINT FOR A DESK LINE (09-29 fix sitting 4, CONTRACT C4-6, V4-3) -- declared ONCE,
+#: beside the clauses that print it (SB-1 "past the line the desk convention calls <label>", SB-V "the <label> line
+#: at ...", the LARGEST MOVE lead), and registered on every ``card_threshold`` scalar as ``head_noun`` so the
+#: verifier (lane V) places the judged citation AFTER the noun phrase the threshold words form, never between a
+#: label and its noun ("past the severe [N14] line", the 2026-09-29 smoke). Read, never typed in verify.py.
+THRESHOLD_CLAUSE_NOUN: str = "line"
+
+
 def _threshold_fact(block, st, judged_handles: dict, *, rid: str = "", relation: str = "",
                     band=None, label: str = "", unit: str = "") -> None:
     """REGISTER ONE DESK LINE AS A SERVED FACT BOUND TO ITS ROW (09-27 sitting 3, CONTRACT Z6) -- scalar kind
@@ -1980,7 +2071,9 @@ def _threshold_fact(block, st, judged_handles: dict, *, rid: str = "", relation:
                    "relation_words": ({k: v for k, v in words.items() if v} or None),
                    # the row the fact is bound to, under ONE key on both classes (SB-V's scalar keeps HEAD's
                    # ``row_id`` None, so the pool's row-bound backing of its line does not move)
-                   "threshold_row_id": rid})
+                   "threshold_row_id": rid,
+                   # 09-29 SITTING 4 (C4-6): the noun the clause prints after "past the" (TAIL key)
+                   "head_noun": THRESHOLD_CLAUSE_NOUN})
 
 
 def sb_convention(n: int, row, *, distance, band, label: str, unit_words: str, direction: str,
@@ -2003,7 +2096,7 @@ def sb_convention(n: int, row, *, distance, band, label: str, unit_words: str, d
          "country": (st.key.country if st is not None else None) or None,
          "period": str((st.level_date if st is not None else "") or ""), "asof": asof}
     call = sb_call(value=round(float(distance), 4), unit=unit_words or "", **q)
-    at = band_words or (f"{_fmt(band)} {unit_words}".strip())
+    at = band_words or (f"{_fmt(band)} {display_unit(unit_words)}".strip())
     # THE LINE ITSELF IS A CARD THRESHOLD THE ROW PRINTS (C4, ``card_threshold``): a writer copying "the
     # moderate line at 1 degC" copies a declared desk line, not an unbacked figure.
     # 09-27 SITTING 3 (CONTRACT Z6, U-4): ...and it carries the threshold FACT -- the statistic the line judges
@@ -2024,11 +2117,13 @@ def sb_convention(n: int, row, *, distance, band, label: str, unit_words: str, d
                    "relation_words": ({k: list(book_list("threshold_words", k)) for k in ("past", "inside")
                                        if book_list("threshold_words", k)} or None),
                    "threshold_row_id": (getattr(row_identity_for(row), "row_id", "") if st is not None
-                                        else "")})
+                                        else ""),
+                   # 09-29 SITTING 4 (C4-6): the noun this line prints after its label (TAIL key)
+                   "head_noun": THRESHOLD_CLAUSE_NOUN})
     who = row_label or f"{humanise(row.driver_id)} on {board_label(row.contract)}"
     tail = f" -- {dates}" if dates else ""
-    line = (f"- [N{n}] WATCH {kind_words} {who}: {_fmt(distance)} {unit_words} {direction} the "
-            f"{label} line at {at}{tail}")
+    line = (f"- [N{n}] WATCH {kind_words} {who}: {_fmt(distance)} {display_unit(unit_words)} {direction} the "
+            f"{label} {THRESHOLD_CLAUSE_NOUN} at {at}{tail}")
     return re.sub(r"\s+", " ", line), [call]
 
 
@@ -2956,7 +3051,7 @@ def chain_arithmetic_words(ch) -> str:
     if ds.get("buffer_series") is False:
         scope.append("this market serves no buffer series")
     if ds.get("events_in_corpus") is False:
-        scope.append("this turn retrieved no dated action for this market")
+        scope.append("no dated action on this market was retrieved for this question")
     return "%swhy: %s; %s." % (CHAIN_SUB_PREFIX, ", ".join(pairs) or "no term scored",
                                ", ".join(scope))
 
@@ -3925,7 +4020,16 @@ def sb_convergence(row: dict, *, series_of: Optional[dict] = None,
     # milled stocks series. ``names_of`` is the render's own identity map; a caller that passes none (a
     # deck) and a condition with no series read keep HEAD's driver words.
     _nm = dict(names_of or {})
-    measured = [_nm.get(d) or humanise(d) for d in fold["keep"]]
+    # 09-29 SITTING 4 (lane R, CONTRACT C4-12, W4-2 -- the print): a member the walk COUNTED BY ITS DATED ACTION
+    # (``counted_by``: the action's date, its [E] address and the record's own polarity word) is listed by that
+    # action in the book's words (``quorum_words.counted_by``), never "with its own [N] z" of the series the action
+    # moves -- the probe palm page listed an import tariff "with its own [N] z" of India's imports. The effect series
+    # keeps its own line on the block; only this parenthetical stops presenting it as the member's reading.
+    _cby = {str(k): dict(v) for k, v in dict(row.get("counted_by") or {}).items() if isinstance(v, dict)}
+    _cby_words = book_words("quorum_words", "counted_by")
+    _by_action = [d for d in fold["keep"] if str(d) in _cby and _cby_words and _action_listing(_cby[str(d)])]
+    measured = [_nm.get(d) or humanise(d) for d in fold["keep"] if d not in _by_action]
+    acted = ["%s, %s" % (humanise(d), _action_listing(_cby[str(d)])) for d in _by_action]
     opposed = [humanise(d) for d in fold["phase_opposed"]]
     unread = [humanise(d) for d in count["unread"]]
     # **THE WALK'S TAIL VERDICTS REACH THE PAGE** (the 09-25 close-out, RW-1 = VERIFY MAJOR-1, the render
@@ -3947,6 +4051,11 @@ def sb_convergence(row: dict, *, series_of: Optional[dict] = None,
     named = (f"({_and_list(measured)}, "
              f"{'with its own [N] z' if n_measured == 1 else 'each with its own [N] z'})"
              if measured else "")
+    if acted:
+        # the counted-by-action members after the z members, in the same parenthetical (C4-12)
+        named = ("(" + "; ".join(([f"{_and_list(measured)}, "
+                                   f"{'with its own [N] z' if len(measured) == 1 else 'each with its own [N] z'}"]
+                                  if measured else []) + acted) + ")")
     if n_measured:
         lead = (f"{words_for_int(n_measured)} of the {words_for_int(n_declared)} {cond} it names "
                 f"{'is' if n_measured == 1 else 'are'} showing here {named}")
@@ -4050,6 +4159,25 @@ def sb_convergence(row: dict, *, series_of: Optional[dict] = None,
             + ("none of them carries a declared desk band" if not row["n_with_band"] else
                f"{words_for_int(row['n_with_band'])} "
                f"{'carries' if row['n_with_band'] == 1 else 'carry'} a declared desk band"))
+
+
+def _action_listing(cby: dict) -> str:
+    """ONE counted-by-action member's listing (09-29 sitting 4, CONTRACT C4-12): the book's ``quorum_words.counted_by``
+    with the action's date in words, and its ``[E]`` address where the walk stamped one -- ``""`` where the date is
+    missing (the member then keeps HEAD's listing)."""
+    tpl = book_words("quorum_words", "counted_by")
+    day = day_words(str((cby or {}).get("action_date") or "")) or ""
+    if not tpl or not day:
+        return ""
+    try:
+        out = tpl.format(date=day)
+    except (KeyError, ValueError, IndexError):
+        return ""
+    e = (cby or {}).get("e_handle")
+    try:
+        return out + (" [E%d]" % int(e) if e else "")
+    except (TypeError, ValueError):
+        return out
 
 
 def pattern_count(row: dict, series_of: Optional[dict] = None) -> dict:
@@ -4418,6 +4546,28 @@ def tape_row_id(tape) -> str:
     return "%s||silver_futures_eod|%s|%s" % (slug, slug, str(getattr(tape, "contract_month", "") or ""))
 
 
+def _tape_decline_words(ch: dict) -> str:
+    """THE BOOK'S WORDS FOR ONE DECLINED TAPE CHANGE, BY ITS REASON (09-29 sitting 4, CONTRACT C4-1): ``tape_decline_words.
+    <reason>`` with the base session in words (``base_date``) and the window (``n_periods`` sessions). ``""`` where the
+    change names no reason, the book declares none for it, or a field it needs is missing -- the caller then prints
+    HEAD's words. Never a figure: the decline is the fact."""
+    reason = str((ch or {}).get("reason") or "")
+    tpl = book_words("tape_decline_words", reason) if reason else ""
+    if not tpl:
+        return ""
+    try:
+        n = int(ch.get("n_periods") or 0)
+    except (TypeError, ValueError):
+        n = 0
+    day = day_words(str(ch.get("base_date") or "")) or str(ch.get("base_date") or "")[:10]
+    if n <= 0 or not day:
+        return ""
+    try:
+        return tpl.format(date=day, n=words_for_int(n), noun=period_noun("daily", n))
+    except (KeyError, ValueError, IndexError):
+        return ""
+
+
 def sb_tape(n: int, tape, *, asof: str, block=None) -> tuple:
     """SB-T (sec 6.2, D19, B19): the ANCHOR's own tape -- the dated front settle, the four SAME-CONTRACT
     session changes and the level's percentile over the window this read fetched. ONE handle per
@@ -4446,7 +4596,8 @@ def sb_tape(n: int, tape, *, asof: str, block=None) -> tuple:
     # settle card's ``display_decimals``) -- a desk quotes the tick (1,328.25 never "1328"; integration F-3).
     # ``shown_figure`` returns the figure WITH its unit (``rows.figure_text``), so the unit is printed once.
     _lvl = shown_figure(tape.level, table='silver_futures_eod', metric='settle', unit=tape.unit,
-                        grouping=_grouping_on())                  # 09-26 SITTING 2 (Y23): the one separator
+                        grouping=_grouping_on(),                  # 09-26 SITTING 2 (Y23): the one separator
+                        display=True)                             # 09-29 SITTING 4 (R4-2): its display words
     _scalar(block, tape.level, unit=str(tape.unit or ""), kind="level", row_id=rid or None, handle=h,
             text=_lvl)
     parts = [f"- [N{h}] {board_label(tape.slug)}{tape_delivery_words(tape)} settle on "
@@ -4455,9 +4606,14 @@ def sb_tape(n: int, tape, *, asof: str, block=None) -> tuple:
              .rstrip()]
     for ch in tape.changes:
         if ch.get("declined"):
-            parts.append(f"over {words_for_int(ch['n_periods'])} "
-                         f"{period_noun('daily', ch['n_periods'])} the same contract carries no change "
-                         f"to print")
+            # 09-29 SITTING 4 (F4-1's print, CONTRACT C4-1): a change the feeder declined BY NAME says why, in the book's
+            # words for its reason (``tape_decline_words``) -- the store's settle for the base session is not a price
+            # (lane W's ``base_not_a_price``, a zero settle on a traded session); a reason the book declares no words
+            # for, or a decline with no reason, keeps HEAD's words.
+            _tdw = _tape_decline_words(ch)
+            parts.append(_tdw or (f"over {words_for_int(ch['n_periods'])} "
+                                  f"{period_noun('daily', ch['n_periods'])} the same contract carries no change "
+                                  f"to print"))
             continue
         h += 1
         # 09-26 SITTING 2 (CONTRACT Y7, P-2; verifier seam B-P1): a change is known when its LAST input is --
@@ -4467,7 +4623,7 @@ def sb_tape(n: int, tape, *, asof: str, block=None) -> tuple:
                              knowledge_date=ch.get("knowledge_date") or ch.get("to_date"), row_id=rid,
                              **{**q, "metric": f"settle change over {ch['window']}"}))
         _d = _fmt(ch['delta'])
-        _cu = _change_unit_words(str(tape.unit or ""))
+        _cu = display_unit(_change_unit_words(str(tape.unit or "")))
         _scalar(block, round(float(ch["delta"]), 4), unit=str(tape.unit or ""), kind="window_change",
                 row_id=rid or None, handle=h, text=_d)
         if _cu:
@@ -5426,7 +5582,8 @@ def _event_words(kind: str, *, event_date: str, precision: str = "", published: 
         if kind == "guidance":
             return "a dated forecast, published %s -- not an action" % pub
         if kind == "regime_in_force":
-            return ("the newest dated policy action on this link that this turn retrieved was reported %s; "
+            return ("the newest dated policy action on this link among those retrieved for this question was "
+                    "reported %s; "
                     "the model treats a policy as in force until a later dated action on the same link"
                     % pub)
         if kind in ("action_closed", "action_aged", "action_open"):
@@ -5454,7 +5611,8 @@ def _event_words(kind: str, *, event_date: str, precision: str = "", published: 
         # 09-24 (K6 / I-4): the action at its own precision AND the document that reports it -- "in March
         # 2025, reported 19 March 2025" -- so the date the source acted and the date it was written are
         # two facts a reader can tell apart.
-        return ("the newest dated policy action on this link that this turn retrieved is %s%s; the model "
+        return ("the newest dated policy action on this link among those retrieved for this question is %s%s; "
+                "the model "
                 "treats a policy as in force until a later dated action on the same link"
                 % (bare, (", reported %s" % pub) if pub else ""))
     if kind == "action_closed":
@@ -5791,8 +5949,12 @@ def _chain_receipt_words(cand: dict) -> dict:
 #: The words a nomination wears when its falsifier cannot resolve inside the turn's horizon. ONE
 #: PRODUCER (``watch.horizon_miss_clause``), reached through a lazy import because ``watch`` imports
 #: THIS module for its display vocabulary -- so the two spellings can never drift.
-def _horizon_miss_clause(cause: str, *, next_print: str = "", faster: str = "") -> str:
+def _horizon_miss_clause(cause: str, *, next_print: str = "", faster: str = "", window: tuple = ()) -> str:
     from leviathan.graphrag.state.watch import horizon_miss_clause
+    # 09-29 SITTING 4 (CONTRACT C4-19, AN4-2): a print that is a WINDOW is named by its opening and closing days, never
+    # its opening day as the print -- passed where the producer takes it (lane AN's ``window``), else HEAD's call
+    if window and _takes_kw(horizon_miss_clause, "window"):
+        return horizon_miss_clause(cause, next_print=next_print, faster=faster, window=tuple(window))
     return horizon_miss_clause(cause, next_print=next_print, faster=faster)
 
 
@@ -5863,7 +6025,8 @@ def sb_watch(w: dict) -> str:
     if w.get("horizon_miss"):
         note = " NOTE: " + _horizon_miss_clause(str(w.get("horizon_miss")),
                                                 next_print=str(w.get("next_print") or ""),
-                                                faster=str(w.get("horizon_faster") or ""))
+                                                faster=str(w.get("horizon_faster") or ""),
+                                                window=((_po, _pc) if (_po and _pc and _po != _pc) else ()))
         clock = ""                                      # the note carries the date; never twice
     return f"- WATCH {w['kind_words']} {w['label']}{cite}{mark}: {body}{tail}{clock}{note}"
 
@@ -6050,7 +6213,7 @@ def sb_ask_row(handle: int, call, *, block=None, tail: str = "") -> str:
     # difference of a ratio is not a percent) and GROUPED, so the head reads "+10,289", never "+10289".
     fig = figure_text(v, two_sided=signed, grouping=_ask_source_call(call) is not None)
     _scalar(block, v, unit=unit, kind="ask_row", handle=int(handle), text=fig)
-    tok = figure_token(fig, unit=unit, period_words=period)
+    tok = figure_token(fig, unit=display_unit(unit), period_words=period)     # 09-29 (R4-2): display words
     pct = row.get("pct_change")
     try:
         pct = float(pct) if pct is not None else None
@@ -6134,6 +6297,17 @@ def tape_pair_spread(bd) -> Optional[dict]:
         _fb = dict(getattr(tb, "fx", None) or {}) or None
         if (_fa or _fb) and _takes_kw(_st.pair_level_spread, "fx_a") and _takes_kw(_st.pair_level_spread, "fx_b"):
             _fx = {"fx_a": _fa, "fx_b": _fb}
+        # 09-29 SITTING 4 (T4-2 (b), CONTRACT C4-15 -- the call site): each leg's PRODUCT CLASS, read off the contract
+        # registry (lane T's ``registry.product_class``: contract -> its node -> the ONE class group of the book's
+        # ``product_class_words`` holding it), so the calculator declines a spread between a seed and an oil by
+        # naming the classes BEFORE any unit or exchange-rate conversion. Passed only where the calculator takes
+        # both keywords and both classes are known; otherwise HEAD's call, byte for byte.
+        _fx.update(_pair_classes(_st, a_slug, b_slug))
+        # 09-29 SITTING 4 (T4-2 (a), CONTRACT C4-15 -- the verifier's integration seam): the ONE-QUANTITY reader the
+        # card file declares ("t" and "metric ton" are members of "mt", tables.yaml ``unit_spellings``), handed to
+        # the calculator as an argument (stats stays a pure leaf: lane T's ``registry.same_quantity``). Passed only
+        # where the calculator takes the keyword; otherwise HEAD's strip-and-casefold unit equality, byte for byte.
+        _fx.update(_pair_same_quantity(_st))
         res = _st.pair_level_spread(va, da, getattr(ta, "unit", None), vb, db, getattr(tb, "unit", None),
                                     currency_a=(getattr(ta, "currency", None) or None),
                                     currency_b=(getattr(tb, "currency", None) or None),
@@ -6141,6 +6315,37 @@ def tape_pair_spread(bd) -> Optional[dict]:
     except Exception as exc:                            # noqa: BLE001 -- a calculator error is a refusal
         res = {"declined": True, "reason": "the spread calculator could not run: %s" % (exc,)}
     return dict(res or {}, legs=(a_slug, b_slug))
+
+
+def _pair_classes(stats_mod, a_slug: str, b_slug: str) -> dict:
+    """``{"class_a", "class_b"}`` for the pair's two legs where the calculator takes both keywords and the registry
+    names a class for BOTH legs (CONTRACT C4-15); ``{}`` otherwise -- read defensively, so this call site is HEAD's
+    until lane T's producer lands."""
+    try:
+        if not (_takes_kw(stats_mod.pair_level_spread, "class_a") and _takes_kw(stats_mod.pair_level_spread,
+                                                                                  "class_b")):
+            return {}
+        from leviathan.graphrag.numbers import registry as _G
+        fn = getattr(_G, "product_class", None)
+        if not callable(fn):
+            return {}
+        ca, cb = fn(str(a_slug or "")), fn(str(b_slug or ""))
+    except Exception:                                   # noqa: BLE001 -- no registry, no classes
+        return {}
+    return {"class_a": ca, "class_b": cb} if (ca and cb) else {}
+
+
+def _pair_same_quantity(stats_mod) -> dict:
+    """``{"same_quantity": registry.same_quantity}`` where the calculator takes the keyword and the registry carries
+    the reader (CONTRACT C4-15 / T4-2 a); ``{}`` otherwise -- read defensively, so the call is HEAD's without it."""
+    try:
+        if not _takes_kw(stats_mod.pair_level_spread, "same_quantity"):
+            return {}
+        from leviathan.graphrag.numbers import registry as _G
+        fn = getattr(_G, "same_quantity", None)
+    except Exception:                                   # noqa: BLE001 -- no registry, no reader
+        return {}
+    return {"same_quantity": fn} if callable(fn) else {}
 
 
 def _takes_kw(fn, name: str) -> bool:
@@ -6173,7 +6378,7 @@ def sb_tape_spread(n: int, sp: dict, bd, *, block=None) -> tuple:
     d = str(sp.get("date") or "")
     unit = str(sp.get("unit") or getattr(ta, "unit", "") or "")
     v = float(sp["value"])
-    fig = figure_text(v, unit=unit, two_sided=True)
+    fig = figure_text(v, unit=display_unit(unit), two_sided=True)       # 09-29 (R4-2): the unit's display words
     rid = "%s|pair_level_spread|%s" % (a_slug, b_slug)
     call = sb_call(table="silver_futures_eod",
                    metric="settle difference, %s minus %s" % (board_label(a_slug), board_label(b_slug)),
@@ -6441,7 +6646,7 @@ def sb_lead(i: int, n: int, row) -> str:
     why = ""
     conv = (getattr(st, "convention", None) or {}) if st is not None else {}
     if conv.get("matched") and conv.get("label"):
-        why = f", past the line the desk convention calls {conv['label']}"
+        why = f", past the {THRESHOLD_CLAUSE_NOUN} the desk convention calls {conv['label']}"
     return (f"LARGEST MOVE {ordinal_words(i)} of {words_for_int(n)}: "
             f"{row_words(row.contract, row.driver_id)}{why}; its figures are on its own state line "
             f"below.")
@@ -6613,7 +6818,7 @@ def sb_analog_leg_absence(reason: str, *, not_reached: bool = False) -> str:
 
     IT DELETES NOTHING AND IT DOES NOT RE-OPEN THE SELECTION RULE (that is S8's): it is one letters-only
     SB-X line saying what did not happen and what the right word for the other thing is."""
-    why = ("the like-state leg was not entered on this turn, so no past state was tested at all"
+    why = ("no past state of these readings was tested for a likeness, so none was compared at all"
            if not_reached and not reason else absence_why(reason or "no_like_state"))
     # 09-26 SITTING 2 (N-1): the reader's objects -- these markets, the record -- never "this page"
     return ("BOARD ABSENCE a like state on these markets: " + why
@@ -9113,7 +9318,7 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     for note in bd.notes:
         if note.get("kind") == "budget_cap":
             named = _named_rows(note.get("pairs") or (), rank)
-            b.add(sb_absence("the keys this turn's budget did not reach"
+            b.add(sb_absence("the keys the reads allotted to this question did not reach"
                              + (" (" + name_list(named, _nm_cap) + ")" if named else ""),
                              "budget_cap"),
                   label="budget cap")
@@ -9145,7 +9350,7 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                   label="anchor cap")
         elif note.get("kind") == "tape_cap":
             named = sorted({board_label(x) for x in (note.get("names") or ())})
-            b.add(sb_absence("the price paths of the anchor boards past this turn's tape seats"
+            b.add(sb_absence("the price paths of the anchor boards past the price reads allotted to this question"
                              + (" (" + name_list(named, _nm_cap) + ")" if named else ""),
                              "budget_cap"),
                   label="tape cap")

@@ -450,7 +450,12 @@ def test_fixer_M1_a_weekly_row_prints_its_week_and_the_marketing_year_as_its_rol
                 "knowledge_date": "2026-09-17", "country": "China"}],
               commodity="soybeans_cbot", country="China", period="2026")
     lab = cit.from_number(_stamped(c), 3).label
-    assert "= 879.05 1000 MT booked in the week, week to 10 September 2026, 2026/27 marketing year" in lab
+    # 09-29 FIX SITTING 4 DECLARED MOVE (lane V, CONTRACT C4-10 / R4-2): "the footer / numbers-block line prints the
+    # unit through rows.display_unit ONLY under the analyst display stamp" -- the stored "1000 MT" now prints in the
+    # book's words where lane R's producer declares them. The claim is kept (the ROW's week, the marketing year as its
+    # role); the unit is read through the one producer, so the pin holds with or without it on the tree.
+    _u = cit._display_unit("1000 MT")
+    assert "= 879.05 %s booked in the week, week to 10 September 2026, 2026/27 marketing year" % _u in lab
     assert "MY2026" in lab                                             # the scope slot is HEAD's
     ci = cit.call_identity(c)
     assert (ci["period_words"], ci["period_kind"], ci["period_role"]) == (
@@ -471,8 +476,10 @@ def test_fixer_M9_an_aggregate_is_named_by_the_cards_aggregate_words_and_takes_n
     c["query"]["agg"] = "sum"
     lab = cit.from_number(_stamped(c), 2).label
     # 09-25 CLOSE-OUT lane CC (B-3 / RT-4): the summed scope is a marketing year, joined by its kind ("for")
-    assert "export shipments CBOT soybeans China MY2025 = 12,357 1000 MT for 2025/26, the closed 2025/26 " \
-           "year, every week summed" in lab
+    # 09-29 FIX SITTING 4 DECLARED MOVE (lane V, CONTRACT C4-10 / R4-2): the unit through the one display producer
+    # under the stamp (see M1 above); the claim -- the card's aggregate words, no basis, the summed scope -- is kept
+    assert ("export shipments CBOT soybeans China MY2025 = 12,357 %s for 2025/26, the closed 2025/26 "
+            "year, every week summed" % cit._display_unit("1000 MT")) in lab
     assert "in the week" not in lab and "weekly exports" not in lab
     assert "weekly exports" in cit.from_number(c, 2).label
     ci = cit.call_identity(c)

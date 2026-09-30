@@ -142,13 +142,17 @@ def test_U12_the_panel_sentence_is_the_books_and_rides_the_board_leg_only():
     `panel_words.mandate`, CONTRACT Z9), read by the mandate and never typed in narration.py."""
     panel = R.book_words("panel_words", "mandate")
     legs = dict(_legs(0, 0, 0, 0, 0))
+    # MOVED 09-29 (fix sitting 4, lane A, A4-4 panel reach / CONTRACT C4-17 -- declared): the leg ships the book
+    # sentence's DECLARATION (up to its own clause separator); its use-or-say-why-not half is `facts_owed`'s, scoped to
+    # the mandate's facts. The claim kept: the sentence is the BOOK's, read by the mandate, never typed in narration.
+    decl = (panel.split(": ", 1)[0].rstrip(" ,;") + ".") if (panel and ": " in panel) else panel
     if panel:
-        assert legs["panel"].strip() == panel
-        assert panel not in (SRC / "state" / "narration.py").read_text(encoding="utf-8")
-        assert panel not in an._system() and panel not in an._system(desk_register=True)
+        assert legs["panel"].strip() == decl
+        assert decl not in (SRC / "state" / "narration.py").read_text(encoding="utf-8")
+        assert decl not in an._system() and decl not in an._system(desk_register=True)
     else:
         assert "panel" not in legs                   # the producer not landed: no sentence, never a typed copy
-    assert N.panel_mandate() == panel.strip()
+    assert N.panel_mandate() == decl.strip()
 
 
 def test_U12_the_census_rides_writer_seam_and_no_trace_key_moves():
@@ -169,7 +173,7 @@ def test_U12_the_facts_HEAD_required_are_each_asked_for_by_a_clause():
                   "recency_layers": (0, 0, 0, 0, 0), "spillover_signs": (0, 0, 0, 0, 0),
                   "cross_commodity_markets": (0, 0, 0, 0, 0), "watch_items": (0, 0, 0, 0, 0),
                   "absence_reason": (0, 0, 0, 0, 0), "watch_forward": (1, 0, 0, 0, 0),
-                  "watch_weighed_left": (1, 0, 0, 0, 0), "scheduled_prints": (1, 0, 0, 0, 0),
+                  "watch_weighed_left": (1, 0, 0, 0, 0),
                   "chain_links": (0, 1, 0, 0, 0), "chain_link_facts": (0, 1, 0, 0, 0),
                   "chain_receipt": (0, 1, 0, 0, 0), "chain_history": (0, 1, 0, 0, 0), "pair_call": (0, 1, 0, 0, 0),
                   "chain_count": (0, 1, 0, 0, 0), "one_line_chain": (0, 1, 0, 0, 0), "chain_scope": (0, 1, 0, 0, 0),
@@ -184,7 +188,10 @@ def test_U12_the_facts_HEAD_required_are_each_asked_for_by_a_clause():
                   "length": (0, 0, 0, 0, 0), "no_cut": (0, 0, 0, 0, 0), "tldr_consistency": (0, 0, 0, 0, 0),
                   "register_ban": (0, 0, 1, 0, 0), "register_exempt": (0, 0, 1, 0, 0),
                   "register_handles": (0, 0, 1, 0, 0), "date_spelling": (0, 0, 1, 0, 0),
-                  "register_recency": (0, 0, 1, 0, 0)}
+                  "register_recency": (0, 0, 1, 0, 0),
+                  # MOVED 09-29 (fix sitting 4, lane A, A4-3 / CONTRACT C4-17 -- declared): `scheduled_prints` is a
+                  # RULE now (it protects the watch draw's ban; no sentence is owed), shipped on the SAME cell
+                  "scheduled_prints": (1, 0, 0, 0, 0)}
     for key, cell in fact_cells.items():
         assert key in N.mandate_asks(dict(_legs(*cell)))["facts"], key
     for key, cell in rule_cells.items():
@@ -474,7 +481,10 @@ def test_U7_system_threads_the_netting_only_inside_the_call_clause():
     assert an._system(state_board=True, ask_netting=NETTING) == an._system(state_board=True)   # no call line
     assert an._system(ask_sides=h, ask_netting=NETTING) == an._system()                          # board-less
     _p = list(inspect.signature(an._system).parameters)
-    assert _p[-1] == "ask_netting" and inspect.signature(an._system).parameters["ask_netting"].default == ()
+    # MOVED 09-29 (fix sitting 4, lane A, A4-4 / CONTRACT C4-17 -- declared): `ask_sides_lines` is appended after
+    # `ask_netting`; the claim kept -- `ask_netting` is a tail append (now the second-last) whose default is `()`.
+    assert _p[-2:] == ["ask_netting", "ask_sides_lines"]
+    assert inspect.signature(an._system).parameters["ask_netting"].default == ()
 
 
 # ═══ S2 V-4 -- THE BALANCED / LEAN CHOICE READS THE LINE'S OWN COUNTS ════════════════════════════════════════

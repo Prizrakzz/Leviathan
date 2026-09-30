@@ -357,7 +357,11 @@ def test_A4_the_clause_ships_only_with_the_blocks_handles_and_only_on_a_board_tu
     _p = list(inspect.signature(an._system).parameters)
     # RE-BANKED 09-27 (fix sitting 3, lane A, U-7 / CONTRACT Z4 -- declared): one more tail append, `ask_netting`,
     # inert at its default; the claim kept: this clause's kwarg is a TAIL append whose default renders HEAD's bytes.
-    assert _p[_p.index("positioning_asymmetry") + 1:] == ["ask_sides", "ask_sides_balanced", "ask_netting"]
+    # RE-BANKED 09-29 (fix sitting 4, lane A, A4-4 / CONTRACT C4-17 -- declared): one more tail append,
+    # `ask_sides_lines`, inert at its default; the claim kept: this clause's kwarg is a TAIL append whose default
+    # renders HEAD's bytes.
+    assert _p[_p.index("positioning_asymmetry") + 1:] == ["ask_sides", "ask_sides_balanced", "ask_netting",
+                                                           "ask_sides_lines"]
 
 
 def test_A4_the_gate_reads_the_lead_R_prints_and_nothing_else(monkeypatch):

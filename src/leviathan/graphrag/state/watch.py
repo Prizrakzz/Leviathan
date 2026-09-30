@@ -2728,9 +2728,19 @@ HORIZON_MISS_CLAUSES: dict = {
 
 #: What the clause says where the calendar gave a date and where it gave none. Both are facts; a missing
 #: date is not a silence.
+#:
+#: 09-29 FIX SITTING 4 (AN4-2, CONTRACT C4-19): ``window`` IS APPENDED, AND IT IS THE THIRD FACT A CALENDAR RULE CAN
+#: GIVE -- a publisher's own window, whose two ends ``calendar.next_release`` returns (``opens`` / ``closes``) and the
+#: nomination already carries (``next_print_opens`` / ``_closes``, sitting 3 Z19). The clause used to take the
+#: window's OPENING day as "its next scheduled print is <day>": MEASURED on HEAD, 4 of 4 horizon notes on the live
+#: 2026-09-29 smoke max block and 47 of 47 on the 56 rebuilt boards sat on a ``monthly_window`` rule (silver_psd,
+#: 9th..12th) and every one named the opening day as the print, while the same block's clock line printed the
+#: window ("next print between ... and ...") -- and the max page's writer copied "their next print on 2026-10-09".
+#: The window words say the fact the rule declares: the print is due inside the window, not on its first day.
 HORIZON_PRINT_WORDS: dict = {
     "dated": "its next scheduled print is {date}",
     "undated": "no print of this series is scheduled inside the horizon asked about",
+    "window": "its next scheduled print is due inside the publisher's own window, between {opens} and {closes}",
 }
 
 #: What the clause says where this board carries NO reading fast enough to turn inside the horizon. It
@@ -2740,16 +2750,29 @@ HORIZON_FASTER_FALLBACK = ("no reading here prints on a grain shorter than the h
 
 
 #: ONE READER, so the render cannot spell a cause this module does not declare.
-def horizon_miss_clause(cause: str = "print", *, next_print: str = "", faster: str = "") -> str:
+def horizon_miss_clause(cause: str = "print", *, next_print: str = "", faster: str = "",
+                        window: Optional[tuple] = None) -> str:
     """The horizon clause, with the row's OWN scheduled print in it (MAJOR 6) and the faster series it
     points at NAMED where the board carries one (MAJOR 6's second half).
 
     The DATE rides the sentence rather than a second ``; next print`` tail, which is what closes MAJOR 7:
     a note that denies any checkable print inside the horizon can no longer be followed by a bare print
-    date two days after the as-of."""
+    date two days after the as-of.
+
+    ``window`` (09-29 SITTING 4, AN4-2, CONTRACT C4-19) is the release rule's own ``(opens, closes)``, which the
+    render's call site passes off the row (``next_print_opens`` / ``next_print_closes``). Where both ends are given
+    and differ, the clause names the WINDOW (``HORIZON_PRINT_WORDS['window']``) and never its opening day as if it
+    were the print -- the same rule the row's clock line already keeps (``render.sb_watch``: "next print between").
+    Absent, or a window of one day, the clause is HEAD's byte for byte."""
     tpl = HORIZON_MISS_CLAUSES.get(str(cause or "print"), HORIZON_MISS_CLAUSES["print"])
-    words = (HORIZON_PRINT_WORDS["dated"].format(date=str(next_print))
-             if next_print else HORIZON_PRINT_WORDS["undated"])
+    _opens, _closes = ((tuple(window) + ("", ""))[:2] if window else ("", ""))
+    _opens, _closes = str(_opens or ""), str(_closes or "")
+    if _opens and _closes and _opens != _closes:
+        words = HORIZON_PRINT_WORDS["window"].format(opens=_opens, closes=_closes)
+    elif next_print:
+        words = HORIZON_PRINT_WORDS["dated"].format(date=str(next_print))
+    else:
+        words = HORIZON_PRINT_WORDS["undated"]
     return tpl.format(print_words=words, faster=str(faster or HORIZON_FASTER_FALLBACK))
 
 
@@ -3096,7 +3119,42 @@ def release_footnote(bd, *, calendar_doc: Optional[dict] = None) -> Optional[dic
             "what": "", "dates": "", "row": (), "nonobvious": True}
 
 
-def absence_row(*, partial: bool = False, alternates: bool = False) -> dict:
+#: THE WATCH LIST'S OWN ABSENCE WORDS, EACH WITH THE LABEL ITS SB-X LINE NAMES (09-29 FIX SITTING 4, AN4-1 / AN4-2,
+#: CONTRACT C4-19). ONE map keyed by the REASON WORD -- the closed word ``render.ABSENCE_WHY`` keys its sentence by
+#: and ``board.WATCH_REASONS`` declares -- so a word and the thing its line says is absent cannot drift apart: the
+#: label names WHAT is absent (an item), the word's sentence says WHY. The label's words are the register table's
+#: own column for "this page" (``register.DESK_REGISTER_TOKENS``: "here") and the render's own fallback label
+#: ("a forward item here", ``render.render_board``). UNTIL THIS SITTING the three labels said "... on this page", a
+#: charged register token on every under-filled block (MEASURED on HEAD: 36 of the 56 rebuilt boards and the live
+#: 2026-09-29 smoke 2024 run-2 block), kept only because the coverage instrument keyed ``watch_admitted_zero`` on
+#: the label's literal; sitting 3's lane R moved that read onto the manifest's reason word (render.py
+#: ``watch_absence``), so the label now speaks the book's words. ``watch_core_standing`` is the fourth word
+#: (AN4-2): what is absent is the same -- a further core item -- and its sentence says the other reason.
+#: APPEND-NEVER-SORT.
+WATCH_ABSENCE_LABELS: dict = {
+    "watch_floor_unmet": "a forward item here",
+    "watch_nothing_further": "a further forward item here",
+    "watch_core_capped": "a further core item here",
+    "watch_core_standing": "a further core item here",
+}
+
+
+def _absence_word_declared(word: str) -> bool:
+    """A WATCH ABSENCE WORD IS STAMPED ONLY WHERE THE ESTATE CAN SAY IT (09-29 sitting 4, CONTRACT C4-19 / rule 1):
+    the board's closed watch enum declares it (``board.check_reason``, the stamp's own lint) AND the render carries
+    its sentence (``render.ABSENCE_WHY``). Read DEFENSIVELY: ``watch_core_standing``'s sentence is lane R's and its
+    declaration is ``board.py``'s, so a tree where either half has not landed keeps HEAD's line (no note) rather
+    than printing ``render.ABSENCE_FALLBACK`` under a word nobody declared, and ``state/lint.py`` clause 9 (a word
+    with no sentence, or a sentence with no word) can never be reddened by this producer alone."""
+    try:
+        from leviathan.graphrag.state import board as _B
+        return (_B.check_reason("watch", str(word)) is None
+                and str(word) in (getattr(R, "ABSENCE_WHY", None) or {}))
+    except Exception:                                   # noqa: BLE001 -- an unreadable vocabulary declares nothing
+        return False
+
+
+def absence_row(*, partial: bool = False, alternates: bool = False, standing: bool = False) -> dict:
     """THE HONEST ABSENCE LINE. A board that clears the floor with nothing prints THIS and not a padded
     list -- the ruling's own words: four backed items and one honest absence line beat five rows where
     two are noise, and zero backed items and one honest line beat three rows that are all noise.
@@ -3120,12 +3178,20 @@ def absence_row(*, partial: bool = False, alternates: bool = False) -> dict:
     caps get their own word: ``watch_core_capped`` where the pass was bounded by the caps and the
     held-back items are on the page, ``watch_nothing_further`` where the candidate list was genuinely
     exhausted and nothing is offered below. CORRECTED, never struck -- the reader is still told the core
-    is short and is now told the true reason."""
-    word = ("watch_core_capped" if (partial and alternates)
-            else ("watch_nothing_further" if partial else "watch_floor_unmet"))
-    label = ("a further core item on this page" if (partial and alternates)
-             else ("a further forward item on this page" if partial
-                   else "a forward item on this page"))
+    is short and is now told the true reason.
+
+    **AND A FOURTH, ``standing``** (09-29 sitting 4, AN4-2 / CONTRACT C4-19; sitting 3's B-AN-4). Since sitting 3 a
+    STANDING row (its own period longer than the horizon, :func:`_row_clock`) never takes a ceiling slot, so a
+    core can stop short because every reading that could fill it restates a period longer than the horizon --
+    neither the caps' sentence (those alternates were not held by a cap) nor the exhausted one (they are offered
+    below) is true of it, and HEAD printed no note there at all (10 of the 56 rebuilt boards). ``standing=True``
+    with ``partial`` and ``alternates`` names that case; :func:`nonobvious_rows` decides when it is true.
+
+    THE LABEL IS READ BY THE WORD (AN4-1): :data:`WATCH_ABSENCE_LABELS`, never "on this page"."""
+    word = ("watch_core_standing" if (partial and alternates and standing)
+            else ("watch_core_capped" if (partial and alternates)
+                  else ("watch_nothing_further" if partial else "watch_floor_unmet")))
+    label = WATCH_ABSENCE_LABELS[word]
     return {"kind": word, "form": "absence", "label": label,
             "reason": word, "declined": word, "what": "", "dates": "", "row": (),
             "nonobvious": True}
@@ -3328,11 +3394,26 @@ def nonobvious_rows(bd, *, analogs=(), cap: Optional[int] = None,
         # where there are no alternates at all; a tail that carries a standing row gets neither -- no sentence
         # here is true of it, each standing row states its own reason, and HEAD (which seated those rows in the
         # core) printed no note either. The missing third sentence is docketed for the book (BUILD_AN).
+        #
+        # 09-29 SITTING 4 (AN4-2, CONTRACT C4-19): THE THIRD SENTENCE, SAID ONLY WHERE IT IS WHOLE. The core stopped
+        # short because of the standing rule and nothing else exactly where EVERY candidate the draw could have
+        # seated in the core and did not -- the draw's own population (`ranked`, one per series key and kind),
+        # minus the core, minus what the carried rule holds off the list (`_drawable`, counted on the leg) -- is
+        # stamped `standing`: then no cap held back a reading that could fill it, and the alternates below are the
+        # standing rows, each with its own cadence note. The stamp is `_row_clock`'s (the one horizon producer),
+        # read off the candidate, never re-derived. A tail that mixes standing and cap-held rows gets NO note,
+        # as before: neither sentence is true of the whole of it. MEASURED on HEAD's draw (the 56 rebuilt boards):
+        # 10 boards carry a tail of standing alternates and every one of them has every further drawable
+        # candidate standing; 6 mix the two. The word is stamped only where the estate declares it and can say
+        # it (`_absence_word_declared`).
         _alts = out[taken:]
         if not _alts:
             rows.append(absence_row(partial=True, alternates=False))
         elif not any(c.get("standing") for c in _alts):
             rows.append(absence_row(partial=True, alternates=True))
+        elif (all(c.get("standing") for c in ranked if c.get("slot") != "ceiling" and _drawable(c))
+              and _absence_word_declared("watch_core_standing")):
+            rows.append(absence_row(partial=True, alternates=True, standing=True))
     if _census and rows:
         rows[0]["draw_census"] = dict(_census)
     foot = release_footnote(bd, calendar_doc=calendar_doc)

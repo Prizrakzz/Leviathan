@@ -3864,7 +3864,7 @@ def _system_writer_seam_mandate(prose_mode: str | None = None) -> str:
 def _mandate_parts(*, state_board: bool = False, prose_mode: str | None = None, watch_selection: bool = False,
                    state_chain: bool = False, desk_register: bool = False, ask_head: tuple = (),
                    horizon_row: bool = False, positioning_asymmetry: tuple = (), ask_sides: tuple = (),
-                   ask_sides_balanced: bool = True, ask_netting: tuple = ()) -> list:
+                   ask_sides_balanced: bool = True, ask_netting: tuple = (), ask_sides_lines: tuple = ()) -> list:
     """THE BOARD-TURN MANDATE LEGS, ``[(name, text), ...]`` in the order `_system` appends them, each text carrying
     its own leading separator (so ``"".join`` is HEAD's concatenation byte for byte). 09-27 FIX SITTING 3 (lane A,
     U-12; CONTRACT Z1): ONE producer for the prompt `_system` assembles and the census the answer seam stamps.
@@ -3907,10 +3907,13 @@ def _mandate_parts(*, state_board: bool = False, prose_mode: str | None = None, 
         if ask_sides:
             _acm = getattr(_snm, "ask_call_mandate", None)
             if callable(_acm):
-                # the netting facts ride the call clause's own TAIL kwarg; HEAD's call when there are none
+                # the netting facts ride the call clause's own TAIL kwarg; HEAD's call when there are none.
+                # 09-29 SITTING 4 (A4-4, C4-17): where the printed lines disagree, each line's own label and parts
+                # (`ask_sides_lines`, the clause's `lines` TAIL kwarg); absent -> HEAD's call, byte for byte
+                _lkw = {"lines": tuple(ask_sides_lines)} if ask_sides_lines else {}
                 out.append(("ask_call", " " + (_acm(tuple(ask_sides), balanced=bool(ask_sides_balanced),
-                                                    netting=ask_netting)
-                                               if ask_netting else
+                                                    netting=ask_netting, **_lkw)
+                                               if (ask_netting or _lkw) else
                                                _acm(tuple(ask_sides), balanced=bool(ask_sides_balanced)))))
     if watch_selection:
         out.append(("watch_selection", _snm.watch_selection_mandate()))
@@ -3973,7 +3976,12 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             # `ask_sides_balanced` for the same pinned reason -- `{part: (handle, ...)}` (or a tuple of such pairs)
             # of the netting facts the ASKED SIDES line PRINTED (`_ask_netting_printed`); empty -> HEAD's clause
             # byte for byte (B1). Read only inside the `ask_sides` clause, so it can never ship on its own.
-            ask_netting: tuple = ()) -> str:
+            ask_netting: tuple = (),
+            # 09-29 FIX SITTING 4 (lane A, A4-4; CONTRACT C4-17): EACH ASKED SIDES LINE'S OWN LABEL, appended at the
+            # TAIL after `ask_netting` for the same pinned reason -- `((handles, balanced, netting), ...)`
+            # (`_ask_sides_line_records`), passed only where the printed lines disagree (a leaning line beside a
+            # level one); empty -> HEAD's call clause byte for byte (B1). Read only inside the `ask_sides` clause.
+            ask_sides_lines: tuple = ()) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -4159,7 +4167,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     _legs = _mandate_parts(state_board=state_board, prose_mode=prose_mode, watch_selection=watch_selection,
                            state_chain=state_chain, desk_register=desk_register, ask_head=ask_head,
                            horizon_row=horizon_row, positioning_asymmetry=positioning_asymmetry,
-                           ask_sides=ask_sides, ask_sides_balanced=ask_sides_balanced, ask_netting=ask_netting)
+                           ask_sides=ask_sides, ask_sides_balanced=ask_sides_balanced, ask_netting=ask_netting,
+                           **({"ask_sides_lines": ask_sides_lines} if ask_sides_lines else {}))
     if _legs:
         base = base + "".join(text for _name, text in _legs)
     if handles:                                                    # D-HP-7/8: LAST of the legs, because it
@@ -5051,6 +5060,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # 09-27 SITTING 3 (U-7, CONTRACT Z4): the netting facts the ASKED SIDES line printed, `{part: (handles)}`;
     # `{}` on every board-off turn and on every block that printed none (HEAD's call clause, byte for byte)
     _net_printed: dict = {}
+    # 09-29 SITTING 4 (A4-4, C4-17): each ASKED SIDES line's own label and parts where the lines disagree; `()`
+    # on every board-off turn and on every block whose lines carry one label (HEAD's call clause, byte for byte)
+    _sides_lines: tuple = ()
     # FIX SITTING 2 (N-5, Y20): the board's own movement ranks for the ceiling cut; None on every board-off turn
     _mv_ranks = None
     if _board is not None:
@@ -5112,6 +5124,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         _net_printed = (_ask_netting_printed(_sb.get("block"), served_scalars=_sb.get("served_scalars"),
                                              netting_trace=(_sb.get("trace") or {}).get("ask_netting"))
                         if _sides_printed else {})
+        # 09-29 FIX SITTING 4 (lane A, A4-4; C4-17): each ASKED SIDES line's own label and parts, only where the
+        # lines disagree (a lean line beside a level one); `()` -> HEAD's single call clause
+        _sides_lines = (_ask_sides_line_records(_sb.get("block"), _sb.get("served_scalars"), _net_printed)
+                        if _sides_printed else ())
         _mv_ranks = _movement_ranks(_board, _sb.get("block"))
         if _sb.get("block") and _quant_on:
             volatile_blocks = volatile_blocks + [_sb["block"]]
@@ -5139,6 +5155,15 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # `quantify(board=...)` (BUILD_A blockers). Board off -> no request -> no key -> `{:+g}`.
             if isinstance(_board_req, dict):
                 _board_req = dict(_board_req, display=_DISPLAY_ANALYST)
+                # 09-29 FIX SITTING 4 (lane A, A4-5 = S3 M-B's answer half; CONTRACT C4-16): THE NUMBERS LEDGER RIDES
+                # THE BOARD REQUEST, the display key's own precedent one line up -- OUTSIDE the g1x-hashed kwarg block
+                # (passing `numbers_ledger=` into `cq.quantify` there moves the cascade golden: sitting 3's OI-3b
+                # blocker). The ledger is the SAME object the board's rows asked (`_stage2_kwargs` above), so
+                # `quantify` (lane T reads `board["numbers_ledger"]` and pops it before any stamp) issues one [N] per
+                # served row identity across the seat, the board AND the cascade. Only where the ledger was built
+                # (None -> no key, HEAD's request exactly); a COPY, the seam's own dict is never mutated.
+                if _nledger is not None:
+                    _board_req = dict(_board_req, numbers_ledger=_nledger)
         # THE TRACE KEY IS STAMPED WHETHER THE BOARD FIRED OR DECLINED (design 6.7, D10): one
         # registered `state_board` key carrying every leg's closed word, so a census can tell a board
         # that declined from a board that never ran. `_cw_turn_spent` and the walk's ceiling BOTH read
@@ -5613,6 +5638,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # 09-27 SITTING 3 (U-12, CONTRACT Z1): the netting facts ride the call clause (U-7, Z4) -- only when the block
     # the writer is handed carries the board's marker, like every other TL;DR clause.
     _net_kw = {"ask_netting": _net_printed} if (_net_printed and _state_board_block_on(vp)) else {}
+    # 09-29 SITTING 4 (A4-4, C4-17): each line's own label, omitted when the lines agree (HEAD's clause)
+    if _sides_lines and _state_board_block_on(vp):
+        _net_kw = dict(_net_kw, ask_sides_lines=_sides_lines)
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               cascade_walk=_cascade_walk_block_on(vp),
                               cascade_context=_cascade_context_block_on(vp),
@@ -5674,7 +5702,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         ask_head=_ask_printed, horizon_row=bool(_horizon_row_on(_board, (_sb or {}).get("block")
                                                                 if _board is not None else "")),
         positioning_asymmetry=_pos_printed, ask_sides=_sides_printed, ask_sides_balanced=_sides_balanced,
-        ask_netting=_net_printed)) if _state_board_block_on(vp) else None)
+        ask_netting=_net_printed, **({"ask_sides_lines": _sides_lines} if _sides_lines else {})))
+                 if _state_board_block_on(vp) else None)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
@@ -6000,8 +6029,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # already-registered `writer_seam` key (TRACE_RECORD_KEYS unchanged); absent off a board turn.
             if isinstance(_mcensus, dict) and isinstance(sg.trace.get("writer_seam"), dict):
                 sg.trace["writer_seam"]["mandate_census"] = _mcensus
+        # 09-29 SITTING 4 (V4-2, C4-4): the board call site reads each handle's clause, both sides, before a value
+        # splice -- only where `_wseam_on` (omit-when-off: HEAD's call, byte for byte, on every flag-off turn). V4-6's
+        # figureless splice (`figureless_splice`) is UNWIRED: see `_resolve_number_handles`' own note.
+        _cf_kw = {"clause_figures": True} if _wseam_on else {}
         sg.trace["number_handles"] = _resolve_number_handles(structured, extra_number_calls,
-                                                             handle_prose=_handles)
+                                                             handle_prose=_handles, **_cf_kw)
         # H1 FIX Z1/Z6: the three D-HP-native render classes join the ONE strip ledger, so the class scan,
         # the artifact projection, the successor family and the EMF counters all read one location.
         if _handles:
@@ -6791,6 +6824,41 @@ def _ask_sides_line_counts(block, served_scalars) -> list | None:
         except (TypeError, ValueError, KeyError):
             return None
     return out
+
+
+def _ask_sides_line_records(block, served_scalars, netting=None) -> tuple:
+    """09-29 FIX SITTING 4 (lane A, A4-4; CONTRACT C4-17): ``((handles, balanced, netting), ...)`` -- EACH printed
+    ASKED SIDES line with the [N] handles written on it (in line order, each once), its OWN count read (level or not:
+    `_ask_sides_line_counts`, the line's registered count scalars, V-4's reader) and the netting parts printed ON IT
+    (``netting`` is `_ask_netting_printed`'s value; a part token counts for a line only where that line carries it).
+    ``()`` when the lines' own counts cannot be read, and ``()`` when every line carries ONE label -- the call clause
+    is then HEAD's single clause, byte for byte (every single-market board). Read by ``narration.ask_call_mandate``'s
+    ``lines`` so a level line is never told to state a lean another line gives."""
+    lines = _ask_sides_lines(block)
+    pairs = _ask_sides_line_counts(block, served_scalars)
+    if not lines or not pairs or len(pairs) != len(lines):
+        return ()
+    try:
+        net = dict(netting or {})
+    except (TypeError, ValueError):
+        net = {}
+    out: list = []
+    for ln, (n_for, n_against) in zip(lines, pairs):
+        hs: list = []
+        toks = set()
+        for m in _N_HANDLE_RX.finditer(ln):
+            for i in _n_handle_members(m.group(0)):
+                tok = "[N%d]" % i
+                toks.add(tok)
+                if tok not in hs:
+                    hs.append(tok)
+        for m in _E_HANDLE_RX.finditer(ln):
+            toks.update("[E%d]" % int(i) for i in _e_handle_members(m.group(0)))
+        parts = {p: tuple(t for t in (hs_ or ()) if t in toks) for p, hs_ in net.items()}
+        out.append((tuple(hs), n_for == n_against, {p: v for p, v in parts.items() if v}))
+    if len({b for _h, b, _n in out}) < 2:
+        return ()
+    return tuple(out)
 
 
 def _ask_sides_line_balanced(block, served_scalars) -> bool | None:
@@ -9439,6 +9507,115 @@ def _figure_already_stated(text: str, s0: int, s1: int, m, value: str) -> bool:
     return False
 
 
+# ══ 09-29 FIX SITTING 4 (lane A, V4-2 / V4-6 -- the A half; CONTRACT C4-4) -- THE HANDLE'S CLAUSE ══════════════
+# MEASURED (`fix_sitting_4_0929/verify/stale/v42_splice_census.out`, witness V4-2 / V4-6; stage POST-VERIFY SEAM):
+# the smoke 2024 page's "after bottoming at [N34] the 3rd percentile" was served "after bottoming at 3 percentile
+# [N34] the 3rd percentile" (4 unique splices on the page, [N34] [N33] [N92] [N24]) -- `_figure_already_stated` reads
+# ONE numeral IMMEDIATELY beside the handle, and "[N34] the 3rd" has a word in between, so the value cue "at" spliced
+# the footer's figure in front of the writer's own. And the corn/wheat TL;DR's "wheat's leans two up, seven down
+# beside [N73]" shipped a bare citation of the tape's move with no figure at all ("beside" is not a value cue).
+# THE CHECK READS THE HANDLE'S CLAUSE, BOTH SIDES, THROUGH THE VERIFIER'S ONE NUMERAL GRAMMAR (`verify.
+# claim_number_spans`, lane V's public name for `_claim_number_spans`), gated on the board call site
+# (`clause_figures`): a figure of THIS row anywhere in the clause is stated (no splice); a solitary resolved handle
+# whose clause carries no figure of its row takes the row's SERVED figure text (compute, never delete). A
+# percentile row's figure is also stated by its ordinal as the estate prints it (`_seam_ordinal`, the one ordinal
+# producer -- "the 31st"), which the grammar exempts as a position word. REJECTED: a regex for "the \d+(st|nd|rd|th)
+# percentile", adding "beside" to the value-cue list, deleting the handle.
+def _handle_clause(text: str, s0: int, s1: int, m) -> tuple:
+    """``(lo, hi)`` -- the handle ``m``'s own clause inside its sentence ``[s0, s1)``: from the end of the LAST
+    clause opener before it (`_HANDLE_CLAUSE_OPEN_RX`, the connectives and ", " the sever ladder already reads) to
+    the start of the FIRST one after it, the sentence bounds (`_HANDLE_BOUND_RX`, already applied by the caller's
+    `_handle_sentence_span`) otherwise."""
+    lo = s0
+    for cm in _HANDLE_CLAUSE_OPEN_RX.finditer(text, s0, m.start()):
+        lo = cm.end()
+    hi = s1
+    cm = _HANDLE_CLAUSE_OPEN_RX.search(text, m.end(), s1)
+    if cm is not None:
+        hi = cm.start()
+    return lo, max(lo, hi)
+
+
+def _figure_in_clause(text: str, lo: int, hi: int, m, value: str, *, percentile: bool = False) -> bool:
+    """V4-2: is ``value`` (the row's own figure, HEAD's splice payload) stated anywhere in ``text[lo:hi]``, on EITHER
+    side of the handle? Every [N]/[E] token in the clause is masked (never read as a numeral); each numeral the
+    verifier's grammar reads is compared to THIS row's figure by magnitude at HEAD's tolerance (the written precision,
+    `_HANDLE_ADJ_REL_TOL`) -- another row's figure never counts (threat A42-a) and years / window lengths / durations
+    are the grammar's own carve-outs (A42-b). A percentile row is also stated by its ordinal (``percentile``: the
+    row's unit is the percentile the footer prints). Any failure reads NOT stated (HEAD's splice)."""
+    try:
+        v = abs(float(str(value).split()[0].replace(",", "").replace("\u2212", "-")))
+    except (TypeError, ValueError, IndexError):
+        return False
+    seg = text[lo:hi]
+    masked = seg
+    for rx in (_N_HANDLE_RX, _E_HANDLE_RX):
+        masked = rx.sub(lambda t: " " * len(t.group(0)), masked)
+    fn = _claim_spans_fn()
+    if fn is not None:
+        try:
+            for a, b, val in (fn(masked) or ()):
+                t = masked[a:b]
+                d = len(t.split(".", 1)[1]) if "." in t else 0
+                gap = abs(abs(float(val)) - v)
+                if gap <= 0.5 * 10.0 ** (-d) + 1e-9 and (not v or gap <= _HANDLE_ADJ_REL_TOL * v):
+                    return True
+        except Exception:  # noqa: BLE001 -- an unreadable clause states nothing
+            pass
+    if percentile and float(v).is_integer():
+        try:
+            o = _seam_ordinal(v)
+        except Exception:  # noqa: BLE001
+            o = ""
+        if o and re.search(r"(?<![0-9A-Za-z])%s(?![0-9A-Za-z])" % re.escape(o), masked, re.I):
+            return True
+    return False
+
+
+def _served_figure_text(idx: int, call, value: str, served_scalars=None, block=None) -> str | None:
+    """V4-6: the SERVED figure text of handle ``idx`` for a solitary handle whose clause states none, or None (left,
+    counted `handle_no_figure_kept`).
+      * A BOARD handle with a registered scalar (`served_scalars`, the render's pool: every figure a committed row
+        printed, by handle): a CHANGE (kind ``window_change``) carries its measure words EXACTLY as the block printed
+        them -- the run of the handle's own block line from the change scalar's registered text through the
+        registered window length (the ``window_length`` scalar the same row registered next: its text and unit),
+        "+83 US cents/bushel over sixty-three sessions"; with no such run on the line, None. Any other kind (level,
+        sigma, percentile, ...) -> the footer's value + unit (``value``, HEAD's one splice producer).
+      * Any other handle: the footer's value + unit -- EXCEPT a row that is a change by its own declaration (the
+        POLARITY TABLE's change metrics, `_polarity_entry`) or a read over a window (the label's period kind
+        ``window``, `citations.printed_period`): its figure alone would read as a level (threat A46-a) and no
+        measure words are registered for it -> None."""
+    pool = [sc for sc in (served_scalars or ()) if isinstance(sc, dict)]
+    mine = [(j, sc) for j, sc in enumerate(pool) if sc.get("handle") == idx]
+    if mine:
+        j, ch = next(((j, sc) for j, sc in mine if str(sc.get("kind") or "") == "window_change"), (None, None))
+        if ch is None:
+            return str(value)
+        wl = next((sc for sc in pool[j + 1:j + 4] if str(sc.get("kind") or "") == "window_length"
+                   and sc.get("row_id") == ch.get("row_id") and not sc.get("handle")), None)
+        t0, t1 = str(ch.get("text") or ""), ("%s %s" % (wl.get("text") or "", wl.get("unit") or "")).strip() if wl else ""
+        if not t0 or not t1:
+            return None
+        tok = "[N%d]" % idx
+        for ln in str(block or "").splitlines():
+            at = ln.find(tok)
+            if at < 0:
+                continue
+            a = ln.find(t0, at + len(tok))
+            b = ln.find(t1, a + len(t0)) if a >= 0 else -1
+            if a >= 0 and b >= 0 and not _N_HANDLE_RX.search(ln, a, b):
+                return ln[a:b + len(t1)]
+        return None
+    if _polarity_entry(_call_metric(call)) is not None:
+        return None
+    try:
+        if cit.printed_period(call)[1] == "window":
+            return None
+    except Exception:  # noqa: BLE001 -- an unreadable period is no window claim
+        pass
+    return str(value)
+
+
 # ══ D-HP-13 (H1) -- THE POLARITY TABLE. ONE TABLE, TWO READERS, CLOSED BY ENUMERATION ═════════════════
 # It is read by D-HP-11's SIGN CLAUSE (which metrics get abs() spliced) and by D-HP-13's DIRECTION CHECK
 # (whether the model's verb agrees with the row's sign). ONE table on purpose: two tables would drift, and
@@ -10252,7 +10429,8 @@ def _scope_withheld_token(calls: list, pairs: list) -> bool:
 
 
 def _resolve_number_handles(structured: dict | None, number_calls: list | None, *,
-                            handle_prose: bool = False) -> dict:
+                            handle_prose: bool = False, clause_figures: bool = False,
+                            figureless_splice: bool = False, served_scalars=None, block=None) -> dict:
     """Substitute or remove every `[N]` handle in the reader prose so none can render literally.
 
     Mutates `structured['tldr']` / `structured['mechanism']` IN PLACE and returns the census
@@ -10326,6 +10504,25 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
     and 18 `repairs` entries over the 112 banked answers, all eighteen figure cuts -- and the mover is
     `verify.py`'s orphan ladder, not this pass. `GRAPHRAG_VERIFY_ORPHAN_REPAIR=off` is its rollback.)"""
     census = {"substituted": 0, "handles_dropped": 0, "sentences_dropped": 0, "unresolvable": 0}
+    # 09-29 FIX SITTING 4 (lane A, V4-2; CONTRACT C4-4): `clause_figures` (passed ONLY at the board call site, where
+    # `_wseam_on`) reads each handle's CLAUSE on both sides (`_handle_clause` / `_figure_in_clause`) before a value
+    # splice; ADDED KEY `clause_figure_stated` on that lane only. False (every flag-off turn) -> HEAD's bytes, HEAD's
+    # four keys.
+    # V4-6 IS BUILT AND UNWIRED (`figureless_splice`, passed by NO call site; the V4-5 verdict check's discipline, C4-7):
+    # the contract's rule -- a solitary resolved handle, no value cue, no figure of its row in its clause, spliced with
+    # the row's served figure text -- was driven over the 63 banked post-verify drafts (`fix_sitting_4_0929/a_work/
+    # b64_compare_r1.out`, `b64_v46_probe.out`) and would splice 393 figures on 50 of the 53 board pages: 146 whose
+    # figure the SENTENCE already states in another clause, 117 inside a handle group written as adjacent tokens, 185
+    # the verifier's own binder reads as stated in another unit or stat, and 155 past all three that still read false
+    # ("rising in each of the last five months 5 months [N138]", "nearest February 2025 1.8 degC [N1]", a stocks
+    # reading given a raw six-digit ratio). The one witness ("beside [N73]") is a handle standing as the OBJECT of its
+    # clause; a citation trailing a named reading is not a value slot, and no grammar here tells the two apart without
+    # a word list. A false correction on the negative corpus is a MAJOR (law 9), so the splice stays unwired and is
+    # docketed for the next list; the producer (`_served_figure_text`) stands.
+    if clause_figures:
+        census["clause_figure_stated"] = 0
+    if figureless_splice:
+        census.update({"handle_no_figure_spliced": 0, "handle_no_figure_kept": 0})
     if handle_prose:                              # ADDED KEYS, treatment lane only (OFF-arm clean)
         census.update({"grouped_in_slot": 0, "direction_sign_mismatch": 0, "slot_scope_mismatch": 0,
                        "scope_checked": 0, "direction_checked": 0, "binding_refused": 0,
@@ -10434,6 +10631,19 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
                 # there is no empty slot and a group beside prose is an ordinary co-citation.
                 gslot = bool(value is not None and len(pairs) > 1
                              and _HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()]))
+            # 09-29 SITTING 4 (V4-2): on the board call site the handle's CLAUSE is read on both sides too -- OR'd
+            # with HEAD's two tests, so a figure HEAD saw is still seen and only a figure HEAD missed is added
+            _clause_hit = None
+
+            def _clause_stated(_v=value, _m=m, _s0=s0, _s1=s1, _pairs=pairs):
+                _i = _pairs[0][0] if len(_pairs) == 1 else 0
+                _c = calls[_i - 1] if 1 <= _i <= len(calls) else None
+                try:
+                    _pct = str(cit.from_number(_c, _i).unit or "").strip().lower() == "percentile"
+                except Exception:  # noqa: BLE001 -- an unreadable unit is no percentile
+                    _pct = False
+                _lo, _hi = _handle_clause(text, _s0, _s1, _m)
+                return _figure_in_clause(text, _lo, _hi, _m, _v, percentile=_pct)
             if standin and isinstance(value, str) and _figure_already_stated(text, s0, s1, m, value):
                 standin = False                    # -> the ordinary "resolved beside a stated number" branch
             elif (standin and isinstance(value, str) and len(pairs) == 1
@@ -10442,6 +10652,24 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
                 # handle's own clause, just not beside it -- "at the 99th percentile of the window read
                 # [N218]" -- and the splice printed it a second time ("read 99 percentile [N218]").
                 standin = False
+            elif clause_figures and standin and isinstance(value, str) and len(pairs) == 1 and _clause_stated():
+                standin = False                    # V4-2: the clause states this row's figure (either side)
+                census["clause_figure_stated"] += 1
+            elif (clause_figures and figureless_splice and not standin and not refused and isinstance(value, str)
+                  and len(pairs) == 1
+                  and not _figure_already_stated(text, s0, s1, m, value)
+                  and not _figure_bound_in_clause(text, s0, s1, m, calls, pairs[0][0])
+                  and not _clause_stated()):
+                # V4-6: a solitary resolved handle, no value cue, no figure of its row in its clause -> the row's
+                # SERVED figure text beside it (compute, never delete); none registered -> left and counted
+                _i = pairs[0][0]
+                _txt = _served_figure_text(_i, calls[_i - 1] if 1 <= _i <= len(calls) else None, value,
+                                           served_scalars=served_scalars, block=block)
+                if _txt:
+                    value, standin = _txt, True
+                    census["handle_no_figure_spliced"] += 1
+                else:
+                    census["handle_no_figure_kept"] += 1
             recs.append((m, value, s0, s1, standin, pairs, live, live_pairs, gslot, refused, dead_empty))
         # A `grouped_in_slot` token is on its way OUT, so it backs nothing: counting it here would let it
         # rescue a neighbouring unresolvable handle from a kill it has earned.
@@ -12411,7 +12639,69 @@ def _fact_told(prose: str, *, handles=(), names=()) -> bool:
         except Exception:  # noqa: BLE001 -- no matcher, no name evidence (the address evidence stands)
             return False
         low = text.lower()
-        return any(_token_hit(n, low) for n in nm)
+        # 09-29 FIX SITTING 4 (lane A, A4-4; CONTRACT C4-17): A NAME THAT OPENS ON A FIGURE IS READ WHOLE. The
+        # word-bounded matcher treats "," and "-" as boundaries, so "250 1000 MT" was told by "1,250 1000 MT" and
+        # "2.6 USD/bu" by "-2.6 USD/bu" (sitting 3 VERIFY sec 6, lane A minor) -- a figure FRAGMENT counted as the
+        # figure. Such a name is told only where the verifier's one numeral grammar reads the prose's figure WHOLE
+        # at that hit and its signed value is the name's own (`_figure_name_told`); a name with no leading figure
+        # keeps the matcher's reading. REJECTED: a regex for thousands groups or signs typed here.
+        return any((_figure_name_told(text, n) if _name_figure(n) is not None else _token_hit(n, low))
+                   for n in nm)
+    return False
+
+
+def _claim_spans_fn():
+    """The verifier's ONE numeral grammar under its public name (`verify.claim_number_spans`, CONTRACT C4-4, lane V)
+    -- read defensively: the private name it aliases where the alias has not landed; None when neither is readable
+    (a caller then reads nothing as a figure)."""
+    try:
+        from leviathan.graphrag import verify as _vf
+    except Exception:  # noqa: BLE001 -- no verifier, no grammar
+        return None
+    fn = getattr(_vf, "claim_number_spans", None) or getattr(_vf, "_claim_number_spans", None)
+    return fn if callable(fn) else None
+
+
+def _name_figure(name: str):
+    """The figure a fact's printed name OPENS on -- ``(value, decimals)`` of its first token read as a number
+    ("1,250 1000 MT" -> (1250.0, 0), "-2.6 USD/bu" -> (-2.6, 1)) -- or None when the name opens on no figure."""
+    tok = str(name or "").strip().split(" ", 1)[0].replace("−", "-")
+    try:
+        v = float(tok.replace(",", "").lstrip("+"))
+    except ValueError:
+        return None
+    body = tok.lstrip("+-").replace(",", "")
+    return v, (len(body.split(".", 1)[1]) if "." in body else 0)
+
+
+def _figure_name_told(text: str, name: str) -> bool:
+    """A4-4: is the figure-opening ``name`` on ``text`` WHOLE? Each word-bounded hit of the name (the render's own
+    matcher, `render._token_rx`) counts only where a numeral the verifier's grammar reads (`_claim_spans_fn`) STARTS
+    at the hit's own figure -- never a fragment after a thousands separator or a decimal point -- and that numeral,
+    signed by a sign glued to it, equals the name's figure at the name's written precision. Never raises."""
+    fig = _name_figure(name)
+    fn = _claim_spans_fn()
+    if fig is None or fn is None:
+        return False
+    try:
+        from leviathan.graphrag.state.render import _token_rx  # lazy: phase-2 only
+        rx = _token_rx(str(name).strip().lower())
+        spans = fn(text)
+    except Exception:  # noqa: BLE001 -- an unreadable figure is never told
+        return False
+    if rx is None:
+        return False
+    v, d = fig
+    lead = len(str(name).strip()) - len(str(name).strip().lstrip("+-−"))
+    tol = 0.5 * 10.0 ** (-d) + 1e-9
+    for m in rx.finditer(text.lower()):
+        at = m.start() + lead
+        for s, _e, val in spans or ():
+            if s != at:
+                continue
+            sign = -1.0 if (s > 0 and text[s - 1] in "-−" and (s < 2 or not text[s - 2].isalnum())) else 1.0
+            if abs(sign * abs(float(val)) - v) <= tol:
+                return True
     return False
 
 
@@ -14466,8 +14756,72 @@ def _seam_line_at(text: str, pos: int, end: int | None = None) -> str:
     return text[a:(b if b >= 0 else len(text))]
 
 
-def _seam_row_age(r: dict, d_asof) -> tuple:
+def _seam_superseded(r: dict, d_asof, *, calendar_doc=None, period_behind: bool = False):
+    """09-29 FIX SITTING 4 (lane A, A4-1; CONTRACT C4-13): IS THIS ROW SUPERSEDED AT THE AS-OF? ``True`` when a newer
+    print of the row's own series exists by the as-of -- the board's ``period_behind`` stamp for the row (another card
+    holds a newer period, `feeders.stamp_period_behind`), or the release calendar's NEXT print of the row's table
+    after the row's own known date (`state.calendar.next_release`, the ONE producer of scheduled prints, read-only)
+    falling on or before the as-of; ``False`` when that next print falls after the as-of (the row IS the newest the
+    record can hold); ``None`` when the calendar declares no computable rule for the table (no charge, counted
+    `stale_rows_calendar_unknown`).
+
+    THE RULE'S OWN SHAPES, read off the calendar's documented returns and never re-derived:
+      * ``monthly_window`` returns the next window whose close is on or after the date it is asked from, its
+        opening CLAMPED to that date -- so an opening ON the known date means the row printed INSIDE that window,
+        and its successor is the window asked from the day after that window closes; superseded when the
+        successor's CLOSE is on or before the as-of (a window's print is certain only once it has closed);
+      * ``weekly_dow`` returns the weekday strictly after the known date; ``first_business_day`` the next week's
+        opening day; superseded when that date is on or before the as-of;
+      * ``daily_sessions`` names no date: the next weekday after the known date, on or before the as-of;
+      * ``published_date`` / no rule -> ``None``.
+    Never raises (an unreadable calendar is ``None``)."""
+    import datetime as _dt
+    if period_behind:
+        return True
+    k = _seam_parse_iso(r.get("known"))
+    table = str(r.get("table") or "")
+    if k is None or d_asof is None or not table:
+        return None
+    try:
+        from leviathan.graphrag.state import calendar as _scal  # lazy: phase-2 only, read-only
+        rel = _scal.next_release(table, k.isoformat(), doc=calendar_doc)
+        if not rel.fired:
+            return None
+        kind = str(rel.kind or "")
+        if kind == "monthly_window":
+            if str(rel.opens or "") == k.isoformat():
+                c0 = _seam_parse_iso(rel.closes)
+                if c0 is None:
+                    return None
+                rel = _scal.next_release(table, (c0 + _dt.timedelta(days=1)).isoformat(), doc=calendar_doc)
+                if not rel.fired:
+                    return None
+            nxt = _seam_parse_iso(rel.closes)
+        elif kind == "weekly_dow":
+            nxt = _seam_parse_iso(rel.date)
+        elif kind == "first_business_day":
+            nxt = _seam_parse_iso(rel.week_of)
+        elif kind == "daily_sessions":
+            nxt = k + _dt.timedelta(days=1)
+            while nxt.weekday() >= 5:
+                nxt += _dt.timedelta(days=1)
+        else:
+            return None
+    except Exception:  # noqa: BLE001 -- an unreadable calendar charges nothing
+        return None
+    return None if nxt is None else bool(nxt <= d_asof)
+
+
+def _seam_row_age(r: dict, d_asof, *, calendar_doc=None, period_behind: bool = False, why: dict | None = None) -> tuple:
     """(days stale, the clause words) for one row, or (None, "") when it is current.
+
+    09-29 FIX SITTING 4 (lane A, A4-1; CONTRACT C4-13): A CHARGE ONLY FOR A SUPERSEDED ROW. The two clocks below are
+    HEAD's and still decide the words; a row they charge is dated ONLY when :func:`_seam_superseded` says a newer
+    print of its series exists by the as-of (the calendar's next print, or the board's ``period_behind``). MEASURED
+    (`fix_sitting_4_0929/verify/stale/witness_census.out`, A4-1): 17 read-date parentheticals on 12 of the 63 pages,
+    and the annual clock's "past zero" charged the NEWEST WASDE on the page (known 2026-09-11, the October print not
+    yet out on 2026-09-29) -- a date furniture on the one row that could not be newer. ``why`` (an optional sink)
+    receives ``superseded`` / ``current`` / ``calendar_unknown`` for a row the clocks charged.
 
     TWO CLOCKS, and they answer two different questions the graders asked separately:
       * the KNOWLEDGE DATE -- when this engine learned the figure. Stale past 21 days for a weekly or
@@ -14509,8 +14863,9 @@ def _seam_row_age(r: dict, d_asof) -> tuple:
         y, mo = ym
         p_end = _dt.date(y, mo, _cal.monthrange(y, mo)[1])
         if (d_asof - p_end).days > _SEAM_FRESH_DAYS:
-            return ((d_asof - p_end).days,
-                    f"the {y}-{mo:02d} reading, read {d_row.isoformat()}")
+            return _seam_charge_if_superseded(
+                r, d_asof, ((d_asof - p_end).days, f"the {y}-{mo:02d} reading, read {d_row.isoformat()}"),
+                calendar_doc=calendar_doc, period_behind=period_behind, why=why)
     # ROUND-2 FIX (review MAJOR-4): the annual test is now the PERIOD SHAPE (a marketing year with no
     # month or day segment) OR the CADENCE THE CARD DECLARES -- never the bare `MY` prefix every period
     # in the estate carries, which made a COT week and an ESR week annual and charged them at a
@@ -14525,11 +14880,22 @@ def _seam_row_age(r: dict, d_asof) -> tuple:
         annual = False                                 # the month period decided; one clock per row
     age = (d_asof - d_row).days
     if age > (0 if annual else _SEAM_FRESH_DAYS):
-        return (age, f"read {d_row.isoformat()}")
+        return _seam_charge_if_superseded(r, d_asof, (age, f"read {d_row.isoformat()}"),
+                                          calendar_doc=calendar_doc, period_behind=period_behind, why=why)
     return (None, "")
 
 
-def _seam_stale_figures(structured: dict, rows: dict, asof: str) -> dict:
+def _seam_charge_if_superseded(r: dict, d_asof, charge: tuple, *, calendar_doc=None, period_behind: bool = False,
+                               why: dict | None = None) -> tuple:
+    """A4-1: ``charge`` when the row is superseded at the as-of, else ``(None, "")``; the verdict lands in ``why``."""
+    sup = _seam_superseded(r, d_asof, calendar_doc=calendar_doc, period_behind=period_behind)
+    if isinstance(why, dict):
+        why["verdict"] = ("superseded" if sup else "calendar_unknown" if sup is None else "current")
+    return charge if sup else (None, "")
+
+
+def _seam_stale_figures(structured: dict, rows: dict, asof: str, *, number_calls=None, board=None,
+                        calendar_doc=None) -> dict:
     """FINDING (d) -- A STALE ROW SPOKEN AS A CURRENT MOVEMENT GETS ITS OWN DATE, once per row.
 
     THE CHARGE HAS THREE LEGS AND ALL THREE ARE LOAD-BEARING, because any one alone is noise:
@@ -14542,17 +14908,43 @@ def _seam_stale_figures(structured: dict, rows: dict, asof: str) -> dict:
          unit is the LINE and not the `_SENT_KEEP` chunk (`_seam_line_at`).
     Measured over the five served bodies: 11 charges, including both cases the graders named.
 
-    THE REMEDY IS A CLAUSE AT THE END OF THE SENTENCE, before its terminator. It is NOT spliced beside
-    the handle: `_resolve_number_handles` walks handle tokens immediately after this pass and writes
-    row values into value slots, and a parenthetical sitting against a handle is exactly the shape
-    that pass reads. The clause is appended ONCE PER ROW across the whole page, so a row discussed in
-    four sentences is dated in the first of them and the reader is not handed the same stamp four
-    times."""
-    out = {"stale_rows_dated": 0, "stale_sentences": 0}
+    09-29 FIX SITTING 4 (lane A, A4-1; CONTRACT C4-13) -- THE DATE CLAUSE FOLLOWS ITS OWN HANDLE, AND ONLY A
+    SUPERSEDED ROW TAKES ONE. MEASURED (`fix_sitting_4_0929/verify/stale/witness_census.out`): 17 parentheticals on 12
+    of the 63 pages, every one written by THIS seam after the verifier, of the shape "(N61, N8 the 2026-08 reading,
+    read 2026-09-13)" -- handles named BARE (the old remedy's own grammar, chosen so the [N] pass would not read
+    them) at the sentence's end, on rows that were the newest their series held. Two causes, both removed:
+      * the charge: `_seam_row_age` now charges only a row :func:`_seam_superseded` finds superseded at the as-of
+        (the release calendar's next print of the row's series on or before the as-of, or the board's
+        ``period_behind`` for the row: ``board`` + ``number_calls`` give each handle its row identity); a row the
+        calendar cannot place is not charged and is counted (`stale_rows_calendar_unknown`);
+      * the place: each row's clause sits RIGHT AFTER that row's own handle token -- "[N61] (the 2026-08 reading,
+        read 2026-09-13)" -- once per ROW (the label head the level, sigma and percentile handles of one series
+        share: `_seam_row_index`; and inside one sentence once per PRINT -- the same table under the same clause),
+        so no clause ever names a handle and none lists several. A GROUPED token takes
+        one clause only where every member it cites carries that one clause; otherwise nothing is placed and the
+        withhold is counted (`stale_rows_grouped_withheld`) -- a clause after a group that dates part of it is an
+        attribution this seam would invent.
+    The clause opens on "(" and a word, which neither the [N] pass's adjacency reader (`_figure_already_stated`)
+    nor its value cue reads as a figure, so the handle pass that runs next is not moved by it. Legs 2 and 3 are
+    HEAD's. REJECTED: bracketing HEAD's bare list (the handle pass then splices values into it), a scrub of
+    "read 20" from the page. The clause is placed ONCE PER ROW across the whole page."""
+    out = {"stale_rows_dated": 0, "stale_sentences": 0, "stale_rows_superseded": 0,
+           "stale_rows_calendar_unknown": 0}
     d_asof = _seam_parse_iso(asof)
     if d_asof is None:
         return out
-    seen: set = set()
+    calls = list(number_calls or [])
+    try:
+        pbs = _nbl_period_behind_rids(board) if board is not None else {}
+    except Exception:  # noqa: BLE001 -- an unreadable board stamps nothing
+        pbs = {}
+
+    def _pb(i: int) -> bool:
+        rid = _call_row_id(calls[i - 1]) if (pbs and 1 <= i <= len(calls)) else ""
+        return bool(rid and rid in pbs)
+
+    seen: set = set()          # row heads already dated (a row is dated once across the page)
+    judged: dict = {}          # head -> (age, clause) for rows whose verdict is already counted
     for field in ("tldr", "mechanism"):
         text = structured.get(field)
         if not isinstance(text, str) or not text.strip():
@@ -14566,36 +14958,52 @@ def _seam_stale_figures(structured: dict, rows: dict, asof: str) -> dict:
                 continue
             if _SEAM_DATED_RX.search(_seam_line_at(text, here, here + len(sent))):
                 continue
-            # ROUND-2 FIX (review MAJOR-6): A DATE IS ATTACHED TO ITS HANDLE whenever the sentence
-            # carries more than one, because an unattributed date IS an attribution this seam invented.
-            # Measured shapes: "A reads 1 z [N1] and B reads 2 z [N2], both rising (the 2026-01
-            # reading, read 2026-05-01; read 2026-06-02)" -- the reader cannot tell which date belongs
-            # to which row -- and the palm/rape "What offsets" sentence, which carries FOUR handles and
-            # took ONE date that a PM reads as dating the whole claim. The grammar is the brief's:
-            # "(N1 read 2026-05-01; N2 read 2026-06-02)". A one-handle sentence has no ambiguity to
-            # resolve and keeps the bare form, which is what the MPOB and ONI pins read.
-            cited = _seam_cited(sent)
-            attribute = len(cited) > 1
-            by_clause: dict = {}
-            for i in cited:
-                r = rows.get(i)
-                if r is None or i in seen:
+            inserts: list = []                       # (offset after the token, clause, dated indices)
+            prints: set = set()                      # (table, clause) already dated in THIS sentence: one print
+            for m in _N_HANDLE_RX.finditer(sent):
+                members = _n_handle_members(m.group(0))
+                verdicts: list = []
+                for i in members:
+                    r = rows.get(i)
+                    head = (r or {}).get("head") or ("#%d" % i)
+                    if r is None or head in seen:
+                        verdicts.append(None)
+                        continue
+                    if head not in judged:
+                        why: dict = {}
+                        judged[head] = _seam_row_age(r, d_asof, period_behind=_pb(i), why=why,
+                                                     calendar_doc=calendar_doc)
+                        if why.get("verdict") == "superseded":
+                            out["stale_rows_superseded"] += 1
+                        elif why.get("verdict") == "calendar_unknown":
+                            out["stale_rows_calendar_unknown"] += 1
+                    age, clause = judged[head]
+                    verdicts.append((head, clause) if age is not None else None)
+                charged = [v for v in verdicts if v is not None]
+                if not charged:
                     continue
-                age, clause = _seam_row_age(r, d_asof)
-                if age is None:
+                clauses = {c for _h, c in charged}
+                if len(members) > 1 and (len(charged) != len(members) or len(clauses) != 1):
+                    out["stale_rows_grouped_withheld"] = out.get("stale_rows_grouped_withheld", 0) + 1
                     continue
-                seen.add(i)
-                by_clause.setdefault(clause, []).append(i)
-            if not by_clause:
+                clause = next(iter(clauses))
+                dated = [i for i, v in zip(members, verdicts) if v]
+                seen.update(h for h, _c in charged)
+                # ONE PRINT, ONE DATE IN ONE SENTENCE: other rows of the same table under the same clause (the
+                # month change and the build count of the MPOB print whose stocks the sentence already dated) are
+                # covered by the clause the print's first figure took -- never the same stamp three times
+                pk = (str((rows.get(dated[0]) or {}).get("table") or ""), clause)
+                if pk in prints:
+                    out["stale_rows_dated"] += len(dated)
+                    continue
+                prints.add(pk)
+                inserts.append((m.end(), clause, dated))
+            if not inserts:
                 continue
-            # ROWS THAT SHARE ONE CLAUSE SHARE ONE STAMP AND ARE NAMED TOGETHER, so the sentence gains
-            # "(N61, N66, N67 read 2026-07-01)" rather than the same date three times.
-            words = [(f"N{', N'.join(str(i) for i in idxs)} {clause}" if attribute else clause)
-                     for clause, idxs in by_clause.items()]
-            tail = re.search(r"[\s—–,;:.]*\Z", sent)
-            cut = tail.start() if tail else len(sent)
-            toks[si] = sent[:cut] + " (" + "; ".join(words) + ")" + sent[cut:]
-            out["stale_rows_dated"] += sum(len(v) for v in by_clause.values())
+            for at, clause, _idx in sorted(inserts, key=lambda x: -x[0]):
+                sent = sent[:at] + " (" + clause + ")" + sent[at:]
+            toks[si] = sent
+            out["stale_rows_dated"] += sum(len(x[2]) for x in inserts)
             out["stale_sentences"] += 1
             touched = True
         if touched:
@@ -15364,6 +15772,9 @@ def _seam_absence_claims(structured: dict, rows: dict, *, handle_prose: bool = F
         return False
     refs = _absence_referents(board, calls, page_markets) if (board is not None or calls) else []
     seat_refs = _absence_seat_referents(calls) if (seat and calls) else []
+    # 09-29 SITTING 4 (A4-2, C4-8): the block's served absences and the scope rule ride the writer seam's own call
+    # (`seat=True`, the one board-turn caller); every other caller keeps HEAD's binding byte for byte
+    served_abs = _served_absence_referents(board) if seat else []
     timing = _absence_timing_words() if seat_refs else ""
 
     def _bump(k: str) -> None:
@@ -15433,7 +15844,8 @@ def _seam_absence_claims(structured: dict, rows: dict, *, handle_prose: bool = F
                 head_seg = _seam_absence_segment(sent, am.start())
                 new = _head_absence_claim(sent, am.start(), rows, calls, refs, out, handle_prose=handle_prose,
                                           seat_try=((lambda s_, a_, b_: _seat_claim(s_, a_, b_, None))
-                                                    if seat_refs else None), told=_told_offer)
+                                                    if seat_refs else None), told=_told_offer,
+                                          **({"served_absences": served_abs} if seat else {}))
                 if new != sent:
                     sent, touched = new, True
             # THE TIMING CLAIM (seat mode): the seat's own "not yet published" words, in a clause segment
@@ -15467,18 +15879,89 @@ def _absence_append(sent: str, idx: int, rows: dict, *, handle_prose: bool = Fal
     return sent[:cut] + clause + sent[cut:]
 
 
+def _served_absence_referents(board) -> list:
+    """09-29 FIX SITTING 4 (lane A, A4-2; CONTRACT C4-8): ``[(folded name, absence id)]`` -- the block's SERVED
+    ABSENCES a claim may restate, each from a producer that wrote it for a reader: every convergence row's members the
+    board names as UNREAD (``matched_unmeasured``: no series read for them, or the reason its ``unread_reason``
+    gives), by the member's reader name (`render.humanise`, the name the pattern line prints for it). (A rendered
+    chain hop the board read no series for is already a referent of :func:`_absence_referents` with ``measured``
+    False, and a BOARD ABSENCE line names no series a served reading could answer.) Folded to `_chain_fold`'s
+    alphabet under `_CHAIN_NAME_MIN`; ``[]`` for no board or no producer. Never raises."""
+    out: list = []
+    if board is None:
+        return out
+    try:
+        from leviathan.graphrag.state import render as _sr  # lazy: phase-2 only
+        for c in (getattr(board, "convergence", None) or ()):
+            if not isinstance(c, dict):
+                continue
+            for d in (c.get("matched_unmeasured") or ()):
+                aid = "absent|%s|%s|%s" % (c.get("contract") or "", c.get("name") or "", d)
+                for n in _chain_names_folded((str(_sr.humanise(str(d)) or ""),)):
+                    out.append((n, aid))
+    except Exception:  # noqa: BLE001 -- an unreadable board serves no absence
+        return []
+    return out
+
+
+def _absence_routing_named(call, fold: str) -> bool:
+    """A4-2: True when the claim segment ``fold`` names the row's OWN ROUTING PHRASE WHOLE -- the driver words the block
+    printed as "read here for <driver>" on that one row (`call_identity(...)["routing_words"]`, lane R's stamp), folded
+    to the match alphabet: the board routed exactly that driver to exactly that scoped row, so naming it whole names
+    the row with its scope ("Argentine selling incentives" -> the Argentina exports row). False where the row carries
+    no routing phrase (a row that IS its series: `route_is_series`) or the phrase is not named whole."""
+    try:
+        rw = str((cit.call_identity(call) or {}).get("routing_words") or "")
+    except Exception:  # noqa: BLE001 -- an unreadable identity names nothing
+        return False
+    f = _chain_fold(rw).strip()
+    return bool(f) and ((" " + f + " ") in fold)
+
+
 def _head_absence_claim(sent: str, pos: int, rows: dict, calls: list, refs: list, out: dict, *,
-                        handle_prose: bool = False, seat_try=None, told=None) -> str:
+                        handle_prose: bool = False, seat_try=None, told=None, served_absences=None) -> str:
     """HEAD's per-claim body of `_seam_absence_claims` (K16), lifted so the seat mode can run beside it, every
     branch and counter HEAD's own; `seat_try` (seat mode only) is consulted exactly where HEAD counted
     `absence_unbound` for a claim NO structural referent named -- a claim HEAD binds is never re-bound, so the
-    seat addition is additive."""
+    seat addition is additive.
+
+    09-29 FIX SITTING 4 (lane A, A4-2; CONTRACT C4-8) -- THE APPEND NO LONGER CONTRADICTS ITS OWN SENTENCE. MEASURED
+    (`fix_sitting_4_0929/verify/stale/witness_census.out`, A4-2; both at the POST-VERIFY SEAM): the smoke max page's
+    "drought and heat stress carrying no series read on this turn" -- the pattern's own UNREAD conditions -- took
+    "(a served reading bears on this: [N130] = 0.11 z ...)", heat stress on ZCE rapeseed meal's CANADA cells; the
+    tariff page's "No series is served at the tariff link" took [N94], Argentina's production. The claim was bound to
+    a board row BY A NAME ALONE (a routing word), never by the series' scope. Two facts now decide it, both only where
+    ``served_absences`` is passed (the writer seam's own board-turn call):
+      * THE BLOCK'S SERVED ABSENCES ARE REFERENTS (:func:`_served_absence_referents`, the convergence rows' UNREAD
+        members by the name the pattern line prints): a referent name the block ALSO serves as an absence names two
+        things and so names NOTHING (the E11 rule, extended) -- "heat stress" is the South American squeeze's unread
+        condition AND the routing phrase of ZCE meal's Canada row; and where no served reading binds and the claim
+        names a served absence, the claim RESTATES that absence -- TRUE, nothing appended, counted
+        `absence_claims_restating_served_absence` (the count HEAD filed under `absence_unbound`), the seat referents
+        not tried for it;
+      * A SERVED READING BINDS ONLY BY SERIES IDENTITY WITH SCOPE: the offered row's own scope words
+        (`_absence_scope_named`, the seat path's rule, `call_identity(...)["scope_words"]`) stand in the claim's
+        segment, or the claim names the row's own routing phrase WHOLE (`_absence_routing_named`: the board routed
+        exactly that driver to exactly that scoped row) -- "the world ending-stocks read" is never answered with
+        Brazil's coffee stocks, "the tariff link" never with Argentina's production. A claim naming the series with
+        its scope keeps its append (threat A42b-a: ROUND2 #10's "Argentine selling incentives ... have no series"
+        still takes the Argentina exports row it names).
+    Nothing is deleted and no claim is rewritten. REJECTED: a stop word for "turn" / "link", a scrub of the append."""
     cited = set(_seam_cited(sent))
     a, b = _seam_absence_segment(sent, pos)
     seg = sent[a:b]
     fold = _chain_fold(seg)
+    absent_names = {n for n, _aid in (served_absences or ())}
+    restates = any((" " + n + " ") in fold for n in absent_names)
+
+    def _unbound() -> str:
+        k = "absence_claims_restating_served_absence" if restates else "absence_unbound"
+        out[k] = out.get(k, 0) + 1
+        return sent
     hit: dict = {}                               # row id -> {measured flags}
     for name, rid, meas in refs:
+        if name in absent_names:
+            continue                             # A4-2: a name the block also serves as an ABSENCE names nothing (E11)
         if (" " + name + " ") in fold:
             hit.setdefault(rid, set()).add(meas)
     for i in _seam_cited(seg):                   # ...and the handles the claim's own clause cites
@@ -15486,10 +15969,9 @@ def _head_absence_claim(sent: str, pos: int, rows: dict, calls: list, refs: list
         if rid:
             hit.setdefault(rid, set()).add(True)
     if not hit:
-        if seat_try is not None:
+        if seat_try is not None and not restates:
             return seat_try(sent, a, b)
-        out["absence_unbound"] = out.get("absence_unbound", 0) + 1
-        return sent
+        return _unbound()
     if any(False in ms for ms in hit.values()):
         out["absence_true"] = out.get("absence_true", 0) + 1
         return sent                               # a link the board read nothing for: TRUE
@@ -15501,10 +15983,11 @@ def _head_absence_claim(sent: str, pos: int, rows: dict, calls: list, refs: list
             r = rows.get(i)
             if r is None or not r["value"] or not r["unit"]:
                 continue
+            if served_absences is not None and not (_absence_scope_named(c, fold) or _absence_routing_named(c, fold)):
+                continue                         # A4-2: identity WITH scope, never a name alone
             offer.setdefault(rid, i)             # the LOWEST index: the row's own level
     if len(offer) != 1:
-        out["absence_unbound"] = out.get("absence_unbound", 0) + 1
-        return sent
+        return _unbound()
     if callable(told) and told(next(iter(offer.values()))):
         return sent                               # 09-27 U-12 (c): the page already carries this reading
     new = _absence_append(sent, next(iter(offer.values())), rows, handle_prose=handle_prose)
@@ -16109,6 +16592,25 @@ def _nbl_words_within(words: str, printed: str) -> bool:
     return bool(w) and w <= set(re.findall(r"[a-z0-9]+", str(printed or "").lower()))
 
 
+def _nbl_printed_names(idn: dict, call=None) -> tuple:
+    """R4-1 (CONTRACT C4-9): every name the page PRINTS for the row -- the block's ``short``, the identity's ``name``
+    (the row line), and the footer's metric display name of the handle's call (`citations._metric_display_name`, the
+    one producer the footer label prints the metric through; the call's own table / metric / headline row). Each
+    only where non-empty; an unreadable footer name is simply not among them."""
+    out = [str((idn or {}).get(k) or "").strip() for k in ("short", "name")]
+    if isinstance(call, dict):
+        q = call.get("query") if isinstance(call.get("query"), dict) else {}
+        rows = call.get("rows") if isinstance(call.get("rows"), list) else []
+        try:
+            fn = getattr(cit, "_metric_display_name", None)
+            if callable(fn) and q.get("metric"):
+                out.append(str(fn(str(q.get("table") or ""), q.get("metric"),
+                                  rows[-1] if rows and isinstance(rows[-1], dict) else None) or "").strip())
+        except Exception:  # noqa: BLE001 -- an unreadable footer name licenses nothing
+            pass
+    return tuple(x for x in out if x)
+
+
 def _nbl_name_edits(sent: str, noun, idn: dict, call=None) -> list:
     """Corrections 1 and 2 over ONE noun span, as edit tuples (start, end, replacement, counter).
 
@@ -16141,6 +16643,18 @@ def _nbl_name_edits(sent: str, noun, idn: dict, call=None) -> list:
     rw = str(idn.get("routing_words") or "").strip()
     if rw and _nbl_words_within(rw, short or name):
         rw = ""                     # A-1: every routing word is a word the block printed for the row itself
+    # 09-29 FIX SITTING 4 (lane A, R4-1 cause 1; CONTRACT C4-9): THE LICENCE READS EVERY NAME THE PAGE PRINTS FOR THE
+    # ROW. MEASURED (`fix_sitting_4_0929/verify/stale/r44f_u10_splice_head_s4.out`; witness R4-1: 6 on 5 of the 63
+    # pages, every one at the POST-VERIFY SEAM): "the high-confidence drought reading [N24]" was "corrected" to the
+    # block's long name in apposition, while the page's own FOOTER prints that row as "GOLD WEATHER Z drought z-score
+    # ..." -- the routing word IS a word the page prints for the row, so it names the row and is never a driver to
+    # replace. The licence (A-1's word-set containment) is now asked against the block's `short`, the identity's
+    # `name` and the footer's metric display name of the call (`citations._metric_display_name(table, metric, row)`,
+    # the producer the footer label prints through); a routing phrase with a word NONE of them prints ("India export
+    # ban" over "exports for India") is still corrected (threat AR-a). REJECTED: stripping "(the longest ..." off the
+    # page.
+    if rw and any(_nbl_words_within(rw, p) for p in _nbl_printed_names(idn, call)):
+        rw = ""
     if rw and short:
         m = _nbl_word_find(span_text, rw)
         if m is not None and not (set(name_words) & set(_nbl_content_words(span_text[m.end():]))):
@@ -16966,7 +17480,7 @@ def _writer_seam_lints(structured: dict | None, number_calls, *, asof: str = "",
         pcts = _seam_percentiles(rows)
         # 09-24 (K17): the superlative seam binds through `verify.bind_figures` over the turn's calls.
         census.update(_seam_tldr_consistency(structured, rows, pcts, number_calls=number_calls))
-        census.update(_seam_stale_figures(structured, rows, asof))
+        census.update(_seam_stale_figures(structured, rows, asof, number_calls=number_calls, board=board))
         census.update(_seam_lag_windows(structured, rows, asof, horizon_months))
         census.update(_seam_watch_bullets(structured, rows, mode, handle_prose=handle_prose))
         census.update(_seam_precoverage_words(structured))

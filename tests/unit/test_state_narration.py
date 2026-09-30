@@ -877,7 +877,11 @@ def test_round4_the_over_ceiling_stamp_is_a_report_and_not_a_refusal():
 #               is PROVED TO FIRE rather than merely observed to pass.
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 _HEAD_MANDATE = N.SYSTEM_STATE_BOARD_MANDATE
-_HEAD_NONOBVIOUS = _HEAD_MANDATE.replace(N.MANDATE_WATCH_HEAD_RX, N.MANDATE_WATCH_NONOBVIOUS)
+# MOVED 09-29 (fix sitting 4, lane A, A4-3 -- CONTRACT C4-17, declared DM4): the scheduled-prints RULE left the
+# WATCH movement and lands right after the absence fact it scopes, so the non-obvious variant is TWO named
+# substitutions; the claim (the lit mandate is HEAD's with exactly the named substitutions) is kept.
+_HEAD_NONOBVIOUS = (_HEAD_MANDATE.replace(N.MANDATE_WATCH_HEAD_RX, N.MANDATE_WATCH_NONOBVIOUS)
+                    .replace(N.MANDATE_ABSENCE_RX, N.MANDATE_ABSENCE_RX + " " + N.MANDATE_SCHEDULED_PRINTS))
 
 
 def test_chain_the_flag_off_mandate_is_HEAD_byte_for_byte_on_both_arms():

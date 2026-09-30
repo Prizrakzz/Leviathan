@@ -6736,6 +6736,19 @@ def check_wasde_line_map() -> list[str]:
         return [f"wasde_line_map: the lint did not run: {exc}"]
 
 
+def check_product_class_words() -> list[str]:
+    """FIX SITTING 4, LANE T (CONTRACT C4-15, T4-2 b): the conventions book's `product_class_words` against the
+    commodity hierarchy -- each key a `groups` key there, each entry with reader words (no digit, no underscore, no
+    two classes sharing words), no contract in two declared classes -- the rule's one home is
+    `registry.check_product_classes`, never restated here. An absent book key is clean (no class declared: every
+    spread takes HEAD's path). A pure read; empty == clean."""
+    try:
+        from leviathan.graphrag.numbers import registry as _nreg
+        return list(_nreg.check_product_classes() or [])
+    except Exception as exc:  # noqa: BLE001 -- an unreadable lint is one failure, never a crashed roster
+        return [f"product_class_words: the lint did not run: {exc}"]
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -6809,7 +6822,10 @@ def main() -> int:
                         # FIX SITTING 3 (ORCH-P4, CONTRACT Z27): APPENDED AT THE TAIL, the append-never-insert
                         # law. Sitting 2's Y6 map (`registry.WASDE_LINE_OF`) was graded only by its own deck; a
                         # pure read of the numbers registry.
-                        ("wasde_line_map", check_wasde_line_map())):
+                        ("wasde_line_map", check_wasde_line_map()),
+                        # FIX SITTING 4 (CONTRACT C4-15, T4-2 b): APPENDED AT THE TAIL, the append-never-insert
+                        # law. The book key `registry.product_class` reads (a spread only inside one product class).
+                        ("product_class_words", check_product_class_words())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

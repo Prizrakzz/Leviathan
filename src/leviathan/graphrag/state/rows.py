@@ -654,15 +654,152 @@ _SPLICE_NEXT_WORD_RX = _re.compile(r"[ \t]+([A-Za-z][A-Za-z'\-]*)")
 
 def _splice_heads() -> tuple:
     """``state_conventions.splice_heads`` -- the generic nouns this page names a served reading by, the FIRST of
-    them the head a span that IS the slot's head is replaced by -- read through the conventions' own cached loader
-    on use (this module does no I/O at import). A missing book is ``()``: the splice then replaces the span with
-    the name alone, HEAD's substitution."""
-    try:
-        from leviathan.graphrag.state import lint as _lint
-        v = (_lint.load_conventions() or {}).get("splice_heads")
-        return tuple(str(x).strip() for x in v if str(x or "").strip()) if isinstance(v, (list, tuple)) else ()
-    except Exception:                                   # noqa: BLE001 -- no book, no heads
+    them the head a span that IS the slot's head is replaced by -- read through the conventions' own loader
+    on use and memoised (:func:`_row_book`; this module does no I/O at import). A missing book is ``()``: the splice
+    then replaces the span with the name alone, HEAD's substitution."""
+    v = _row_book("splice_heads")
+    return tuple(str(x).strip() for x in v if str(x or "").strip()) if isinstance(v, (list, tuple)) else ()
+
+
+_ROW_BOOKS: dict = {}
+
+
+def _row_book(name: str):
+    """ONE top-level book of ``state_conventions.yaml``, read ONCE per process through the state lane's own loader
+    (``lint.load_conventions``, which re-parses the file on every call) and memoised here; :func:`cache_clear` (called
+    by ``render.cache_clear``) drops it. ``None`` for no book, never a raise."""
+    if name not in _ROW_BOOKS:
+        try:
+            from leviathan.graphrag.state import lint as _lint
+            _ROW_BOOKS[name] = (_lint.load_conventions() or {}).get(name)
+        except Exception:                               # noqa: BLE001 -- no book, no words
+            _ROW_BOOKS[name] = None
+    return _ROW_BOOKS[name]
+
+
+def cache_clear() -> None:
+    """Drop the books this module memoised (``render.cache_clear`` calls it, so one call clears the lane's memo)."""
+    _ROW_BOOKS.clear()
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE DISPLAY UNIT (09-29 fix sitting 4, lane R; CONTRACT C4-10 -- R4-2)
+# ---------------------------------------------------------------------------------------------------
+def _unit_key(unit: str) -> str:
+    """A unit string's lookup form: case and inner spacing folded -- the SAME unit written by two producers
+    ("1000 MT", "1000 mt"), never a different unit."""
+    return " ".join(str(unit or "").lower().split())
+
+
+def display_unit(unit: str) -> str:
+    """THE ONE PRODUCER OF A UNIT'S DISPLAY WORDS (CONTRACT C4-10): the book's reader words for a stored unit
+    (``state_conventions.unit_words``: "1000 MT" -> "thousand tonnes"), else the unit AS STORED -- never blank, never
+    a guess. Every entry is a spelling the verifier already reads as that very unit (``verify._row_unit_spellings``;
+    the lane R deck asserts it), so a writer's copy of the display is backed exactly as a copy of the storage
+    spelling was. MEASURED: the block printed "1,900 1000 MT" and the writer copied it (34 writer copies on the 63
+    banked pages)."""
+    u = str(unit or "")
+    if not u.strip():
+        return u
+    book = _row_book("unit_words")
+    if not isinstance(book, dict) or not book:
+        return u
+    hit = book.get(u)
+    if not hit:
+        k = _unit_key(u)
+        hit = next((v for kk, v in book.items() if _unit_key(kk) == k), None)
+    return str(hit) if isinstance(hit, str) and hit.strip() else u
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE ONE SPLICE PRODUCER -- 09-29 SITTING 4 (R4-1 / R4-4 (f) / R4-5, CONTRACT C4-9 / C4-11)
+# ---------------------------------------------------------------------------------------------------
+#: THE JOIN BETWEEN A SHORT NAME AND ITS SCOPE -- the ONE spelling :meth:`RowIdentity.short_words` composes ("the
+#: dry-day run z-score for SE Asia Palm Belt") and :func:`splice` reads back when it moves the scope after the slot's
+#: head or drops it where the slot already names it. A join of this module's own composition, never a word searched
+#: for in prose.
+SHORT_SCOPE_JOIN: str = " for "
+
+#: THE CLAUSE MARKS a slot never reaches past when :func:`splice` reads the words already in it (a comma, a
+#: terminator, a bracket, a line break): punctuation, the :data:`SPLICE_SEPARATORS` idiom.
+_SPLICE_SLOT_EDGE: str = ",;:.!?()[]\n"
+
+
+def _splice_short_names() -> tuple:
+    """The book's declared short names (``state_conventions.reading_short`` values), longest first, so the name a
+    correction writes is recognised as ``<declared short>[<its own tail>]`` -- the tail being this module's own
+    composition (``" of <commodity>"``, :data:`SHORT_SCOPE_JOIN` + scope). ``()`` with no book."""
+    v = _row_book("reading_short")
+    if not isinstance(v, dict):
         return ()
+    names = {" ".join(str(x or "").split()) for x in v.values() if str(x or "").strip()}
+    return tuple(sorted(names, key=lambda x: (-len(x), x)))
+
+
+def _splice_split(nm: str) -> tuple:
+    """``(article, core, tail)`` of a name: ``core`` the DECLARED short name the name opens with (compared without
+    case, at a word boundary; a capital the corrector put on a sentence-opening name is not a different name), its
+    own leading article split off; ``tail`` the rest of the name exactly as composed (``" for India"``). A name that
+    opens with no declared short name: ``core`` is the whole name (article split off) and ``tail`` is ``""``."""
+    low = nm.lower()
+    core, tail = nm, ""
+    for sn in _splice_short_names():
+        if low.startswith(sn.lower()) and (len(nm) == len(sn) or nm[len(sn)] == " "):
+            core, tail = nm[:len(sn)], nm[len(sn):]
+            break
+    words = core.split(" ")
+    if len(words) > 1 and words[0].lower() in SPLICE_ARTICLES:
+        return words[0], " ".join(words[1:]), tail
+    return "", core, tail
+
+
+def _splice_slot_words(text: str, at: int) -> list:
+    """The MODIFIERS already in the slot right before ``text[at:]`` -- the unbroken run of words that precede it with
+    nothing but single blanks between them and that the sentence's own marks show belong to its noun phrase: a
+    capitalised word, a possessive or a hyphen-joined compound (at most four, back to the nearest clause mark,
+    :data:`_SPLICE_SLOT_EDGE`), each with its possessive clitic read off ("India's" is India). A plain lower-case word
+    ("and", "while", "on") ENDS the run, so a place named in ANOTHER noun phrase of the clause ("exports to the US and
+    ...") is never read as this slot's -- the scope is then kept, a harmless repeat, never a wrong drop."""
+    left = text[:at]
+    cut = max(left.rfind(ch) for ch in _SPLICE_SLOT_EDGE)
+    ws = _re.findall(r"[A-Za-z][A-Za-z'\-]*", left[cut + 1:])
+    out: list = []
+    for w in reversed(ws[-4:]):
+        if not (w[:1].isupper() or "'" in w or "-" in w):
+            break
+        out.append(_re.sub(r"'s?$", "", w))
+    return list(reversed(out))
+
+
+def _splice_canon_place(words: str) -> str:
+    """ONE place name in the estate's ONE canonical form (``numbers.query._canon_country``: "US" and "United
+    States" are one place), else the words folded; read lazily, as this module reads its books."""
+    w = " ".join(str(words or "").split())
+    try:
+        from leviathan.graphrag.numbers.query import _canon_country
+        return str(_canon_country(w) or "")
+    except Exception:                                   # noqa: BLE001 -- no canon: the words themselves
+        return w.lower().replace(" ", "_")
+
+
+def _splice_slot_names(text: str, at: int, scope: str) -> bool:
+    """Does the slot before ``text[at:]`` already NAME the row's scope -- a run of one to four of its words that is
+    the scope in the estate's one canonical place form ("US flash drought" names United States)?"""
+    sc = _splice_canon_place(scope)
+    if not sc:
+        return False
+    ws = _splice_slot_words(text, at)
+    for i in range(len(ws)):
+        for j in range(i + 1, min(len(ws), i + 4) + 1):
+            if _splice_canon_place(" ".join(ws[i:j])) == sc:
+                return True
+    return False
+
+
+def _splice_heads_on(core: str, low_heads: set) -> bool:
+    """Does a name's core END in one of the book's own slot heads (it then carries the head a slot needs)?"""
+    w = core.split(" ")[-1].lower() if core else ""
+    return bool(w) and w in low_heads
 
 
 def _splice_sentence_start(text: str, at: int) -> bool:
@@ -672,50 +809,68 @@ def _splice_sentence_start(text: str, at: int) -> bool:
 
 
 def _splice_slot_article(text: str, at: int) -> bool:
-    """Does the SLOT already carry an article before ``text[at:]``? -- the nearest word before it, skipping the
-    slot's hyphen-joined compound modifiers ("the high-confidence ..."), is one of :data:`SPLICE_ARTICLES`. Grammar
-    read off the sentence, never a word the estate chose."""
-    for w in reversed(_re.findall(r"[A-Za-z][A-Za-z'\-]*", text[:at])[-4:]):
-        if "-" in w:
-            continue
-        return w.lower() in SPLICE_ARTICLES
-    return False
+    """Does the SLOT already carry a determiner before ``text[at:]``? -- among the two nearest words before it,
+    skipping the slot's hyphen-joined compound modifiers ("the high-confidence ...", "the severe ..."), one is one of
+    :data:`SPLICE_ARTICLES`; or the nearest word is a possessive ("India's ...") or a capitalised modifier that does
+    not open the sentence ("US ..."). Grammar read off the sentence's own marks, never a word the estate chose. A
+    clause mark between them ends the slot."""
+    left = text[:at]
+    cut = max(left.rfind(ch) for ch in _SPLICE_SLOT_EDGE)
+    ws = _re.findall(r"[A-Za-z][A-Za-z'\-]*", left[cut + 1:])
+    if not ws:
+        return False
+    near = ws[-1]
+    if near.lower() in SPLICE_ARTICLES:
+        return True
+    if "'" in near:
+        return True
+    if near[:1].isupper() and not _splice_sentence_start(text, left.rfind(near)):
+        return True
+    plain = [w for w in reversed(ws) if "-" not in w][:2]
+    return any(w.lower() in SPLICE_ARTICLES for w in plain)
 
 
-def splice(text: str, start: int, end: int, name: str = "", *, book=None, head: bool = False) -> tuple:
+def splice(text: str, start: int, end: int, name: str = "", *, book=None, head: bool = False,
+           scope_words=()) -> tuple:
     """``(start, end, replacement)`` for ``text[start:end]`` -- THE ONE SPLICE every seam that writes a row name into
-    prose, or strikes a span out of it, goes through (CONTRACT Z8; readers: lane A's name-binding lint, lane V's
-    strike and citation insertion). Pure; never raises on a well-formed span; the returned range may be WIDER than
-    the one asked (it takes the slot's own head, or one of two doubled separators, with it).
+    prose, or strikes a span out of it, goes through (CONTRACT Z8 / C4-9 / C4-11; readers: lane A's name-binding lint,
+    lane V's strike and citation insertion). Pure; never raises on a well-formed span; the returned range may be
+    WIDER than the one asked (it takes the slot's own head, or one of two doubled separators, with it), and it always
+    contains the asked range.
 
-    THE MEASURED DEFECTS (U-10, the arm-A pages): the routing correction wrote "the high-confidence the longest
-    dry-day run in the month, as a z-score for SE Asia Palm Belt reading [N24]" (a determiner doubled and a name
-    carrying its own commas spliced BEFORE the slot's head); the noun correction wrote "India's exports sits" (the
-    verb agreed with the noun the correction removed); a verifier strike left "[E1],, with" (both separators kept).
+    THE MEASURED DEFECTS. Sitting 3 (U-10): "the high-confidence the longest dry-day run in the month, as a z-score for
+    SE Asia Palm Belt reading [N24]", "India's exports sits", "[E1],, with". Sitting 4 (R4-1, the 2026-09-29 smoke and
+    probe, all six written by the post-verify name correction through THIS producer): the long card description
+    entered IN APPOSITION ("the severe reading (the longest dry-day run in the month, as a z-score for SE Asia Palm
+    Belt) [N13]") or after a modifier that is not a determiner ("US the longest dry-day run ... for United States
+    reads -1.04 z").
 
-    ``name`` GIVEN -- the identity's name enters so the slot keeps ONE determiner, its adjectives and the noun that
-    carries the verb's agreement:
-      * the word right after the span is one of the book's ``splice_heads`` -> it IS the slot's own head and is
-        kept; a PLAIN name (words alone, no article) takes the span's place as a compound ("the high-confidence
-        exports reading"), any other name enters in apposition after the head, its own article kept inside it
-        ("the high-confidence reading (the longest dry-day run in the month, ...)");
-      * ``head=True`` -- the CALLER states its span ends at the slot's head noun (the noun correction, whose span
-        is the bound noun up to its head by the lint's own construction): the book's FIRST head stands in for it
-        (``series``, one word for both numbers, so the writer's own verb still agrees -- NO MORPHOLOGY RULE, never
-        a trailing-"s" test), a plain name as its compound ("India's exports series sits"), any other in
-        apposition after it;
-      * otherwise (a routing or commodity word, or a whole noun phrase the correction replaces with the whole name,
-        its own head included) the name takes the span's place -- HEAD's substitution -- its leading article
-        dropped where the slot already carries one (never "the high-confidence the ...");
+    ``name`` GIVEN -- the identity's name (the row's SHORT name where the book declares one, ``RowIdentity.short_words``)
+    enters IN the slot, NEVER in apposition; the slot keeps ONE determiner, its adjectives and the noun that carries
+    the verb's agreement:
+      * the name splits into ``<declared short name>`` + its own tail (``" for <scope>"``, :data:`SHORT_SCOPE_JOIN`);
+        the scope is DROPPED where the slot already names it (a run of the slot's words that is the scope in the
+        estate's one canonical place form -- "US" names United States; ``scope_words``, where the caller passes the
+        row's own scope, is that scope; else the tail's own join says it) and otherwise rides AFTER the slot's head;
+      * the word right after the span is one of the book's ``splice_heads`` -> it IS the slot's own head and is kept
+        (the verb keeps agreeing with it): a PLAIN core (words alone) stands before it as its compound, its article
+        dropped ("the severe dry-day run z-score reading for SE Asia Palm Belt"); a core that is not plain (its own
+        commas, a slash) takes the head's place whole, never in brackets;
+      * ``head=True`` -- the CALLER states its span ends at the slot's head noun: the core's own last word is kept as
+        the head where it is one of the book's heads; otherwise the book's FIRST head (``series``, one word for both
+        numbers) stands after the core so the writer's verb still agrees -- NO MORPHOLOGY RULE -- and the scope rides
+        after it ("the exports series for India", never "the exports for India series");
+      * otherwise the core takes the span's place -- HEAD's substitution -- its article dropped where the slot already
+        carries a determiner, a possessive, a modifier that does not open the sentence (:func:`_splice_slot_article`)
+        or the row's own place (the scope drop above: "US dry-day run z-score reads");
       * a span opening a sentence keeps its capital.
-    ``name`` EMPTY -- the span is STRUCK: where both sides of it carry the SAME separator (``,`` / ``;``, read
-    outside a figure token and outside ``[..]``), ONE goes with it (", [E4]," -> ","); a space left before a
-    separator, a terminator or a closing bracket goes; two spaces meeting become one. Nothing else moves.
+    ``name`` EMPTY -- the span is STRUCK: where both sides of it carry the SAME separator (``,`` / ``;``, read outside a
+    figure token and outside ``[..]``), ONE goes with it (", [E4]," -> ","); a space left before a separator, a
+    terminator or a closing bracket goes; two spaces meeting become one. THE BLANKS READ ON EITHER SIDE ARE SPACES AND
+    TABS ONLY (C4-11, R4-5): a strike never widens across a line break, so it can never join two lines.
 
-    MEASURED ON THE FIFTY (``r_work/drives/b54_splice.py``, HEAD's own nine name corrections re-applied): the first
-    cut inferred the head from the word after the span alone and read a following noun as a verb in five of nine
-    ("the board series crush margin", "sunflower oil series production") -- which is why the head is the caller's
-    statement and never a guess here."""
+    MEASURED ON THE 63 (``fix_sitting_4_0929/r_work/drives/b54_s4.py``): every name correction HEAD's lint makes,
+    re-applied -- 0 parentheticals, 0 doubled determiners, 0 figure or handle bytes moved."""
     text = str(text or "")
     start, end = max(0, int(start)), max(0, int(end))
     end = max(start, min(end, len(text)))
@@ -723,26 +878,48 @@ def splice(text: str, start: int, end: int, name: str = "", *, book=None, head: 
     if nm:
         heads = tuple(str(h).strip() for h in (book if book is not None else _splice_heads()) if str(h or "").strip())
         low_heads = {h.lower() for h in heads}
-        words = nm.split(" ")
-        article = words[0].lower() in SPLICE_ARTICLES and len(words) > 1
-        compound = (not article) and bool(_SPLICE_PLAIN_RX.fullmatch(nm))
+        art, core, tail = _splice_split(nm)
+        # THE SCOPE: the caller's own scope words, else the tail's own join (only a tail this module composed)
+        if isinstance(scope_words, str):
+            scopes = [scope_words] if scope_words.strip() else []
+        else:
+            scopes = [str(x) for x in (scope_words or ()) if str(x or "").strip()]
+        if not scopes and tail and SHORT_SCOPE_JOIN in tail:
+            scopes = [tail.rsplit(SHORT_SCOPE_JOIN, 1)[1]]
+        placed = False                                  # the slot's own words name the row's place
+        for sc in scopes:
+            sfx = SHORT_SCOPE_JOIN + " ".join(sc.split())
+            if tail.endswith(sfx) and _splice_slot_names(text, start, sc):
+                tail, placed = tail[: -len(sfx)], True
+                break
+        # a slot whose own words already carry a determiner, a possessive or the row's PLACE ("US flash drought")
+        # takes the core without its article; a name that opens its own noun phrase keeps it
+        det = placed or _splice_slot_article(text, start)
+        plain = bool(_SPLICE_PLAIN_RX.fullmatch(core))
         nxt = _SPLICE_NEXT_WORD_RX.match(text, end)
         if nxt is not None and nxt.group(1).lower() in low_heads:
-            if compound:
-                a, b, rep = start, end, nm                              # the slot keeps its own head after it
+            if plain:
+                a, b, rep = start, nxt.end(), "%s %s%s" % (core, nxt.group(1), tail)
             else:
-                a, b, rep = start, nxt.end(), "%s (%s)" % (nxt.group(1), nm)
+                a, b, rep = start, nxt.end(), core + tail
         elif head and heads:
-            a, b, rep = start, end, ("%s %s" % (nm, heads[0]) if compound else "%s (%s)" % (heads[0], nm))
+            if _splice_heads_on(core, low_heads) or not plain:
+                rep = core + tail
+            else:
+                rep = "%s %s%s" % (core, heads[0], tail)
+            if art and not det:
+                rep = "%s %s" % (art, rep)
+            a, b = start, end
         else:
-            a, b, rep = start, end, nm                                  # HEAD's substitution
-            if article and _splice_slot_article(text, start):
-                rep = " ".join(words[1:])                               # the slot supplies the determiner
+            rep = core + tail
+            if art and not det:
+                rep = "%s %s" % (art, rep)                              # the name opens its own noun phrase
+            a, b = start, end
         if _splice_sentence_start(text, a) and rep[:1].islower():
             rep = rep[:1].upper() + rep[1:]
         return a, b, rep
     left, right = text[:start], text[end:]
-    lr, rl = left.rstrip(), right.lstrip()
+    lr, rl = left.rstrip(" \t"), right.lstrip(" \t")
     wl, wr = len(left) - len(lr), len(right) - len(rl)
     if left.rfind("[") > left.rfind("]"):
         return start, end, ""                                           # inside a handle group: the span alone
@@ -752,8 +929,10 @@ def splice(text: str, start: int, end: int, name: str = "", *, book=None, head: 
         return len(lr), end + wr + 1, ""                                # ", [E4]," -> "," (one separator kept)
     if rc and rc in _SPLICE_TIGHT_RIGHT and wl:
         return len(lr), end, ""                                         # "sits [E4]." -> "sits."
-    if wr and (wl or not lr):
-        return start, end + wr, ""                                      # "sits [E4] at" -> "sits at"
+    if wr and (wl or not lr or lr[-1:] == "\n"):
+        # "sits [E4] at" -> "sits at"; a span that opens its LINE takes its trailing blank and leaves the line break
+        # where it stands ("\n[N1] USDA" -> "\nUSDA": the break is a boundary, never a blank that is struck)
+        return start, end + wr, ""
     return start, end, ""
 
 
@@ -1470,6 +1649,12 @@ class RowIdentity:
     cell_rank: int = 0
     #: THE CARD'S OWN SUPERLATIVE FOR THAT SIDE ("driest", ``state_conventions.tail_words``); ``""`` = none.
     cell_extreme: str = ""
+    # -- THE 09-29 TAIL (fix sitting 4, R4-1, CONTRACT C4-9), defaulted so every HEAD caller builds HEAD's identity --
+    #: THE SERIES' SHORT NAME -- the book's ``reading_short`` for this card (a noun phrase with its own head noun and no
+    #: comma: "the dry-day run z-score"), which :meth:`short_words` names the row by INLINE; ``name`` stays the long
+    #: card description the SB-1 line and the footer print. ``""`` = the book declares none and the inline noun is
+    #: the name, HEAD's.
+    short: str = ""
 
     def cell_standing_words(self) -> str:
         """"the driest of ten" where a ranked cell row carries its standing, else ``""``."""
@@ -1541,11 +1726,16 @@ class RowIdentity:
     def short_words(self) -> str:
         """THE INLINE NOUN (K3): ``"[commodity_words ]name[ for scope]"`` -- the words lane A's name lint
         writes in place of a routing name. No basis, no period, no cell grain: the short name a sentence
-        carries beside a figure whose token (K2) already states the rest."""
-        name = _with_commodity(str(self.name or ""), str(self.commodity_words or "").strip())
+        carries beside a figure whose token (K2) already states the rest.
+
+        09-29 SITTING 4 (R4-1, CONTRACT C4-9): THE NAME HERE IS THE SERIES' SHORT NAME where the book declares one
+        (:attr:`short`, ``state_conventions.reading_short``) -- a noun phrase with its own head noun and no comma, so a
+        sentence can carry it IN its own slot; the long card description stays :attr:`name` (the SB-1 line and the
+        footer print it). The scope joins by :data:`SHORT_SCOPE_JOIN`, the one join :func:`splice` reads back."""
+        name = _with_commodity(str(self.short or self.name or ""), str(self.commodity_words or "").strip())
         scope = str(self.scope or "").strip()
         if scope and str(self.axis or "") != "global":
-            name += " for " + scope
+            name += SHORT_SCOPE_JOIN + scope
         return name
 
     def head_words(self) -> str:
@@ -1597,7 +1787,7 @@ def row_identity(*, contract: str, driver_id: str, st, card: dict, reading_words
                  offset_applied: Optional[bool] = None, basin_surfaces=(), rows_at_period: int = 0,
                  commodity_words: str = "", stat_kind: str = "",
                  period_role: str = "", class_words: str = "", cell_rank: int = 0,
-                 cell_extreme: str = "") -> RowIdentity:
+                 cell_extreme: str = "", short: str = "") -> RowIdentity:
     """THE PRODUCER of :class:`RowIdentity` -- pure, over the served row ``st`` (a :class:`StateRow`)
     and its card's declared fields ``card`` (``render.card_fields`` plus the card facts the render reads
     beside them). ``reading_words`` is the declared series name; the render is the only caller that
@@ -1615,7 +1805,9 @@ def row_identity(*, contract: str, driver_id: str, st, card: dict, reading_words
     caller's two facts -- the producer's own aggregate surfaces (``basin_surfaces``) and the served rows'
     count at the headline period (``rows_at_period``) -- and never the axis enum. ``commodity_words``,
     ``stat_kind`` and ``period_role`` are the caller's (the render resolves the series' commodity through
-    the one display producer; this module imports nothing)."""
+    the one display producer; this module imports nothing). ``short`` (09-29, C4-9) is the book's short name for
+    the series (``state_conventions.reading_short``), fetched by the render like ``reading_words``; ``""`` builds
+    HEAD's identity."""
     card = dict(card or {})
     key = getattr(st, "key", None)
     table = str(getattr(st, "table", "") or getattr(key, "ref", "") or "")
@@ -1660,4 +1852,5 @@ def row_identity(*, contract: str, driver_id: str, st, card: dict, reading_words
         stat_kind=str(stat_kind or ""), period_role=str(period_role or ""),
         class_words=str(class_words or ""),
         cell_rank=(int(cell_rank or 0) if cell_rule == "one_of_cells" else 0),
-        cell_extreme=(str(cell_extreme or "") if cell_rule == "one_of_cells" else ""))
+        cell_extreme=(str(cell_extreme or "") if cell_rule == "one_of_cells" else ""),
+        short=str(short or ""))

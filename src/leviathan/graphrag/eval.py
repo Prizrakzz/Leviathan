@@ -2259,6 +2259,8 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
     # reason that has nothing to do with the chain flag. Only `trace['planner']` separates them, and
     # `state_report` says so in its own words rather than printing a zero.
     _cl = (out.get("trace") or {}).get("chain_lints")
+    # FIX SITTING 4 (I4-3): the injected episode windows, banked on the same splat idiom (see the column below)
+    _eps = (out.get("trace") or {}).get("episodes_injected")
     # THE JUDGE's OWN USAGE (lane F): `judge()` binds it under GRAPHRAG_COST_CENSUS and hangs it on the
     # returned scores under a PRIVATE `_usage` key -- the `answer._pop_usage` pop-tag idiom.
     # It is NOT a trace key: the judge is not part of the turn, it is what MEASURING the turn costs.
@@ -2409,6 +2411,13 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # artifact as a record. Never None, never a fabricated zero.
             **{k: (out.get("trace") or {})[k] for k in tk.TRACE_SPLAT_KEYS
                if (out.get("trace") or {}).get(k) is not None},
+            # FIX SITTING 4 (lane I, I4-3 / CONTRACT C4-21; the recon's G-6): THE JUDGE'S GROUND TRUTH, BANKED. The
+            # episode axis is scored against `trace['episodes_injected']` (`_judge_episodes_panel`), and the record
+            # banked the score WITHOUT the block it scored -- the recon had to rebuild it from an artifact copy.
+            # LIFTED VERBATIM (node / line / spans / windows, and `floored` where the producer stamped it) on the
+            # bridge_query splat idiom: ABSENT on every row whose trace carries no key (GRAPHRAG_TIMELINE off),
+            # so every flag-off record keeps HEAD's columns in HEAD's order; tracekeys.py is untouched (B11).
+            **({"episodes_injected": _eps} if _eps is not None else {}),
             **{col: (out.get("intent_decision") or {}).get(dk) for dk, col in tk.DECISION_RECORD_KEYS},
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
@@ -5564,20 +5573,100 @@ def _fact_addresses(item) -> frozenset:
 #: (`{"opposing": [handles], "event": handle, "tape": handle}`, each omitted when absent). The contract's own
 #: closed key set, read back -- never a word list over prose.
 _NETTING_PARTS: tuple = ("opposing", "event", "tape")
+#: FIX SITTING 4 (lane I, CONTRACT C4-20 -- sitting 3's BLOCKER-1): the two names the ask head's producer ALREADY
+#: stamps beside Z4's three parts, now contracted: `event_e`, the [E] address of the event part (an event printed
+#: with only its receipt carries no [N] at all), and `by_market`, EVERY market's own parts
+#: (`{slug: {"opposing": [{"handle", "row_id", ...}], "event": {"handle", "e_handle", ...}, "tape": {...}}}`), whose
+#: FIRST market the three top-level keys restate. The contract's closed key set, read back -- never a word list.
+_NETTING_EVENT_E = "event_e"
+_NETTING_BY_MARKET = "by_market"
+
+
+def _reading_short(rd, table: str, metric: str) -> str:
+    """Lane R's SHORT reader name for a card (CONTRACT C4-9: the book's `reading_short`, `{table}.{metric}` else the
+    card-wide `{table}.*`), read through the render's PUBLIC book reader (`render.book_words`); "" where the book
+    declares none (before lane R lands, and for a card it names nothing for)."""
+    try:
+        return " ".join(str(rd.book_words("reading_short", f"{table}.{metric}")
+                            or rd.book_words("reading_short", f"{table}.*") or "").split())
+    except Exception:                                   # noqa: BLE001 -- no book: no short name
+        return ""
+
+
+def _netting_row_names(item) -> tuple:
+    """NOTE-1 (CONTRACT C4-20): the WHOLE NAMES the page prints for ONE netting fact, read off the fact's own
+    `row_id` -- `(names, scope)`. The row id is the producer's own `"%s|%s|%s" % (contract, driver_id, series key)`
+    (`rows.row_identity`) and the series key its `"ref|commodity|country[|metric]"` (`rows.SeriesKey.label`); the
+    ref resolves through THE BOARD MAP (`feeders.board_map_row`, read-only) to its card's (table, metric), whose
+    names are the book's (`state_conventions.yaml` `reading_short` where lane R declares one, and `reading_words`,
+    through `render`'s own readers). `scope` is the series key's country where the key is not global -- the words
+    the name must stand beside. `((), "")` for a bare handle, a row id the grammar does not parse, a ref the board
+    map does not carry (the tape's own row: its only name is its market's label, which is never read -- threat
+    I7-a) and a card the book names nothing for: a part the trace does not NAME is never credited by a name."""
+    rid = item.get("row_id") if isinstance(item, dict) else None
+    parts = str(rid or "").split("|")
+    if len(parts) < 4 or not parts[2]:
+        return (), ""
+    ref, commodity = parts[2], parts[3]
+    country = parts[4] if len(parts) > 4 else ""
+    metric_key = parts[5] if len(parts) > 5 else ""
+    try:
+        from leviathan.graphrag.state import feeders as _fd  # noqa: PLC0415 -- the board map
+        from leviathan.graphrag.state import render as _rd  # noqa: PLC0415 -- the book's readers
+        from leviathan.graphrag.state import rows as _rw  # noqa: PLC0415 -- the key's global rule
+        row = _fd.board_map_row(ref) or {}
+        table, metric = str(row.get("table") or ""), str(metric_key or row.get("metric") or "")
+        if not (table and metric):
+            return (), ""
+        names = []
+        for n in (_reading_short(_rd, table, metric), _rd.reading_words(table, metric)):
+            n = " ".join(str(n or "").split())
+            if n and n.lower() not in [x.lower() for x in names]:
+                names.append(n)
+        is_global = bool(_rw.SeriesKey(ref=ref, commodity=commodity, country=country).is_global)
+    except Exception:                                   # noqa: BLE001 -- no map, no book: no name (under-claim)
+        return (), ""
+    return tuple(names), ("" if is_global else " ".join(country.split()))
 
 
 def _netting_parts(an: dict) -> list:
-    """`[(part, label, [addresses, ...]), ...]` -- each netting part the ask head PRINTED with at least one
-    handle, and the facts inside it (opposing is a LIST: the loudest reading against the lean, or on a
-    balanced board the loudest on each side -- each its own fact). A part with no printed handle is not a
-    part (Z4: "a part is present only when the block PRINTED its handle"). Read in the CONTRACT'S spelling
-    only -- the three part keys, each a handle (or a list of them for opposing, or a part dict carrying the
-    render's own `handle` / `e_handle`); a key the contract does not name is never read."""
-    out = []
-    for part in _NETTING_PARTS:
-        val = an.get(part)
+    """`[(part, label, [(addresses, names, scope), ...]), ...]` -- each netting part the ask head PRINTED with at
+    least one handle, and the facts inside it (opposing is a LIST: the loudest reading against the lean, or on a
+    balanced board the loudest on each side -- each its own fact). A part with no printed handle is not a part (Z4:
+    "a part is present only when the block PRINTED its handle"). Read in the CONTRACT'S spelling only -- Z4's three
+    part keys, each a handle (or a list of them for opposing, or a part dict carrying the render's own `handle` /
+    `e_handle`), and C4-20's two: `event_e` (the event part's [E] address, ONE fact with the top-level `event`) and
+    `by_market` (every market's parts, labelled `<slug>:<part>`; the top level restates its FIRST market, so a
+    top-level part is read on its own only where no market carries its addresses). A key the contract does not
+    name is never read. Each fact carries its row's whole names (`_netting_row_names`, NOTE-1), else `()`."""
+
+    def _facts(src: dict, part: str, e_extra=None) -> list:
+        val = src.get(part)
         items = list(val) if isinstance(val, (list, tuple)) else ([] if val is None else [val])
-        facts = [a for a in (_fact_addresses(it) for it in items) if a]
+        got = [(_fact_addresses(it),) + _netting_row_names(it) for it in items]
+        if part == "event" and e_extra is not None:
+            ea = _address_of(e_extra, "E")
+            if ea and len(got) == 1:
+                got = [(got[0][0] | ea,) + got[0][1:]]         # the event's [N] and its [E]: ONE fact
+            elif ea and not got:
+                got = [(ea, (), "")]                          # printed with only its receipt
+        return [f for f in got if f[0]]
+
+    out: list = []
+    bm = an.get(_NETTING_BY_MARKET)
+    covered: dict = {}
+    if isinstance(bm, dict):
+        for slug, parts in bm.items():
+            if not isinstance(parts, dict):
+                continue
+            for part in _NETTING_PARTS:
+                facts = _facts(parts, part)
+                if facts:
+                    out.append((part, f"{slug}:{part}", facts))
+                    covered.setdefault(part, set()).update(a for f in facts for a in f[0])
+    for part in _NETTING_PARTS:
+        facts = _facts(an, part, an.get(_NETTING_EVENT_E) if part == "event" else None)
+        facts = [f for f in facts if not (f[0] & covered.get(part, set()))]
         if facts:
             out.append((part, part, facts))
     return out
@@ -5589,11 +5678,17 @@ def _netting_read(rec: dict, r: dict | None, prose) -> dict:
     reading, the tape's move), how many the TL;DR CITES by their own ledger address. A part holding several
     readings (a balanced board's loudest on each side) is netted only when the TL;DR cites every one of them
     -- the instrument's error stays UNDER-claim. The writer's one-clause "why not" is not machine-readable:
-    the instrument reports parts netted and parts not netted and never grades a reason. A part named whole
-    WITHOUT its address is not credited: the contract's trace spelling carries each part's handles and no
-    name, and a name the trace does not carry is never guessed (a market's board label, the tape's only
-    name, would read "netted" on every TL;DR that names its market). ABSENT where the key is not on the
-    record, where no part carries a handle, and where no TL;DR is on the record."""
+    the instrument reports parts netted and parts not netted and never grades a reason. ABSENT where the key is
+    not on the record, where no part carries a handle, and where no TL;DR is on the record.
+
+    FIX SITTING 4 (lane I, CONTRACT C4-20). BLOCKER-1: the reader now takes `event_e` (an event printed with only
+    its [E] receipt is a part, and its address) and `by_market` (every market of a multi-market ask head, each
+    part labelled `<slug>:<part>`) -- MEASURED on the 13 live smoke / probe traces, HEAD read 31 of the 133 parts
+    the producer stamped. NOTE-1: a fact the TL;DR does not cite is told where one TL;DR sentence prints its row's
+    WHOLE name -- the book's name for the card the fact's own `row_id` resolves to through the board map
+    (`_netting_row_names`), with the row's scope beside it where the row is scoped. A part the trace names by
+    handle alone, and the tape (whose only name is its market's label, threat I7-a), is still credited by its
+    address only -- a name the trace does not carry is never guessed."""
     sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
     an = sb.get("ask_netting")
     if not isinstance(an, dict) or not an:
@@ -5605,9 +5700,16 @@ def _netting_read(rec: dict, r: dict | None, prose) -> dict:
     if tldr is None:
         return _absent("no TL;DR on the record", d=len(parts))
     cited, on_page = _cited_addresses(tldr), _cited_addresses(prose if isinstance(prose, str) else tldr)
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415 -- the ONE sentence splitter
+    tl_sents = [" ".join(s.lower().split()) for s in _vf.sentences(tldr)]
     x, netted = {}, []
     for part, label, facts in parts:
-        told = sum(1 for f in facts if f & cited)
+        by_addr = [bool(a & cited) for a, _n, _s in facts]
+        # FIX SITTING 4 (NOTE-1, C4-20): a fact the TL;DR does not cite is told where ONE TL;DR sentence prints its
+        # row's whole name (and, for a scoped row, its scope's words) -- the names the page prints, read off the
+        # fact's own row id; a fact the trace does not name is never credited by a name (under-claim kept)
+        by_name = [(not b) and _whole_name_told(tl_sents, n, s) for (_a, n, s), b in zip(facts, by_addr)]
+        told = sum(1 for b, nm in zip(by_addr, by_name) if b or nm)
         ok = told == len(facts)
         netted += [label] if ok else []
         c = x.setdefault(part, {"printed": 0, "netted": 0, "readings": 0, "readings_cited": 0,
@@ -5615,10 +5717,30 @@ def _netting_read(rec: dict, r: dict | None, prose) -> dict:
         c["printed"] += 1
         c["netted"] += int(ok)
         c["readings"] += len(facts)
-        c["readings_cited"] += told
-        c["cited_on_page"] += int(any(f & on_page for f in facts))
+        c["readings_cited"] += sum(by_addr)
+        c["cited_on_page"] += int(any(a & on_page for a, _n, _s in facts))
+        if any(by_name):                              # APPENDED, and only where a name told a reading
+            c["readings_named"] = c.get("readings_named", 0) + sum(by_name)
     return {"v": len(netted), "d": len(parts), "src": src, "why": None, "x": x,
             "_page": {"printed": [lb for _p, lb, _f in parts], "netted": netted}}
+
+
+def _whole_name_told(sents: list, names: tuple, scope: str) -> bool:
+    """NOTE-1's test: ONE sentence (already case- and blank-folded) carries one of `names` WHOLE -- as printed,
+    at word edges -- and, where the row is scoped, `scope` WHOLE beside it in that same sentence. Nothing is
+    folded beyond case and blanks, so a shortened or paraphrased name is not credited: the error stays
+    UNDER-claim."""
+    def _whole(text: str, w: str) -> bool:
+        w = " ".join(str(w or "").lower().split())
+        i = text.find(w) if w else -1
+        while i >= 0:
+            j = i + len(w)
+            if (i == 0 or not text[i - 1].isalnum()) and (j >= len(text) or not text[j].isalnum()):
+                return True
+            i = text.find(w, i + 1)
+        return False
+    return bool(names) and any(any(_whole(s, n) for n in names) and (not scope or _whole(s, scope))
+                               for s in sents)
 
 
 def _held_rows_tldr_read(rec: dict, r: dict | None, held: list) -> dict:
@@ -5803,6 +5925,594 @@ def _count_kinds(sb) -> dict:
     return out
 
 
+# -- FIX SITTING 4 (lane I, CONTRACT C4-21): THE SEVEN CENSUS ROWS OF THIS SITTING'S CLASSES --------------------
+# The census's law, unchanged: each row reads the ONE producer field its contract names, returns
+# `{"v", "d", "src", "why"}` (v None = ABSENT, `why` names the missing field; never a 0 for a field that is not
+# there), states its population and its denominator, is vacuity-censused like every row above, and is REPORT-ONLY.
+# The served page is read only to LOCATE a handle, a figure or a producer's own words (the handle parser, the
+# verifier's numeral and unit grammars, the footer's own format); no row is a regex over the page for the defect's
+# words, and none imports the sitting's witness patterns. A row whose instance a human must read carries a private
+# `_found` list the census folds into a deck list (omitted when empty).
+def _served_page(rec: dict, r: dict | None) -> tuple:
+    """`(body, source)` -- the page AS SERVED (a live row's `out['answer']`, or a banked record's
+    `raw_draft.body_pre_sanitize`), its Sources footer included -- or `(None, None)`. A banked record's draft is
+    NOT the served page: every post-verify seam (the date stamp, the absence append, the name splice) and the
+    footer are written after it, so a row reading them is ABSENT on a draft, never a 0."""
+    (body, src), _prose_pair = _instrument_texts(rec, r)
+    if isinstance(body, str) and (src == "served body" or str(src or "").startswith("raw_draft.body_pre_sanitize")):
+        return body, src
+    return None, None
+
+
+def _page_body(body: str) -> str:
+    """The served page with its `## Sources` footer cut (HEAD's `_prose` rule) -- what the reader reads as prose."""
+    return _prose({"answer": body})
+
+
+def _paren_spans(text: str) -> list:
+    """`[(start, end)]` of every TOP-LEVEL parenthetical of `text` (the brackets included), by the paren
+    grammar: depth counted, an unclosed one ignored. The seams append their clauses as parentheticals."""
+    out, depth, start = [], 0, None
+    for i, ch in enumerate(text):
+        if ch == "(":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == ")" and depth:
+            depth -= 1
+            if depth == 0 and start is not None:
+                out.append((start, i + 1))
+    return out
+
+
+def _stage_of(snippet: str, rec: dict) -> str:
+    """The STAGE that wrote `snippet` (the P-6 method, off the banked raw_draft stages): present in the writer's
+    raw or pre-verify draft -> `writer`; first in the post-verify draft -> `verifier`; on the served page only ->
+    `post_verify_seam`. `unattributed` where the record carries no post-verify draft to read it against."""
+    rd = rec.get("raw_draft") if isinstance(rec.get("raw_draft"), dict) else {}
+    if not any(isinstance(rd.get(k), str) for k in ("postverify_tldr", "postverify_mechanism")):
+        return "unattributed"
+    writer = "\n".join(str(rd.get(k) or "") for k in ("tldr", "mechanism", "preverify_tldr", "preverify_mechanism"))
+    post = "\n".join(str(rd.get(k) or "") for k in ("postverify_tldr", "postverify_mechanism"))
+    if snippet in writer:
+        return "writer"
+    if snippet in post:
+        return "verifier"
+    return "post_verify_seam"
+
+
+def _bare_handle_rx():
+    """The handle grammar WITHOUT its brackets -- the verifier's own member grammar (`verify._H_MEMBER`: a
+    kind-prefixed index), bounded so it never reads inside a word or inside a bracket. None where the grammar
+    cannot be read (the row is then ABSENT)."""
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415 -- the ONE handle grammar
+    mem = getattr(_vf, "_H_MEMBER", None)
+    return re.compile(r"(?<![\w\[])" + mem + r"(?![\w\]])") if isinstance(mem, str) else None
+
+
+def _bare_handle_read(rec: dict, r: dict | None) -> dict:
+    """BARE-HANDLE PARENTHETICALS (A4-1, CONTRACT C4-21): ledger addresses the served page names WITHOUT their
+    brackets inside a parenthetical -- each bare address once -- against the rows the writer seam dated
+    (`writer_seam.stale_rows_dated`, answer._seam_stale_figures). A bare token is an address only where, put in
+    brackets, THE handle parser reads it with an explicit kind AND the page prints that address bracketed
+    somewhere (its ledger: every address the served body cites, footer included) -- so "E10" in a fuel name is
+    never one. The breakdown carries the parentheticals, and the STAGE that wrote each (`_stage_of`). ABSENT where
+    the seam did not run, and on a record whose served page is not on it."""
+    ws = _writer_seam(rec)
+    dated = ws.get("stale_rows_dated")
+    if not _is_count(dated):
+        return _absent("writer_seam.stale_rows_dated absent (the writer seam did not run)")
+    body, src = _served_page(rec, r)
+    if body is None:
+        return _absent("no served page on the record (the date stamp is written after the banked draft)",
+                       d=int(dated))
+    rx = _bare_handle_rx()
+    if rx is None:
+        return _absent("the handle grammar is unreadable (verify._H_MEMBER)", d=int(dated))
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415
+    ledger = _cited_addresses(body)
+    page = _page_body(body)
+    x = {"parentheticals": 0, "bare_handles": 0, "stale_sentences": _int0(ws.get("stale_sentences")),
+         "by_stage": {}}
+    found, seen = [], set()
+    for a, b in _paren_spans(page):
+        inner = page[a:b]
+        masked = _COUNT_BRACKET_RX.sub(lambda m: " " * len(m.group(0)), inner)
+        bare = []
+        for m in rx.finditer(masked):
+            tok = f"[{m.group(0)}]"
+            hm = _vf._HANDLE.fullmatch(tok)
+            if hm is None or not hm.group("kind"):
+                continue
+            addrs = {(str(k), int(i)) for k, i in _vf._handle_members(tok)}
+            if addrs and addrs <= ledger:
+                bare.append(m.group(0))
+        if not bare:
+            continue
+        stage = _stage_of(inner, rec)
+        x["parentheticals"] += 1
+        x["by_stage"][stage] = x["by_stage"].get(stage, 0) + 1
+        new = [t for t in bare if t not in seen]
+        seen.update(new)
+        x["bare_handles"] += len(new)
+        found.append({"stage": stage, "handles": new, "text": " ".join(inner.split())[:200]})
+    return {"v": x["bare_handles"], "d": int(dated),
+            "src": f"{src} (Sources footer cut) against writer_seam.stale_rows_dated", "why": None, "x": x,
+            "_found": found}
+
+
+def _absence_append_words() -> str:
+    """The absence append's OWN opening words, read off its ONE producer (`answer._absence_append`, called on a
+    probe row) rather than typed here -- so a producer that rewords its clause moves this reader with it. "" where
+    the producer cannot be called (the row is then ABSENT)."""
+    try:
+        probe = an._absence_append("x.", 1, {1: {"value": "v", "unit": "u", "known": ""}}, handle_prose=True)
+        i, j = str(probe).index("("), str(probe).index("[N1]")
+        return " ".join(str(probe)[i + 1:j].split())
+    except Exception:                                   # noqa: BLE001 -- no producer: no words (ABSENT)
+        return ""
+
+
+def _served_absence_names(sb: dict) -> list:
+    """`[(name, basis)]` -- the members the BLOCK SERVES AS ABSENT, by the names the block prints for them, read
+    off the trace's own structure: (i) every hop the walk read NO series for (`measured` False) on a RENDERED chain
+    (`state_board.chains[].hops[]`), named as the chain line names it (`render.humanise(driver_id)`, the one
+    display vocabulary); (ii) every member a quorum line names as UNREAD -- the and-list the render prints in the
+    parenthetical right after the book's own unread words (`quorum_words`: `unread` and each of the walk's
+    `QUORUM_UNREAD_REASONS` the book declares words for) in `state_board.block_sentences`. Not read: an SB-X
+    line's name list (its grammar joins each name to a market: "X on CBOT soybeans") -- an under-claim, stated."""
+    out: list = []
+    try:
+        from leviathan.graphrag.state import render as _rd  # noqa: PLC0415
+    except Exception:                                   # noqa: BLE001
+        return out
+    for c in (sb.get("chains") if isinstance(sb.get("chains"), list) else ()):
+        if not (isinstance(c, dict) and c.get("rendered")):
+            continue
+        for h in (c.get("hops") if isinstance(c.get("hops"), list) else ()):
+            if isinstance(h, dict) and h.get("measured") is False and h.get("driver_id"):
+                try:
+                    n = " ".join(str(_rd.humanise(str(h["driver_id"]))).split())
+                except Exception:                       # noqa: BLE001
+                    n = ""
+                if n and (n, "hop") not in out:
+                    out.append((n, "hop"))
+    try:
+        from leviathan.graphrag.state import walk as _wk  # noqa: PLC0415 -- the reason words
+        keys = ("unread",) + tuple(str(w) for w in (getattr(_wk, "QUORUM_UNREAD_REASONS", ()) or ()))
+        phrases = [p for p in (" ".join(_rd.book_words("quorum_words", k).split()) for k in keys) if p]
+    except Exception:                                   # noqa: BLE001
+        phrases = []
+    for e in (sb.get("block_sentences") if isinstance(sb.get("block_sentences"), list) else ()):
+        text = " ".join(str((e or {}).get("text") or "").split()) if isinstance(e, dict) else ""
+        for p in phrases:
+            i = text.find(p)
+            while i >= 0:
+                rest = text[i + len(p):].lstrip()
+                if rest.startswith("(") and ")" in rest:
+                    for piece in rest[1:rest.index(")")].split(","):
+                        for n in piece.split(" and "):
+                            n = " ".join(n.split())
+                            if n and (n, "quorum") not in out:
+                                out.append((n, "quorum"))
+                i = text.find(p, i + 1)
+    return out
+
+
+def _absence_append_read(rec: dict, r: dict | None) -> dict:
+    """ABSENCE APPENDS BESIDE A SERVED ABSENCE (A4-2, CONTRACT C4-21): of the absence appends the writer seam
+    made (`writer_seam.absence_rows_appended`, answer._seam_absence_claims), those whose CLAIM restates an absence
+    the block itself serves -- the claim's own sentence on the served page (the append located by its producer's
+    own opening words, `_absence_append_words`) carries, whole, the printed name of a member the block serves as
+    absent (`_served_absence_names`: a rendered hop the walk read nothing for; a quorum's unread member). Such an
+    append answers a TRUE absence with some other series. THE ERROR BAND, both ways: a claim that shortens the
+    member's name ("the tariff link" for "China import tariff") is not read (UNDER); a one-word member name
+    standing in a claim about another scope is read (OVER) -- so every append is listed with its sentence and the
+    name it matched, for a human to read. ABSENT where the seam did not stamp its count, where it appended
+    nothing, and on a record whose served page is not on it."""
+    ws = _writer_seam(rec)
+    n_app = ws.get("absence_rows_appended")
+    if not _is_count(n_app):
+        return _absent("writer_seam.absence_rows_appended absent (the writer seam did not run)")
+    if not n_app:
+        return _absent("no absence append on the page", d=0)
+    body, src = _served_page(rec, r)
+    if body is None:
+        return _absent("no served page on the record (the append is written after the banked draft)", d=int(n_app))
+    lead = _absence_append_words()
+    if not lead:
+        return _absent("the absence append's producer words are unreadable (answer._absence_append)", d=int(n_app))
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415 -- the ONE sentence splitter
+    sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    names = _served_absence_names(sb)
+    page = _page_body(body)
+    # the claim's sentence: the one splitter's boundaries AND the page's own line breaks (a line with no terminal
+    # stop -- a bullet, a line before a heading -- never runs into the next one)
+    starts = sorted({0} | {m.end() for m in _vf._SENT_SPLIT.finditer(page)}
+                    | {i + 1 for i, ch in enumerate(page) if ch == "\n"})
+    x = {"stamped": int(n_app), "located": 0, "beside_served_absence": 0, "by_basis": {},
+         **{k: int(ws[k]) for k in ("absence_true", "absence_claims_restating_served_absence")
+            if _is_count(ws.get(k))}}
+    found = []
+    for a, b in _paren_spans(page):
+        inner = " ".join(page[a + 1:b - 1].split())
+        if not inner.lower().startswith(lead.lower()):
+            continue
+        x["located"] += 1
+        s0 = max(s for s in starts if s <= a)
+        s1 = min([s for s in starts if s > a] + [len(page)])
+        claim = " ".join((page[s0:a] + page[b:s1]).split()).lower()
+        hit = next(((n, basis) for n, basis in names if _whole_name_told([claim], (n,), "")), None)
+        if hit is not None:
+            x["beside_served_absence"] += 1
+            x["by_basis"][hit[1]] = x["by_basis"].get(hit[1], 0) + 1
+        found.append({"beside": hit[0] if hit else None, "basis": hit[1] if hit else None,
+                      "append": inner[:160], "sentence": " ".join(page[s0:s1].split())[:260]})
+    return {"v": x["beside_served_absence"], "d": int(n_app),
+            "src": f"{src} (Sources footer cut) against writer_seam.absence_rows_appended and the block's served "
+                   f"absences", "why": None, "x": x, "_found": found}
+
+
+def _long_names_of(rec: dict) -> dict:
+    """`{long name: short name or ""}` for every card a served call reads (`served_rows`' table / metric): the
+    LONG name is the book's `reading_words` (`render.reading_words`, the one reader); the SHORT is lane R's
+    `reading_short` where the book declares one (CONTRACT C4-9). A card the book names nothing for is skipped."""
+    out: dict = {}
+    try:
+        from leviathan.graphrag.state import render as _rd  # noqa: PLC0415
+    except Exception:                                   # noqa: BLE001
+        return out
+    for c in (rec.get("served_rows") if isinstance(rec.get("served_rows"), list) else ()):
+        if not isinstance(c, dict):
+            continue
+        t, m = str(c.get("table") or ""), str(c.get("metric") or "")
+        try:
+            long_ = " ".join(str(_rd.reading_words(t, m) or "").split())
+        except Exception:                               # noqa: BLE001
+            long_ = ""
+        if long_ and long_ not in out:
+            out[long_] = _reading_short(_rd, t, m)
+    return out
+
+
+def _count_whole(text: str, w: str) -> int:
+    """How many times `w` stands WHOLE in `text` (both already case- and blank-folded), at word edges."""
+    n, i = 0, text.find(w) if w else -1
+    while i >= 0:
+        j = i + len(w)
+        if (i == 0 or not text[i - 1].isalnum()) and (j >= len(text) or not text[j].isalnum()):
+            n += 1
+        i = text.find(w, i + 1)
+    return n
+
+
+def _long_label_read(rec: dict, r: dict | None) -> dict:
+    """A CARD'S LONG LABEL WRITTEN INTO A SENTENCE BY A SEAM (R4-1, CONTRACT C4-21): of the name corrections the
+    name-binding lint made (`writer_seam.name_binding`, every `*_corrected` counter it stamps), how many wrote a
+    row's LONG name rather than its short one -- counted as the occurrences of a served card's long reader name
+    (`_long_names_of`) on the served page's prose BEYOND those the post-verify draft already carried (the writer's
+    own uses are not a correction's). ONLY A CARD WHOSE BOOK DECLARES A SHORT NAME IS READ, and only where that
+    short name differs from the long one: a card with no declared short name cannot say which of its names is the
+    long one (MEASURED on the 63 with HEAD's book, which declares none: every card name a seam wrote beyond the
+    draft -- "exports", "ending stocks" -- would read as a long label, 78 against the 9 real ones), and a card
+    whose short name IS its long name has no long label to misplace. ABSENT where the lint did not run, where the
+    served page or the post-verify draft is not on the record (a seam-written name cannot be told from the
+    writer's without both), and where no served card's book entry declares a short name (C4-9 not landed)."""
+    nb = _writer_seam(rec).get("name_binding")
+    if not isinstance(nb, dict):
+        return _absent("writer_seam.name_binding absent (the name-binding lint did not run)")
+    corr = {k: int(v) for k, v in nb.items() if str(k).endswith("_corrected") and _is_count(v)}
+    d = sum(corr.values())
+    body, src = _served_page(rec, r)
+    if body is None:
+        return _absent("no served page on the record (the name is spliced after the banked draft)", d=d)
+    rd = rec.get("raw_draft") if isinstance(rec.get("raw_draft"), dict) else {}
+    if not any(isinstance(rd.get(k), str) for k in ("postverify_tldr", "postverify_mechanism")):
+        return _absent("raw_draft.postverify_* absent (a seam-written name cannot be told from the writer's)", d=d)
+    names = {k: v for k, v in _long_names_of(rec).items() if v}
+    if not names:
+        return _absent("no served card's book entry declares a short name (reading_short): a long name cannot be "
+                       "told from a short one", d=d)
+    page = " ".join(_page_body(body).lower().split())
+    post = " ".join((str(rd.get("postverify_tldr") or "") + "\n" + str(rd.get("postverify_mechanism") or ""))
+                    .lower().split())
+    found, v = [], 0
+    for long_, short in sorted(names.items()):
+        w = long_.lower()
+        if short.lower() == w:
+            continue
+        extra = _count_whole(page, w) - _count_whole(post, w)
+        if extra > 0:
+            v += extra
+            found.append({"name": long_, "seam_written": extra, "short": short})
+    return {"v": v, "d": d, "src": f"{src} (Sources footer cut) beyond raw_draft.postverify_* against "
+                                   f"writer_seam.name_binding", "why": None,
+            "x": {**corr, "long_names_read": len(names)}, "_found": found}
+
+
+def _threshold_head_noun() -> str:
+    """The head noun the threshold clause's own producer prints after its label -- lane R's declared
+    `render.THRESHOLD_CLAUSE_NOUN` (CONTRACT C4-6), read defensively. "" where it is not declared."""
+    try:
+        from leviathan.graphrag.state import render as _rd  # noqa: PLC0415
+        return " ".join(str(getattr(_rd, "THRESHOLD_CLAUSE_NOUN", "") or "").split())
+    except Exception:                                   # noqa: BLE001
+        return ""
+
+
+def _handle_inside_noun_read(rec: dict, r: dict | None) -> dict:
+    """A THRESHOLD CITATION BETWEEN A LABEL AND ITS HEAD NOUN (V4-3, CONTRACT C4-21): of the threshold citations
+    the verifier inserted (its report's `direction_audit` entries of rule `threshold_cited`, each with its handle
+    and the label it followed -- on a live row's `out['trace']['citation_verifier']`, the report the per-answer
+    record does not bank), how many stand on the served page between the label and the head noun the threshold
+    clause's producer declares (`_threshold_head_noun`): the label, then the handle group carrying the citation,
+    then that noun ("past the severe [N14] line"). Located by the verifier's own phrase grammar
+    (`verify._phrase_rx`) and THE handle parser; a citation standing as its own group after another handle group
+    (not joined to it) rides the breakdown. ABSENT on a banked record (no report), where no citation was inserted,
+    and where the head noun is not declared."""
+    out = r.get("out") if isinstance(r, dict) and isinstance(r.get("out"), dict) else None
+    cv = ((out or {}).get("trace") or {}).get("citation_verifier") if out is not None else None
+    if not isinstance(cv, dict):
+        return _absent("the verifier's report is not on the record (a banked record carries no direction_audit)")
+    audit = [e for e in (cv.get("direction_audit") or ()) if isinstance(e, dict)
+             and e.get("rule") == "threshold_cited"]
+    if not audit:
+        return _absent("no threshold citation inserted on the page", d=0)
+    noun = _threshold_head_noun()
+    if not noun:
+        return _absent("render.THRESHOLD_CLAUSE_NOUN absent (the threshold clause's head noun is not declared)",
+                       d=len(audit))
+    body, src = _served_page(rec, r)
+    if body is None:
+        return _absent("no served page on the record", d=len(audit))
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415 -- phrase grammar, handle parser
+    page = _page_body(body)
+    blank = " \t*_"
+    x = {"inserted": len(audit), "located": 0, "inside_noun": 0, "own_group_beside_another": 0}
+    found, used = [], set()
+    for e in audit:
+        try:
+            jh, label = int(e.get("handle")), str(e.get("label") or "")
+            lrx = _vf._phrase_rx(label)
+        except Exception:                               # noqa: BLE001
+            continue
+        if lrx is None:
+            continue
+        for m in lrx.finditer(page):
+            if (m.start(), jh) in used:                 # one insertion per spot: the same handle inserted in the
+                continue                                # TL;DR and the body is TWO spots, never one counted twice
+            at, groups, hit = m.end(), 0, None
+            while True:
+                k = at
+                while k < len(page) and page[k] in blank:
+                    k += 1
+                g = _vf._HANDLE.match(page, k)
+                if g is None:
+                    break
+                groups += 1
+                if ("N", jh) in _vf._handle_members(g.group(0)):
+                    hit = groups
+                at = g.end()
+            if hit is None:
+                continue
+            used.add((m.start(), jh))
+            x["located"] += 1
+            x["own_group_beside_another"] += int(hit > 1)
+            k = at
+            while k < len(page) and page[k] in blank:
+                k += 1
+            nxt = page[k:k + len(noun)]
+            inside = (nxt.lower() == noun.lower()
+                      and (k + len(noun) >= len(page) or not page[k + len(noun)].isalnum()))
+            if inside:
+                x["inside_noun"] += 1
+                found.append({"handle": jh, "label": label, "noun": noun,
+                              "text": " ".join(page[max(0, m.start() - 60):k + len(noun) + 40].split())})
+            break
+    return {"v": x["inside_noun"], "d": len(audit),
+            "src": f"{src} (Sources footer cut) against citation_verifier.direction_audit (threshold_cited)",
+            "why": None, "x": x, "_found": found}
+
+
+def _tape_card() -> tuple:
+    """The anchor tape's own declared card, `(table, level metric)` -- `feeders.TAPE_TABLE` / `TAPE_METRIC`,
+    read defensively; `("", "")` where unreadable (the row is then ABSENT). No table name is typed here."""
+    try:
+        from leviathan.graphrag.state import feeders as _fd  # noqa: PLC0415
+        return str(getattr(_fd, "TAPE_TABLE", "") or ""), str(getattr(_fd, "TAPE_METRIC", "") or "")
+    except Exception:                                   # noqa: BLE001
+        return "", ""
+
+
+def _num(v):
+    try:
+        return None if isinstance(v, bool) or v in (None, "") else float(str(v).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def _change_row_read(rec: dict) -> dict:
+    """A CHANGE ROW EQUAL TO ITS LEVEL (F4-1, CONTRACT C4-21): of the tape card's CHANGE rows on the record
+    (`served_rows`), those whose value equals their level's -- a change minted over a base read as zero. THE
+    FAMILY IS THE PRODUCER'S REGISTRATION ORDER (`render.sb_tape`): the level call on the tape card
+    (`_tape_card`) and, right behind it, its derived calls -- each on the same card, its metric the level's metric
+    extended, in the level's own unit (the percentile's unit differs and closes the run). Signed equality at
+    float tolerance, level non-zero: a change equal to MINUS its level would be a different fault and is not
+    this one. A call the record's row budget cut (`rows: []`) is unread, never compared. ABSENT where the record
+    carries no served rows, the tape card is unreadable, or no change row is on it."""
+    calls = rec.get("served_rows")
+    if not isinstance(calls, list):
+        return _absent("served_rows absent")
+    table, metric = _tape_card()
+    if not (table and metric):
+        return _absent("the tape card is unreadable (feeders.TAPE_TABLE / TAPE_METRIC)")
+    x = {"levels": 0, "change_rows": 0, "unread": 0, "equal_to_level": 0}
+    found = []
+    level = None
+    for c in calls:
+        if not isinstance(c, dict):
+            level = None
+            continue
+        rows = [rr for rr in (c.get("rows") or []) if isinstance(rr, dict)]
+        t, m = str(c.get("table") or ""), str(c.get("metric") or "")
+        u = str(rows[0].get("unit") or "") if rows else None
+        if t == table and m == metric:
+            x["levels"] += 1
+            level = (_num(rows[0].get("value")) if rows else None, u)
+            continue
+        if level is None or t != table or not m.startswith(metric + " ") or (u is not None and u != level[1]):
+            level = None
+            continue
+        x["change_rows"] += 1
+        cv = _num(rows[0].get("value")) if rows else None
+        if cv is None or level[0] is None:
+            x["unread"] += 1
+            continue
+        if level[0] != 0 and abs(cv - level[0]) <= 1e-9 * max(1.0, abs(level[0])):
+            x["equal_to_level"] += 1
+            found.append({"metric": m, "value": cv, "level": level[0], "unit": level[1]})
+    d = x["change_rows"] - x["unread"]
+    if not d:
+        return _absent("no readable tape change row on the record", d=0)
+    return {"v": x["equal_to_level"], "d": d, "src": "served_rows (the tape card's level and its change rows)",
+            "why": None, "x": x, "_found": found}
+
+
+def _known_stamp() -> tuple:
+    """`(before, after)` -- the footer's OWN known-date stamp around the date, read off its ONE producer
+    (`citations.render` on a probe citation), never typed here; `("", "")` where unreadable."""
+    try:
+        from leviathan.graphrag import citations as _ct  # noqa: PLC0415
+        sentinel = "\x00"
+        line = _ct.render([_ct.Citation(id="N1", kind="number", label="L", source="s", date=sentinel)])
+        i = line.index(sentinel)
+        return line[line.index("L") + 1:i], line[i + 1:]
+    except Exception:                                   # noqa: BLE001
+        return "", ""
+
+
+def _known_after_asof_read(rec: dict, r: dict | None) -> dict:
+    """A ROW KNOWN AFTER THE AS-OF (F4-2, CONTRACT C4-21): of the numbers footer's lines carrying a known-date
+    stamp (a line opening with an [N] handle, the stamp in the footer's own format, `_known_stamp`), those whose
+    known date FOLLOWS the page's as-of -- compared at the stamp's own grain (a month-grain stamp against the
+    as-of's month; the same month is not after). The as-of is the board's (`state_board.asof`), else the live
+    row's deck query (`q['asof']`). EVERY page with an as-of is read, not only a historical one: on a now-turn a
+    stamp after the as-of is the same fault (a month served before its declared lag). ABSENT where no as-of is
+    on the record, where the served page (its footer) is not, and where no footer line carries a stamp."""
+    sb = rec.get("state_board") if isinstance(rec.get("state_board"), dict) else {}
+    asof, basis = str(sb.get("asof") or "")[:10], "state_board.asof"
+    if not asof and isinstance(r, dict) and isinstance(r.get("q"), dict):
+        asof, basis = str(r["q"].get("asof") or "")[:10], "the deck query's asof"
+    a_dig = "".join(ch for ch in asof if ch.isdigit())
+    if len(a_dig) != 8:
+        return _absent("no as-of on the record (state_board.asof / the deck query's asof)")
+    body, src = _served_page(rec, r)
+    if body is None:
+        return _absent("no served page on the record (the footer is on the served page only)")
+    pre, post = _known_stamp()
+    if not pre:
+        return _absent("the footer's known stamp is unreadable (citations.render)")
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415 -- THE handle parser
+    x = {"stamped_lines": 0, "unreadable_stamps": 0, "after_asof": 0}
+    found = []
+    for ln in body.splitlines():
+        s = ln.strip()
+        g = _vf._HANDLE.match(s)
+        if g is None or not all(k == "N" for k, _i in _vf._handle_members(g.group(0))):
+            continue
+        j = s.rfind(pre)
+        if j < 0 or (post and not s.endswith(post)):
+            continue
+        k_dig = "".join(ch for ch in s[j + len(pre):len(s) - len(post) if post else len(s)] if ch.isdigit())
+        if len(k_dig) not in (4, 6, 8):
+            x["unreadable_stamps"] += 1
+            continue
+        x["stamped_lines"] += 1
+        if k_dig > a_dig[:len(k_dig)]:
+            x["after_asof"] += 1
+            found.append({"asof": asof, "line": " ".join(s.split())[:240]})
+    if not x["stamped_lines"]:
+        return _absent("no footer line carries a known stamp", d=0)
+    return {"v": x["after_asof"], "d": x["stamped_lines"], "src": f"{src} footer against {basis}", "why": None,
+            "x": x, "_found": found}
+
+
+def _scaled_units(rec: dict) -> list:
+    """The served units that carry a SCALE NUMERAL ("1000 MT", "1000 480 lb. bales"), read by the verifier's own
+    unit grammar (`verify._unit_tokens` + `_is_unit_numeral`: the unit's first token a numeral, a word after
+    it), each with the spellings a reader may print for it -- the verifier's declared alternatives
+    (`verify._row_unit_spellings`) and lane R's display words (`rows.display_unit`, CONTRACT C4-10, where it
+    lands) -- as token tuples: `[(unit, stored tokens, [alternative tokens])]`."""
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415 -- the ONE unit grammar
+    try:
+        from leviathan.graphrag.state import rows as _rw  # noqa: PLC0415
+        disp = getattr(_rw, "display_unit", None)
+    except Exception:                                   # noqa: BLE001
+        disp = None
+    seen, out = set(), []
+    for c in (rec.get("served_rows") if isinstance(rec.get("served_rows"), list) else ()):
+        for rr in ((c or {}).get("rows") or []) if isinstance(c, dict) else ():
+            u = str((rr or {}).get("unit") or "") if isinstance(rr, dict) else ""
+            if not u or u in seen:
+                continue
+            seen.add(u)
+            toks = _vf._unit_tokens(u)
+            if len(toks) < 2 or not _vf._is_unit_numeral(toks[0]) or all(_vf._is_unit_numeral(t) for t in toks):
+                continue
+            alts = [tuple(a) for a in (_vf._row_unit_spellings(u) or ())]
+            if callable(disp):
+                try:
+                    dt = _vf._unit_tokens(disp(u))
+                except Exception:                       # noqa: BLE001
+                    dt = ()
+                if dt and dt != toks and dt not in alts:
+                    alts.append(dt)
+            out.append((u, toks, alts))
+    return out
+
+
+def _raw_unit_read(rec: dict, prose, prose_src) -> dict:
+    """A RAW UNIT SPELLING BESIDE A PROSE FIGURE (R4-2, CONTRACT C4-21): of the writer's figures printed with a
+    SCALED served unit (`_scaled_units`), those printed in the unit's STORED spelling ("1,900 1000 MT") rather
+    than a reader spelling of the same unit ("1,900 thousand tonnes"). The figures are the verifier's own numeral
+    grammar's (`verify.claim_number_spans`, else `_claim_number_spans`) over each sentence of the prose; the unit
+    right after a figure is read by the verifier's unit tokenizer, the longest spelling first. ABSENT where the
+    record carries no served rows, where no served unit carries a scale, where no prose is on it, and where no
+    figure is printed with a scaled unit."""
+    if not isinstance(rec.get("served_rows"), list):
+        return _absent("served_rows absent")
+    units = _scaled_units(rec)
+    if not units:
+        return _absent("no served unit carries a scale numeral", d=0)
+    if not isinstance(prose, str) or not prose.strip():
+        return _absent("no prose on the record")
+    from leviathan.graphrag import verify as _vf  # noqa: PLC0415
+    spans_fn = getattr(_vf, "claim_number_spans", None) or getattr(_vf, "_claim_number_spans")
+    x = {"stored": 0, "reader_spelling": 0}
+    by_unit: dict = {}
+    for s in _vf.sentences(prose):
+        try:
+            spans = spans_fn(s)
+        except Exception:                               # noqa: BLE001
+            continue
+        for _a, b, _v in spans:
+            after = _vf._unit_tokens(s[b:b + 80])
+            best = None
+            for u, toks, alts in units:
+                for kind, t in [("stored", toks)] + [("reader_spelling", a) for a in alts]:
+                    if t and tuple(after[:len(t)]) == tuple(t) and (best is None or len(t) > best[2]):
+                        best = (u, kind, len(t))
+            if best is not None:
+                x[best[1]] += 1
+                c = by_unit.setdefault(best[0], {"stored": 0, "reader_spelling": 0})
+                c[best[1]] += 1
+    d = x["stored"] + x["reader_spelling"]
+    if not d:
+        return _absent("no prose figure is printed with a scaled unit", d=0)
+    return {"v": x["stored"], "d": d, "src": f"{prose_src} against served_rows units", "why": None, "x": x,
+            "_found": [{"unit": u, **c} for u, c in sorted(by_unit.items()) if c["stored"]]}
+
+
 #: THE CENSUS's ROSTER: (name, kind, population). `kind` "bool" reports how many read True; "count" the sum.
 #: A name carrying "[producer]" is a producer's field read AS-IS -- the old report quoted it, so it is
 #: censused for vacuity beside the re-based reading that replaces it, and never blended with it.
@@ -5869,8 +6579,12 @@ _INSTRUMENTS: tuple = (
     ("netting_present", "count",
      "netting parts the ask head printed (state_board.ask_netting: the loudest reading against the lean, the "
      "open event, the tape's move) that the TL;DR cites by their own handle -- a part of several readings "
-     "only when every one is cited -- of the parts printed, on board pages carrying the key (the trace names "
-     "each part by handle only, so a part named without its handle is not credited)"),
+     "only when every one is cited -- of the parts printed, on board pages carrying the key"
+     # FIX SITTING 4 (C4-20, BLOCKER-1 / NOTE-1): the population now states what the reader reads
+     ", every market's parts (by_market) and an event printed with only its [E] receipt (event_e) included; a "
+     "reading the TL;DR does not cite is told where one TL;DR sentence prints its row's whole name (the book's "
+     "name for the card its row id resolves to through the board map, with the row's scope where it has one) -- "
+     "a part the trace names by handle alone, and the tape, are credited by their handle only"),
     ("furniture_count", "count",
      "the block's sentences (state_board.block_sentences, one form per sentence whose figures, handles and "
      f"dates alone differ) found on the served page near-verbatim -- at least {_FURNITURE_SHARE} of the "
@@ -5886,7 +6600,51 @@ _INSTRUMENTS: tuple = (
      "(writer_seam.mandate_census.asks) -- of the facts required plus the rules emitted"),
     ("mandate_census.exactly_as", "count",
      "\"exactly as\" in the board mandate parts emitted on the turn (writer_seam.mandate_census.exactly_as)"),
+    # -- FIX SITTING 4 (lane I, CONTRACT C4-21), APPENDED in the contract's order: this sitting's classes, so the
+    # re-smoke counts them. Each reads its producer's field, ABSENT (never 0) where the field is missing, and is
+    # report-only; the rows that need the page AS SERVED are ABSENT on a banked draft.
+    ("bare_handle_parenthetical", "count",
+     "ledger addresses the served page names WITHOUT their brackets inside a parenthetical (an address only where "
+     "the handle parser reads it with its kind and the page prints it bracketed), each once, against the rows the "
+     "writer seam dated (writer_seam.stale_rows_dated); the stage that wrote each parenthetical (writer / "
+     "verifier / post-verify seam, off the banked raw_draft stages) rides the breakdown"),
+    ("absence_append_beside_served", "count",
+     "absence appends (writer_seam.absence_rows_appended, each located on the served page by its producer's own "
+     "words) whose claim's sentence carries, whole, the name of a member the block serves as absent (a rendered "
+     "hop the walk read no series for; a quorum's unread member, by the and-list after the book's unread words), "
+     "of every absence append -- a shortened name is not read (under), a one-word name in another scope is (over): "
+     "each append is listed with its sentence"),
+    ("long_label_in_sentence", "count",
+     "a served card's LONG reader name (state_conventions reading_words) written on the served page's prose beyond "
+     "the post-verify draft's own uses, read only for a card whose book declares a SHORT name (reading_short) that "
+     "differs from it, against the name corrections the name-binding lint made (writer_seam.name_binding "
+     "*_corrected) -- a long name another seam writes counts too, so the reading can exceed its denominator"),
+    ("handle_inside_noun", "count",
+     "threshold citations the verifier inserted (its live report's direction_audit, rule threshold_cited) that "
+     "stand on the served page between their label and the head noun the threshold clause declares "
+     "(render.THRESHOLD_CLAUSE_NOUN), of every threshold citation inserted"),
+    ("change_row_equals_level", "count",
+     "the tape card's change rows (served_rows: the level call on feeders.TAPE_TABLE / TAPE_METRIC and the calls "
+     "registered behind it, the level's metric extended, in the level's unit) whose value equals their level's "
+     "-- a base read as zero -- of the change rows with a readable value"),
+    ("known_after_asof", "count",
+     "numbers footer lines ([N] handle, the footer's own known stamp) whose known date follows the page's as-of "
+     "(state_board.asof, else the deck query's), at the stamp's own grain, of the footer lines carrying a stamp -- "
+     "every page with an as-of, a now-turn included"),
+    ("raw_unit_spelling", "count",
+     "prose figures printed with a SCALED served unit (a unit opening with a scale numeral, served_rows) in the "
+     "unit's STORED spelling (\"1000 MT\"), of the figures printed with that unit in any spelling the verifier's "
+     "unit grammar reads as it (its declared alternatives, and rows.display_unit where declared)"),
 )
+
+
+def _s4_safe(fn, *args) -> dict:
+    """One FIX-SITTING-4 reader, never raising: an odd record costs that row's reading (ABSENT, the exception
+    named), never the census or the report a paid arm just wrote."""
+    try:
+        return fn(*args)
+    except Exception as e:                              # noqa: BLE001 -- an instrument never breaks a report
+        return _absent(f"the reader failed on this record: {type(e).__name__}")
 
 
 def _instrument_row(rec: dict, r: dict | None = None) -> dict:
@@ -5972,6 +6730,14 @@ def _instrument_row(rec: dict, r: dict | None = None) -> dict:
         "mandate_census.words": _mandate_census_read(rec, "words"),
         "mandate_census.asks": _mandate_census_read(rec, "asks"),
         "mandate_census.exactly_as": _mandate_census_read(rec, "exactly_as"),
+        # -- FIX SITTING 4 (CONTRACT C4-21), in roster order; each reader never raises (`_s4_safe`) --
+        "bare_handle_parenthetical": _s4_safe(_bare_handle_read, rec, r),
+        "absence_append_beside_served": _s4_safe(_absence_append_read, rec, r),
+        "long_label_in_sentence": _s4_safe(_long_label_read, rec, r),
+        "handle_inside_noun": _s4_safe(_handle_inside_noun_read, rec, r),
+        "change_row_equals_level": _s4_safe(_change_row_read, rec),
+        "known_after_asof": _s4_safe(_known_after_asof_read, rec, r),
+        "raw_unit_spelling": _s4_safe(_raw_unit_read, rec, prose, prose_src),
         "_mismatches": cc["mismatches"],
         "_kind_bound": cc.get("kind_bound") or [],
         "_mandate": isinstance(rec.get("desk_register"), dict),
@@ -6104,7 +6870,23 @@ def _census_lists(per: list, reads: list) -> dict:
     for k, v in (("netting_pages", net), ("furniture_found", fur), ("count_kind_bound", kb)):
         if v:
             out[k] = v
+    # FIX SITTING 4 (C4-21), APPENDED and OMITTED WHEN EMPTY: every instance a sitting-4 row counted (or, for the
+    # absence appends, every append it read), so a human reads each one by its own text
+    for name, key in _S4_LISTS:
+        v = [{"id": ids[i], **f} for i, rd in enumerate(reads) for f in (rd[name].get("_found") or ())]
+        if v:
+            out[key] = v
     return out
+
+
+#: FIX SITTING 4: each sitting-4 row's deck list, in roster order (row name, deck-list key).
+_S4_LISTS: tuple = (("bare_handle_parenthetical", "bare_handle_found"),
+                    ("absence_append_beside_served", "absence_append_found"),
+                    ("long_label_in_sentence", "long_label_found"),
+                    ("handle_inside_noun", "handle_inside_noun_found"),
+                    ("change_row_equals_level", "change_equals_level_found"),
+                    ("known_after_asof", "known_after_asof_found"),
+                    ("raw_unit_spelling", "raw_unit_found"))
 
 
 def _census_details(reads: list) -> dict:
@@ -6282,7 +7064,38 @@ def instrument_report(census: dict) -> list[str]:
                  ("one-kind count pass(es)", len(census.get("count_kind_bound") or []) - 10)):
         if n > 0:
             L.append(f"  - ... and {n} more {k} in the artifact's `instruments` key")
+    # FIX SITTING 4 (C4-21): what the sitting-4 rows counted, each list printed only where it has entries
+    for _name, key in _S4_LISTS:
+        xs = census.get(key) or []
+        for m in xs[:10]:
+            L.append(f"  - {_s4_line(key, m)}")
+        if len(xs) > 10:
+            L.append(f"  - ... and {len(xs) - 10} more `{key}` entr(ies) in the artifact's `instruments` key")
     return L
+
+
+def _s4_line(key: str, m: dict) -> str:
+    """ONE sitting-4 deck-list entry as a report line (its page id first, the text a human reads it by)."""
+    i = m.get("id")
+    if key == "bare_handle_found":
+        return f"bare handle `{i}` ({m.get('stage')}): {', '.join(m.get('handles') or [])} in \"{m.get('text')}\""
+    if key == "absence_append_found":
+        where = (f"beside the served absence \"{m['beside']}\" ({m.get('basis')})" if m.get("beside") else
+                 "no served absence named in its sentence")
+        return f"absence append `{i}` {where}: \"{m.get('sentence')}\""
+    if key == "long_label_found":
+        return (f"long label `{i}`: \"{m.get('name')}\" written {m.get('seam_written')} time(s) beyond the draft"
+                + (f" (its short name: \"{m['short']}\")" if m.get("short") else ""))
+    if key == "handle_inside_noun_found":
+        return f"handle inside a noun `{i}`: [N{m.get('handle')}] between \"{m.get('label')}\" and " \
+               f"\"{m.get('noun')}\" -- \"{m.get('text')}\""
+    if key == "change_equals_level_found":
+        return f"change row equal to its level `{i}`: {m.get('metric')} = {m.get('value')} {m.get('unit')} " \
+               f"against the level {m.get('level')}"
+    if key == "known_after_asof_found":
+        return f"known after the as-of `{i}` (as-of {m.get('asof')}): \"{m.get('line')}\""
+    return f"raw unit spelling `{i}`: {m.get('stored')} figure(s) printed \"{m.get('unit')}\" " \
+           f"({m.get('reader_spelling')} in a reader spelling)"
 
 
 def _instrument_panel(rows: list[dict]) -> list[str]:
