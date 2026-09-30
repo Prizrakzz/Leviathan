@@ -83,11 +83,23 @@ def _contract() -> dict:
     return load_registry().table("silver_futures_eod")
 
 
+def _stored_shape(contract: dict) -> dict:
+    """The declaration minus the WRITE-SEAM columns: the 17-column shape every canonical object on
+    S3 carries today. DATA REPAIRS 0929 (FUT-1) declared price_null_reason as a hidden 18th column
+    that the write seam stages; a stored object predates it, and merge_with_canonical tolerates
+    exactly that column missing from a prior (pinned in test_futures_eod_price_guard)."""
+    import copy
+    c = copy.deepcopy(contract)
+    c["physical_columns"] = [p for p in c["physical_columns"] if p["name"] not in FC.WRITE_SEAM_COLUMNS]
+    return c
+
+
 def _canonical_body(df: pd.DataFrame, contract: dict) -> tuple[str, bytes]:
-    """The ONE canonical object a (slug, year) partition of ``df`` publishes to."""
+    """The ONE canonical object a (slug, year) partition of ``df`` publishes to -- in the STORED
+    shape (see _stored_shape), as the objects on S3 are."""
     from leviathan.silver.partitioned_producer import build_partition_objects
 
-    objs = build_partition_objects(df, contract, partition_cols=T2._PARTITION_COLS)
+    objs = build_partition_objects(df, _stored_shape(contract), partition_cols=T2._PARTITION_COLS)
     assert len(objs) == 1
     return objs[0].canonical_key, objs[0].body
 

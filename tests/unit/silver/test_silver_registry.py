@@ -43,7 +43,8 @@ from leviathan.silver.types import (
 # BITEMPORAL companion to silver_pink_sheet -- one row per (data month, WB release) against
 # the sibling's one row per month. SILVER moves and gold does not, and the sibling's own row
 # count is untouched: this is a NEW table under a NEW root, never a widening of the served one.
-EXPECTED_TABLE_COUNT = 53
+# 53 -> 55, DATA REPAIRS 0929 (2026-09-30): silver_icco_cocoa_releases (one row per season per ICCO release, the per-release companion of silver_icco_cocoa) and silver_noaa_enso_vintages (NOAA's legacy ONI and its official Relative ONI, one row per published value, the bitemporal companion of silver_noaa_oni). Two NEW flat tables under NEW roots; the served siblings keep their names, columns and grain (one is rebuilt FROM the new table).
+EXPECTED_TABLE_COUNT = 55
 
 
 @pytest.fixture(scope="module")
@@ -71,7 +72,9 @@ def test_registry_has_exactly_the_live_43_plus_gold(reg):
     # 48 -> 49: silver_pink_sheet_vintages (PINK SHEET VINTAGES lane (a)) -- SILVER again, and
     # gold again unmoved: a bitemporal restatement of a silver source is still that source's
     # own layer, not a derivation carrying a rule of its own.
-    assert len(silver) == 49
+    # 49 -> 51: the two data-repairs tables are SILVER again (a per-release / per-vintage
+    # restatement of a silver source is still that source's own layer); gold unmoved.
+    assert len(silver) == 51
     # the ESR pair + WASDE + model_predictions are all present (registered surfaces).
     for must in ("silver_esr", "silver_esr_compact", "silver_wasde", "silver_model_predictions"):
         assert must in names
@@ -125,7 +128,10 @@ def test_partition_modes_match_the_r0_tally(reg):
     # STRING column rather than a partition key: partitioning on it would mint exactly the
     # projected/registered grid this estate spent a wave undoing, over a table the loader
     # reads whole. projected does NOT move, and cannot.
-    assert modes == {"flat": 36, "projected": 7, "registered": 10}
+    # flat 36 -> 38: both data-repairs tables are FLAT single-object tables under their own roots
+    # (98 and 3,597 rows; release_date / vintage_date are IN-FILE STRING columns, never partition
+    # keys). projected and registered do not move.
+    assert modes == {"flat": 38, "projected": 7, "registered": 10}
 
 
 def test_projection_field_is_quarantined_iff_projected(reg):

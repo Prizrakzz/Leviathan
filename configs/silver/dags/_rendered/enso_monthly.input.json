@@ -62,6 +62,19 @@
         },
         {
           "command": [
+            "jobs/batch/noaa_oni_task.py",
+            "--table",
+            "silver_noaa_enso_vintages",
+            "--publish-mode",
+            "shadow"
+          ],
+          "env": [],
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver",
+          "queue": "leviathan-dev-queue-ondemand"
+        },
+        {
+          "command": [
             "-m",
             "jobs.batch.noaa_iod_task",
             "--source",
@@ -84,6 +97,28 @@
       {
         "command": [
           "jobs/batch/noaa_oni_task.py",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      },
+      {
+        "command": [
+          "jobs/batch/noaa_oni_task.py",
+          "--table",
+          "silver_noaa_enso_vintages",
           "--publish-mode",
           "canonical"
         ],

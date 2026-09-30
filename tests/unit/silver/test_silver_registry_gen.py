@@ -140,7 +140,10 @@ def test_generator_covers_exactly_the_45_baseline_tables(gen):
     #     * SO A GREEN `--check` HERE PROVES the generator still reproduces the committed contracts
     #       from the record on THIS disk. It does not prove a clean checkout can regenerate them,
     #       and it is not read as if it did.
-    assert len(on_disk) == 53
+    # 53 -> 55: DATA REPAIRS 0929 (2026-09-30): silver_icco_cocoa_releases (one row per season per ICCO release, the per-release companion of silver_icco_cocoa) and silver_noaa_enso_vintages (NOAA's legacy ONI and its official Relative ONI, one row per published value, the bitemporal companion of silver_noaa_oni). Two NEW flat tables under NEW roots; the served siblings keep their names, columns and grain (one is rebuilt FROM the new table). Their R0 records are SYNTHETIC (authored from the builders'
+    # declared columns by data_repairs_0929/lane_icco/make_r0_record.py and lane_enso/make_r0_record.py),
+    # gitignored like every R0 record, and ride the image tar's overlay the same way.
+    assert len(on_disk) == 55
     assert "gold_pattern_records" in on_disk
     assert "silver_futures_eod" in on_disk
     assert "gold_board_crush" in on_disk

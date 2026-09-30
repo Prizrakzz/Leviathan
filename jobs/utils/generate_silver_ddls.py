@@ -55,6 +55,10 @@ _SOURCES = {
     "silver_food_cpi": "silver/food_cpi/",
     # climate teleconnections
     "silver_noaa_oni": "silver/weather/source=noaa_oni/",
+    # ENSO VINTAGES (data repairs 0929): a FLAT sibling OUTSIDE silver/weather/ (the pink-sheet-vintages
+    # reading: the checked-in DDL is the F011 registry generator's; the entry is here so a legacy sweep
+    # does not silently omit the table).
+    "silver_noaa_enso_vintages": "silver/noaa_enso_vintages/",
     "silver_noaa_iod": "silver/weather/source=noaa_iod/",
     "silver_modis_ndvi": "silver/weather/source=modis_ndvi/",
     # South Africa grain
@@ -66,6 +70,8 @@ _SOURCES = {
     "silver_nass_crop_progress": "silver/nass_crop_progress/",
     "silver_nass_citrus": "silver/nass_citrus/",
     "silver_icco_cocoa": "silver/icco_cocoa/",
+    # ICCO RELEASES (data repairs 0929): a FLAT sibling prefix (slash-bounded, never nested in icco_cocoa/).
+    "silver_icco_cocoa_releases": "silver/icco_cocoa_releases/",
     # Malaysian palm council
     "silver_mpoc_exports_by_country": "silver/mpoc_exports_by_country/",
     "silver_mpoc_stock_comparison": "silver/mpoc_stock_comparison/",

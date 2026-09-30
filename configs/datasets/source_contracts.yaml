@@ -14,8 +14,16 @@
 #   skip  - skip exact duplicate check and record the reason
 
 sources:
+  # PUBLICATION LAG, MEASURED 2026-09-29 from the held vintage (data_repairs_0929/lane_wx/wx_faostat_lag_bound.py):
+  # the one ingest (2026-05-13) holds 2024 for the primary crop items (lag of 2024 <= 498 d) but only 2023 for the
+  # processed palm-oil item (lag of 2023 <= 864 d; its 2024 absent -> > 498 d). ONE number per source must be
+  # late-safe for EVERY item, so 864 (an upper bound: long is safe, short is a leak; 498 would be a point-in-time
+  # leak of up to a year on the palm weights). Read by jobs/batch/gold_weather_z_task (the origin tier's weight
+  # year: the latest FAOSTAT year released by the month's last day); documentation for every other reader. The
+  # F010 generator does not propagate a source lag into any table contract, so no generated YAML moves.
   - source_key: production:faostat
     title: FAOSTAT production silver
+    publication_lag_days: 864
     glue_table: silver_production
     s3_prefix: s3://leviathan-dev-shahem-001/silver/production/
     status: core
@@ -456,6 +464,26 @@ sources:
     expected_min_rows: 10
     duplicate_check: full
 
+  # ICCO RELEASES (data repairs 0929, lane ICCO, ICCO-4): the PER-RELEASE companion of silver_icco_cocoa -- one
+  # row per (QBCS release, cocoa season), the release's OWN statement for the season (a/ restatements are not
+  # rows; a withheld season is a row with every figure missing and a missing_reason). release_date is the
+  # publisher's dateline (fenced by the bulletin's own title month), else its publication stamp, never a fetch
+  # time; it is the table's known date. silver_icco_cocoa is REBUILT from this table as each season's latest
+  # whole row. Its own floor: the 50 captured bulletins give 98 rows (2026-09-29), so 90 reds a truncated
+  # capture set while never falsely redding a rebuild; the sibling's 10 would pass a one-bulletin collapse blind.
+  - source_key: icco_cocoa_releases
+    title: ICCO cocoa QBCS releases silver (one row per season per release)
+    glue_table: silver_icco_cocoa_releases
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/icco_cocoa_releases/
+    status: core
+    grain: release_date x cocoa_year
+    required_columns: [release_date, release_date_source, bulletin_volume, bulletin_issue, cocoa_year, page_key, page_sha256, parse_version, source]
+    natural_key: [release_date, cocoa_year]
+    date_columns: [release_date]
+    availability_columns: [release_date]
+    expected_min_rows: 90
+    duplicate_check: full
+
   - source_key: ams_cotton_quality
     title: AMS cotton annual quality silver
     glue_table: silver_ams_cotton_quality
@@ -601,6 +629,27 @@ sources:
     date_columns: [year, month]
     availability_columns: [year, month]
     expected_min_rows: 100
+    duplicate_check: full
+
+  # ENSO VINTAGES (data repairs 0929, lane ENSO, ENSO-1 / ENSO-2): the BITEMPORAL companion of silver_noaa_oni,
+  # holding BOTH of NOAA's indices -- the legacy ONI (index_id cpc_oni_ascii) and the Relative ONI (cpc_roni_ascii,
+  # NOAA's official ENSO index from 2026-02-01 per NWS PNS 26-05, official_from / official_until carried as data) --
+  # one row per (index, season, distinct published value), rebuilt whole from the banked captures under
+  # raw/weather/source=noaa_cpc_enso_captures/ every run. vintage_date is the UTC date of a publisher clock (NOAA's
+  # Last-Modified, or a verified web-archive capture instant as an upper bound) and is the table's known date;
+  # silver_noaa_oni is untouched. The prefix sits OUTSIDE silver/weather/ (a sibling root, never a nested one).
+  # Floor: the 13 captures held on 2026-09-29 give 3,597 rows; 3000 reds a collapse to a single vintage.
+  - source_key: noaa_enso_vintages
+    title: NOAA ENSO index vintages silver (legacy ONI + Relative ONI, one row per published value)
+    glue_table: silver_noaa_enso_vintages
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/noaa_enso_vintages/
+    status: core
+    grain: index_id x year x month x vintage_date
+    required_columns: [index_id, source_url, season, year, month, anom, vintage_date, vintage_evidence_utc, vintage_date_source, capture_ref, content_sha256, is_first_print]
+    natural_key: [index_id, year, month, vintage_date]
+    date_columns: [vintage_date, year, month]
+    availability_columns: [vintage_date]
+    expected_min_rows: 3000
     duplicate_check: full
 
   # IOD SOURCE SWITCH (ADR_IOD_SOURCE_SWITCH, RATIFIED 2026-07-24, Option B). Source of record:

@@ -376,7 +376,8 @@ def test_runner_build_evidence_smoke(tmp_path):
     # lands BLOCKED with no census and that is the honest state -- the transform and the batch
     # task both exist, but no canonical publish has run, so there is nothing on S3 for the
     # value census to read.
-    assert len(evidence) == 53
+    # 53 -> 55: DATA REPAIRS 0929 (2026-09-30): silver_icco_cocoa_releases (one row per season per ICCO release, the per-release companion of silver_icco_cocoa) and silver_noaa_enso_vintages (NOAA's legacy ONI and its official Relative ONI, one row per published value, the bitemporal companion of silver_noaa_oni). Two NEW flat tables under NEW roots; the served siblings keep their names, columns and grain (one is rebuilt FROM the new table).
+    assert len(evidence) == 55
     assert {e.table for e in evidence} == set(reg.names())    # one row per registry table, no dups
     cert = certify_all(evidence)
     # Structural, and true whatever the artifact tree says: a certificate covers every table and

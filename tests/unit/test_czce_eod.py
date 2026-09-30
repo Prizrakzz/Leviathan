@@ -248,6 +248,9 @@ class TestSilverProjection:
 
         df = self._silver()
         contract = load_registry().table("silver_futures_eod")
+        # DATA REPAIRS 0929 (FUT-1): the task's publish hands every frame through the write seam
+        # (guard_for_write) before the plan; it stages the declared price_null_reason column.
+        df, _guard = TASK.guard_for_write(df, contract)
         plan = build_partitioned_publish(
             df=df, contract=contract,
             auth=authorize_for_contract(contract, publish_mode="dry-run", env={}),

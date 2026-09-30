@@ -125,6 +125,12 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
+- name: price_null_reason
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: string
+  nullable: true
 writer_schema_pinned: false
 drift_summary: []
 natural_key:
@@ -203,4 +209,21 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   so the house wayback-backfill pattern is unavailable; the producer''s --mode backfill raises NotImplementedError
   BY DESIGN rather than returning a silent empty result. An absent south_african_white_maize_jse / south_african_yellow_maize_jse
   row before that first-run date is NOT a gap in the series -- the series does not exist before it, and
-  no re-run recovers it.'
+  no re-run recovers it. SETTLE_KIND, DEFINED (DATA REPAIRS 0929 / FUT-2; rendered from leviathan.silver.futures_eod_contracts.SETTLE_KIND_DEFINITIONS):
+  `cash_index` = a CEPEA cash-market reference price (BRL per 60-kg bag) -- not a futures contract: instrument_kind
+  cash_index, no delivery month. `close` = the last-trade CLOSE of the session from the vendor''s daily
+  bar (Databento ohlcv-1d, the on-venue publisher''s bar), written into settle because the venue''s settlement
+  series was not purchased -- it is NOT the exchange settlement price and can differ from it. Every ICE
+  US and ICE Europe row carries it. `mark_to_market` = the JSE/SAFEX daily mark-to-market price from the
+  exchange''s MTM sheet -- a clearing mark, not a traded settlement. `settlement` = the exchange''s own
+  daily settlement price for the delivery month, as the venue published it (CME/CBOT: the GLBX.MDP3 statistics
+  settlement, stat_type 3; CZCE, DCE, MIAX and Euronext/MATIF: the settlement column of the venue''s daily
+  file). PRICE DOMAIN (DATA REPAIRS 0929 / FUT-1): a settle/open/high/low/close outside the contract''s
+  declared domain (futures_eod_contracts.PRICE_DOMAIN; every contract `positive` today, `signed` the declared
+  escape) is stored NaN with price_null_reason (<column>:<cause> tokens; causes nonpositive_value | nonfinite_value
+  | absent_on_arrival; NULL iff all five prices are present), written by the write seam after the merge
+  with canonical, so a stored zero is repaired by the next write of its partition; no row is removed and
+  volume / open interest are never read. The column is PHYSICAL-ONLY (hidden from Glue and the DDL) until
+  the owner''s gated ADD COLUMNS. No failing share is declared yet (range_rules.price_domain_guard; proposed
+  slug_day 0.75 against a thirty-year maximum of 0.625, held for the owner''s decision with the verifier''s
+  m-2 remedy): the guard nulls and reports, it does not refuse a write.'

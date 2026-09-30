@@ -390,6 +390,11 @@ class TestPublishWiring:
 
         contract = self._contract()
         df = S.build_databento_eod_silver(_glbx_silver_bronze())
+        # DATA REPAIRS 0929 (FUT-1): the task's publish hands every frame through the write seam
+        # (guard_for_write) before the plan, which stages the declared price_null_reason column;
+        # the producer's frame is the 17 + 2 columns, the plan is built on the guarded one.
+        from jobs.batch.futures_eod_task import guard_for_write
+        df, _guard = guard_for_write(df, contract)
         plan = build_partitioned_publish(
             df=df, contract=contract, auth=self._auth(contract), job="futures_eod_databento",
             partition_cols=["leviathan_slug", "trade_year"], s3_client=None,

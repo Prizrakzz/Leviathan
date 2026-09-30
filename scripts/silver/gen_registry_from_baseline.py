@@ -30,6 +30,7 @@ _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "src"))
 
 from leviathan.silver.types import classify_drift, target_arrow_type  # noqa: E402
+from leviathan.silver.futures_eod_contracts import PRICE_NULL_REASON_COLUMN, SETTLE_KIND_DEFINITIONS  # noqa: E402
 
 BASELINE_ID = "20260712_p65impl"
 BASELINE = _REPO / "reports" / "silver_readiness" / BASELINE_ID
@@ -57,6 +58,10 @@ DOMAIN = {
     "gold_board_crush": "prices",
     "silver_futures_prices": "prices",
     "silver_icco_cocoa": "balance_sheet", "silver_model_predictions": "model_output",
+    # ICCO RELEASES (data repairs 0929, ICCO-4): the PER-RELEASE companion of silver_icco_cocoa --
+    # the same bulletins, the same balance, one row per (release, season) instead of the latest-only
+    # collapse, which is a storage difference and not a subject one (the pink-sheet-vintages reading).
+    "silver_icco_cocoa_releases": "balance_sheet",
     "silver_modis_ndvi": "weather",
     # MINAGRO: State Customs EXPORT volumes off Ukraine, by crop -- the same domain as the
     # SAGIS weekly export legs, not a balance sheet (there is no production/stocks axis here).
@@ -68,6 +73,9 @@ DOMAIN = {
     "silver_nass_annual": "production", "silver_nass_citrus": "production",
     "silver_nass_crop_progress": "crop_condition", "silver_noaa_iod": "climate",
     "silver_noaa_oni": "climate", "silver_pink_sheet": "prices",
+    # ENSO VINTAGES (data repairs 0929, ENSO-1 / ENSO-2): the BITEMPORAL companion of silver_noaa_oni,
+    # carrying both of NOAA's indices (legacy ONI and the official Relative ONI) per published value.
+    "silver_noaa_enso_vintages": "climate",
     # PINK SHEET VINTAGES lane (a): the BITEMPORAL companion to silver_pink_sheet. Same source, same
     # 37 governed series, same domain -- one row per (data month, WB release) instead of the
     # latest-only collapse, which is a STORAGE difference and not a subject one.
@@ -121,6 +129,14 @@ PER_VINTAGE = {
     # 780/792/796/798/799/800 rows, each hole-free), and every one of those restatements is kept.
     # The SIBLING silver_pink_sheet stays latest-only, untouched.
     "silver_pink_sheet_vintages",
+    # DATA REPAIRS 0929: two more tables whose retention is their reason for existing. The ICCO
+    # releases table keeps every bulletin's own statement of every season (98 rows from 50 bulletins
+    # on 2026-09-29; the served sibling silver_icco_cocoa stays latest-only and is REBUILT from it).
+    # The ENSO vintages table keeps every distinct value NOAA ever published for a season of either
+    # index (3,597 rows from 13 captures; NOAA rewrites both files in place and restated 883 of 917
+    # legacy seasons in Aug/Sep 2026); the sibling silver_noaa_oni stays latest-only, untouched.
+    "silver_icco_cocoa_releases",
+    "silver_noaa_enso_vintages",
 }
 # BF-W2 SILVER-F031 option-b: ESR retains one weekly as_of vintage per (slug, week) -- the serving
 # compact gains a REGISTERED as_of_date partition dimension (never re-projection). Flipped from the
@@ -139,12 +155,14 @@ R2_OWNER = {
     "silver_fred_fx": "SILVER-F040", "silver_futures_eod": "SILVER-F062",
     "silver_futures_prices": "SILVER-F062",
     "silver_icco_cocoa": "SILVER-F051", "silver_model_predictions": "SILVER-F018",
+    "silver_icco_cocoa_releases": "SILVER-F051",   # same producing family as the latest-only sibling
     "silver_modis_ndvi": "SILVER-F062", "silver_mpob": "SILVER-F062",
     "silver_mpob_annual": "SILVER-F062", "silver_mpoc_exports_by_country": "SILVER-F053",
     "silver_mpoc_stock_comparison": "SILVER-F055", "silver_mpoc_trade_stats_monthly": "SILVER-F054",
     "silver_nasa_power": "SILVER-F046", "silver_nass_annual": "SILVER-F020",
     "silver_nass_citrus": "SILVER-F056", "silver_nass_crop_progress": "SILVER-F062",
     "silver_noaa_iod": "SILVER-F041", "silver_noaa_oni": "SILVER-F057",
+    "silver_noaa_enso_vintages": "SILVER-F057",   # same producing family as the latest-only sibling
     "silver_pink_sheet": "SILVER-F023",
     "silver_pink_sheet_vintages": "SILVER-F023",   # same producing family as the latest-only sibling
     "silver_production": "SILVER-F022",
@@ -191,6 +209,9 @@ PRODUCER = {
     "silver_futures_eod": (None, _J + "futures_eod_task.py", "producer"),
     "silver_futures_prices": (_T + "yfinance_futures.py", _J + "yfinance_futures_task.py", "producer"),
     "silver_icco_cocoa": (_T + "icco_cocoa.py", _J + "icco_cocoa_task.py", "producer"),
+    # ICCO RELEASES: the SAME transform module (build_icco_releases sits beside build_icco_silver) and
+    # the SAME batch task, which now publishes the releases table first and the served table from it.
+    "silver_icco_cocoa_releases": (_T + "icco_cocoa.py", _J + "icco_cocoa_task.py", "producer"),
     "silver_model_predictions": ("jobs/batch/train_commodity.py", None, "producer"),
     "silver_modis_ndvi": (_T + "modis_ndvi.py", _J + "modis_ndvi_bronze_to_silver_task.py", "producer"),
     "silver_mpob": (_T + "mpob.py", _J + "mpob_silver_task.py", "producer"),
@@ -204,6 +225,10 @@ PRODUCER = {
     "silver_nass_crop_progress": (_T + "usda_nass_crop_progress.py", _J + "nass_crop_progress_silver_task.py", "producer"),
     "silver_noaa_iod": (_T + "noaa_iod.py", _J + "noaa_iod_task.py", "producer"),
     "silver_noaa_oni": (_T + "noaa_oni.py", _J + "noaa_oni_task.py", "producer"),
+    # ENSO VINTAGES: the SAME transform module (build_enso_vintages sits beside build_oni_silver) and
+    # the SAME batch task under `--table silver_noaa_enso_vintages`, which reads the banked captures
+    # only and never fetches; the default path (the legacy table) is unchanged.
+    "silver_noaa_enso_vintages": (_T + "noaa_oni.py", _J + "noaa_oni_task.py", "producer"),
     "silver_pink_sheet": (_T + "pink_sheet.py", _J + "pink_sheet_silver_task.py", "producer"),
     # PINK SHEET VINTAGES lane (a): the SAME transform module (build_silver_vintages sits beside
     # build_silver), a DIFFERENT batch task. The task reads BOTH bronze prefixes -- the scheduled
@@ -272,6 +297,9 @@ WRITER_SCHEMA_PINNED |= {"silver_production", "silver_pink_sheet", "silver_conab
 # leviathan.silver.flat_producer path (build_flat_publish -> pa_schema_from_contract), so its INV-2
 # writer schema is pinned from this contract before every write, exactly as its sibling's is.
 WRITER_SCHEMA_PINNED |= {"silver_pink_sheet_vintages"}
+# DATA REPAIRS 0929: the two new per-vintage tables publish through the same flat path, so their INV-2
+# writer schemas are pinned from these contracts before every write, exactly as their siblings' are.
+WRITER_SCHEMA_PINNED |= {"silver_icco_cocoa_releases", "silver_noaa_enso_vintages"}
 # LANE W (SILVER-F021/F045/F046/F047 -- the weather family): the three weather producers now write
 # THROUGH the pinned pyarrow schemas in leviathan.transforms.bronze_to_silver._weather_schema
 # (NASA_POWER_WIDE_SCHEMA / CHIRPS_LONG_SCHEMA / CPC_SOIL_LONG_SCHEMA). Disjoint |= update so the
@@ -360,6 +388,14 @@ KNOWLEDGE_DATE_OVERRIDE = {
     # event, not a data date with a lag (the silver_esr as_of precedent). Superseded 1:1 if a numbers
     # TableSpec is ever minted (numbers_spec wins in build_contract) -- which is STEP 9, not this one.
     "silver_pink_sheet_vintages": ("release_date", "vintage", 0),
+    # DATA REPAIRS 0929 -- the same reading, twice. release_date IS the ICCO bulletin's publication
+    # event (its dateline, fenced by the bulletin's own title month); vintage_date IS the UTC date of
+    # the publisher clock that dated a NOAA capture (Last-Modified, or a verified archive instant).
+    # Both are PHYSICAL STRING 'YYYY-MM-DD' columns, never timestamps, for the lexical as-of guard;
+    # both lag 0 because the column is the publication event itself. No numbers card exists for
+    # either table, so the PIT trio is declared here (superseded 1:1 by a card, if one is minted).
+    "silver_icco_cocoa_releases": ("release_date", "vintage", 0),
+    "silver_noaa_enso_vintages": ("vintage_date", "vintage", 0),
     "silver_wap_table01_revisions": ("release_month", "year_month", None),
     # SILVER-F059: the derived week_ending_date (CURATION_OVERRIDES additive_columns_hidden below)
     # makes SAGIS weekly exports a data_date table. +5d ratified: SAGIS posts the cumulative file a
@@ -1234,6 +1270,49 @@ CURATION_OVERRIDES: dict = {
             "unit": False,              # from the single-source CONTRACT_MAP; never guessed
             "source": False,            # the publication channel; makes settle_kind auditable
         },
+        # DATA REPAIRS 0929, FUT-1 (a price of ZERO was stored: 462 of 580,628 rows, every one on ICE
+        # US, cocoa's 19 zero settles among them) and FUT-2 (every ICE row's settle is the vendor's
+        # session CLOSE and nothing a reader saw said so). The write seam (futures_eod_task.publish ->
+        # guard_for_write) now stores a settle/open/high/low/close outside the contract's DECLARED
+        # domain (futures_eod_contracts.PRICE_DOMAIN, asserted complete against CONTRACT_MAP at import)
+        # as NaN with a reason in price_null_reason -- a HIDDEN additive column (glue_type None: the
+        # catalog and the DDL do not move until the owner's gated ADD COLUMNS; the writer schema keys
+        # on target_arrow_type, so the producer emits it). The failing share is DECLARED here and read
+        # by futures_eod_contracts.price_guard_rule, never a number typed in code: one slug-day whose
+        # guard-nulled share exceeds it refuses the write. O-6, the owner's number: 0.75 proposed --
+        # calibrated by data_repairs_0929/lane_fut/calibrate_share.py over the 580,628 stored rows,
+        # where the largest slug-day share in thirty years is 0.625 (cotton 2022-09-29, 5 of 8) and
+        # no slug-day fails at >= 0.625. The settle_kind vocabulary is rendered into the notes FROM
+        # futures_eod_contracts.SETTLE_KIND_DEFINITIONS (one clause per kind), so the declaration and
+        # the code can never say two different things about what `close` means.
+        "additive_columns_hidden": [(PRICE_NULL_REASON_COLUMN, "string")],
+        # THE FAILING SHARE IS NOT DECLARED YET (the integrator, 2026-09-30). The lane proposed
+        # range_rules.price_domain_guard {denominator slug_day, max_nulled_share 0.75}; the verifier's
+        # m-2 stands against it as written: the rule refuses the WHOLE write when ONE slug-day breaches
+        # it, so a thin slug printing 1 of 1 (or 3 of 3) zero bars on one day would stop every price
+        # of that nightly, cocoa's repair included -- the lane's own deck shows it (a one-row cocoa
+        # day refuses at 1.0000 > 0.75). Until the owner rules O-6 WITH the m-2 remedy (a minimum
+        # row count per slug-day, or a refusal scoped to the breaching partition), the guard nulls
+        # and reports (PRICE_GUARD) and has no share to fail on. When declared, the one line is
+        #   "range_rules": {"price_domain_guard": {"denominator": "slug_day", "max_nulled_share": 0.75,
+        #       "calibrated_by": "data_repairs_0929/lane_fut/calibrate_share.py over 580,628 rows: max
+        #       slug-day share 0.625 (cotton 2022-09-29, 5 of 8); 0 failures at >= 0.625"}},
+        # and the pass-through below already carries range_rules.
+        "notes_append": (
+            " SETTLE_KIND, DEFINED (DATA REPAIRS 0929 / FUT-2; rendered from "
+            "leviathan.silver.futures_eod_contracts.SETTLE_KIND_DEFINITIONS): "
+            + " ".join(f"`{k}` = {v}." for k, v in sorted(SETTLE_KIND_DEFINITIONS.items()))
+            + " PRICE DOMAIN (DATA REPAIRS 0929 / FUT-1): a settle/open/high/low/close outside the contract's "
+            "declared domain (futures_eod_contracts.PRICE_DOMAIN; every contract `positive` today, `signed` "
+            "the declared escape) is stored NaN with " + PRICE_NULL_REASON_COLUMN + " (<column>:<cause> tokens; "
+            "causes nonpositive_value | nonfinite_value | absent_on_arrival; NULL iff all five prices are "
+            "present), written by the write seam after the merge with canonical, so a stored zero is repaired "
+            "by the next write of its partition; no row is removed and volume / open interest are never read. "
+            "The column is PHYSICAL-ONLY (hidden from Glue and the DDL) until the owner's gated ADD COLUMNS. "
+            "No failing share is declared yet (range_rules.price_domain_guard; proposed slug_day 0.75 against a "
+            "thirty-year maximum of 0.625, held for the owner's decision with the verifier's m-2 remedy): the "
+            "guard nulls and reports, it does not refuse a write."
+        ),
     },
     # ── IOD SOURCE SWITCH (ADR_IOD_SOURCE_SWITCH, RATIFIED 2026-07-24, Option B). The served DMI
     # re-bases from the FROZEN NOAA PSL HadISST1.1 file (last real month 2025-04; the file has not
@@ -1436,6 +1515,79 @@ CURATION_OVERRIDES: dict = {
             "four already-banked objects all read derived_month_first, and that zero is measured."
         ),
     },
+    # ── DATA REPAIRS 0929, lane ICCO (ICCO-4): silver_icco_cocoa_releases, ONE ROW PER SEASON PER
+    # RELEASE. The generator's card-less value fallback would govern nothing (every required column
+    # is a key or provenance string), so the four balance figures are declared. Freshness: the
+    # sibling's (cadence annual from the grain, max_lag_days null) -- a quarterly alarm is not typed
+    # here; it would be calibrated by a script over the table's own release_date gaps.
+    "silver_icco_cocoa_releases": {
+        "required_nonnull": ["release_date", "release_date_source", "bulletin_volume", "bulletin_issue",
+                             "cocoa_year", "page_key", "page_sha256", "parse_version", "source"],
+        "nullable_overrides": {"release_date_source": False, "bulletin_volume": False, "bulletin_issue": False,
+                               "page_key": False, "page_sha256": False, "parse_version": False,
+                               "source": False},
+        "value_columns": ["production_kt", "grindings_kt", "end_stocks_kt", "surplus_deficit_kt"],
+        "notes_append": (
+            " ICCO RELEASES (DATA REPAIRS 0929, lane ICCO, ICCO-1..4): the PER-RELEASE companion of "
+            "silver_icco_cocoa. GRAIN: one row per (release_date, cocoa_year) -- the bulletin's OWN statement "
+            "for the season; an a/ restatement of an earlier season is NOT a row; a season the ICCO withheld is "
+            "a row with every figure missing and missing_reason = 'withheld'. (bulletin_volume, bulletin_issue, "
+            "cocoa_year) is unique. WITNESSES: a data column's season and kind are read from the page's own "
+            "HEADER CELLS through one declared map; the header is a CLAIM, witnessed by the release chain (a "
+            "restated a/ column must equal what the previous bulletin stated) and by the intro statement, and "
+            "season_witnesses names what confirmed it; a release no witness confirms is written MISSING, never "
+            "guessed (the two headers the ICCO mislabelled, May-2023 and Aug-2023, are overruled by the chain "
+            "and header_season keeps the printed label beside cocoa_year). RELEASE DATE: release_date is the "
+            "publisher's dateline fenced by the bulletin's own title month, else its publication stamp, never a "
+            "fetch time; release_date_source names the rung; it is a STRING 'YYYY-MM-DD' for the lexical as-of "
+            "guard and is this table's known date (vintage, lag 0). figure_kind is one of forecast, "
+            "revised_forecast, estimate, revised_estimate, withheld. IDENTITY: production less the loss "
+            "footnote's share less grindings equals the surplus within IDENTITY_TOLERANCE_KT; identity_gap_kt, "
+            "identity_status (`within_rounding` | `exceeds_rounding`, one publisher slip: May-2021, 2019/20) and "
+            "stocks_identity_gap_kt carry the check. silver_icco_cocoa (10 columns, one row per season) is "
+            "REBUILT from this table as each season's WHOLE latest stated row -- never a per-metric splice -- so "
+            "a closed season carries its latest captured revision (2015/16: 3,981 / -187 from Aug-2017, not "
+            "the May-2016 forecast 4,039 / -180). Built from the banked page.html bytes under "
+            "raw/production/source=icco_qbcs_summary/, never from the JSON sidecars; page_sha256 and "
+            "parse_version tie every row to its bytes and its parser."
+        ),
+    },
+    # ── DATA REPAIRS 0929, lane ENSO (ENSO-1 / ENSO-2): silver_noaa_enso_vintages, one row per
+    # (index, season, distinct published value). max_lag_days 45 = the noaa_climate family's
+    # existing ceiling (silver_noaa_iod), so the family alarm does not move; NOAA updates both files
+    # around the first week of the month and the capture leg runs on the 5th.
+    "silver_noaa_enso_vintages": {
+        "required_nonnull": ["index_id", "source_url", "season", "year", "month", "vintage_date",
+                             "vintage_evidence_utc", "vintage_date_source", "capture_ref", "content_sha256",
+                             "is_first_print"],
+        "nullable_overrides": {"source_url": False, "season": False, "vintage_evidence_utc": False,
+                               "vintage_date_source": False, "capture_ref": False, "content_sha256": False,
+                               "is_first_print": False},
+        "value_columns": ["anom"],
+        "freshness_sla": {"cadence": "monthly", "max_lag_days": 45},
+        "notes_append": (
+            " ENSO VINTAGES (DATA REPAIRS 0929, lane ENSO, ENSO-1 / ENSO-2): the BITEMPORAL companion of "
+            "silver_noaa_oni, which stays latest-only and untouched (its 919 legacy rows equal NOAA's file). "
+            "GRAIN: one row per (index_id, year, month, vintage_date) = one DISTINCT published value of a "
+            "season of one index; index_id `cpc_oni_ascii` is the legacy ONI (oni.ascii.txt) and "
+            "`cpc_roni_ascii` the RELATIVE ONI (RONI.ascii.txt), NOAA's official ENSO index from 2026-02-01 per "
+            "NWS PNS 26-05 -- official_from / official_until (exclusive) and official_statement (verbatim) "
+            "carry that as DATA, the dates extracted from the statement's words by code. month is the CENTRE "
+            "month of the three-month season. CLOCKS: vintage_date is the UTC date of a publisher clock -- "
+            "NOAA's Last-Modified of the live file (vintage_date_source origin_last_modified), or a VERIFIED "
+            "web-archive capture instant as an upper bound (archive_capture) -- a STRING 'YYYY-MM-DD' for the "
+            "lexical as-of guard, this table's known date (vintage, lag 0); vintage_evidence_utc carries the "
+            "instant; capture_ref and content_sha256 tie the row to its banked capture. is_first_print marks "
+            "the earliest held value of a season; a first print not held is ABSENT, never filled from a "
+            "revision. AS-OF READ: per (index_id, year, month), the row with the greatest vintage_date <= asof; "
+            "the official index at an as-of date is the one whose [official_from, official_until) contains it. "
+            "Every run REBUILDS the table whole from the banked captures under "
+            "raw/weather/source=noaa_cpc_enso_captures/ (a capture is keyed by its clock and content digest "
+            "and is never overwritten); no row is ever known before its season ends. NOAA rewrites both files "
+            "in place and restated 883 of 917 legacy seasons (max 0.44) and 868 of 917 RONI seasons (max 0.52) "
+            "in Aug/Sep 2026 -- which is why the latest-only sibling cannot answer what was known when."
+        ),
+    },
     # ── ESR changes_1000mt UPSTREAM TERMINATION (2026-07-23 gate FAIL triage): the FAS ESR
     # /allCountries response DROPPED the `changes` field entirely between the 20260524 and
     # 20260712 fetches -- immutable raw proof: every record of as_of=20260712/17/23 for
@@ -1571,6 +1723,42 @@ CURATION_OVERRIDES: dict = {
     # (target_arrow_type), and the B3 canonical publish wrote them as physical INT64 -- the R0
     # baseline glue_type tinyint described the pre-rebuild int8 object. Catalog + registry follow
     # the physical truth (a WIDEN; apply refuses narrows).
+    # ── DATA REPAIRS 0929, lane WX (WX-1 the cocoa belt by origin, WX-2 the known date): notes ONLY.
+    # No new column, no DDL move, no P1 entry; the new rows ride NEW metric names in the same 7
+    # columns and the pg mirror copies the card-declared names only.
+    "gold_weather_z": {
+        "notes_append": (
+            " WX-1 ORIGIN TIER + WX-2 KNOWN DATE (data repairs 2026-09-29; transforms/gold/weather_z.py "
+            "compute_origin_rows / METRIC_SOURCES / known_date). NEW ROWS UNDER NEW METRIC NAMES, no new "
+            "column, every pre-existing row byte-identical: cell tier precip_total_mm, precip_normal_mm, "
+            "precip_pct_normal, precip_is_preliminary; member-country tier (region <member>_country) "
+            "tmax_anomaly/gdd_z/heat_stress_z/drought_z _country_mean, precip_pct_normal_country (100 x summed "
+            "cell rainfall / summed cell normals, a ratio of sums), precip_pct_normal_cells, "
+            "precip_preliminary_share, production_share, production_share_year; basin tier (region "
+            "<basin>_basin) the four z metrics _prod_weighted, precip_pct_normal_prod_weighted, "
+            "precip_pct_normal_basin, precip_pct_normal_cells, precip_preliminary_share. NORMAL: the WMO "
+            "30-year period in force at the month (the latest 30-year period ending in a year divisible by 10 "
+            "before the month's year; 1991-2020 for months from 2021; CHIRPS-truncated before 2011), at least "
+            "10 complete years. WEIGHTS: FAOSTAT QCL production_quantity for the row's own commodity slug, "
+            "members joined on country_key and resolved 1:1 (fail closed), shares of the present members "
+            "summing to 1, weight year = the latest FAOSTAT year released (Dec 31 + the declared "
+            "production:faostat publication_lag_days) by the month's last day; a weighted row exists only when "
+            "every present member has a value (never renormalised); FAOSTAT is held latest-only, so past "
+            "weights follow its current vintage (a declared revision impurity). KNOWN DATE: a row's (year, "
+            "month) is the DATA month; the row became known on the last day of (year, month) plus the "
+            "publication lag DECLARED in configs/datasets/source_contracts.yaml for the source product behind "
+            "the metric -- weather:nasa_power for tmax_anomaly, gdd_z, heat_stress_z, frost_event_flag and "
+            "every aggregate of them; weather:chirps (the FINAL block's horizon) for drought_z, "
+            "drought_z_is_preliminary, every precip_* metric and their aggregates; an aggregate takes the max "
+            "over its weather inputs; the FAOSTAT weight is released by the month's end and never moves a row "
+            "later (production_share rows are known at the month's end). A month whose *_is_preliminary stamp "
+            "is 1 was stored earlier from CHIRPS PRELIM bytes (month completion ~+2 d, documented, not a "
+            "declared field) and is recomputed when the final lands. DELIBERATELY NOT publication_lag_days on "
+            "this contract (freshness GRACE on a silver contract) and no knowledge_date_col (no physical "
+            "known-date column); the serving card's per-metric ym_publication_lag_days carries the read-side "
+            "margin."
+        ),
+    },
     "silver_noaa_oni": {"type_overrides": {
         "el_nino_flag": "bigint", "la_nina_flag": "bigint",
         "la_nina_brazil_flag": "bigint", "argentina_la_nina_flag": "bigint",
@@ -2009,7 +2197,7 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
         }
     for key in ("natural_key", "required_nonnull", "coverage_axis", "vintage_waiver",
                 "min_nonnull_frac_overrides", "min_nonnull_frac_season_overrides",
-                "schema_version"):
+                "schema_version", "range_rules"):
         if key in ov:
             contract[key] = ov[key]
     if "freshness_sla" in ov:

@@ -61,6 +61,15 @@ def _contract() -> dict:
     return load_registry().table("silver_futures_eod")
 
 
+def _contract_bare() -> dict:
+    """The declaration WITHOUT the reason column: the 17-column shape every canonical object stored
+    today carries (the integrator's curation of 2026-09-30 added the hidden 18th column to the live
+    registry, so ``_contract()`` no longer models the stored objects; this does)."""
+    c = copy.deepcopy(_contract())
+    c["physical_columns"] = [p for p in c["physical_columns"] if p["name"] != REASON]
+    return c
+
+
 def _contract_with_reason() -> dict:
     """The declaration as the generator renders it once ``additive_columns_hidden
     [("price_null_reason", "string")]`` is curated for silver_futures_eod: appended LAST, glue_type
@@ -322,7 +331,7 @@ class TestTheWriteSeam:
         contract = _contract_with_reason()
         prior = _silver([_ZERO_BAR])
         prior17 = prior.copy()
-        objs = build_partition_objects(prior17, _contract(), partition_cols=T2._PARTITION_COLS)
+        objs = build_partition_objects(prior17, _contract_bare(), partition_cols=T2._PARTITION_COLS)
         s3 = FakeS3({objs[0].canonical_key: objs[0].body})       # a 17-column canonical object
         fresh = _silver([dict(_GOOD_BAR, trade_date="2026-01-13")])
         merged, rec = T2.merge_with_canonical(fresh, contract, s3)
@@ -376,7 +385,7 @@ class TestTheReguardRepair:
 
     def test_a_stored_partition_is_read_whole_and_only_its_zeros_move(self):
         stored = _silver([_GOOD_BAR, _ZERO_BAR])
-        _key, s3 = self._store(stored, _contract())            # a 17-column object, as today
+        _key, s3 = self._store(stored, _contract_bare())       # a 17-column object, as today
         contract = _contract_with_reason()
         df, rec = T2.read_canonical_partitions([("cocoa", 2026)], contract, s3)
         assert rec["rows_by_partition"] == {"cocoa/2026": 2}
@@ -393,7 +402,7 @@ class TestTheReguardRepair:
 
     def test_main_reguard_publishes_the_guarded_object_and_nothing_else(self, monkeypatch):
         stored = _silver([_GOOD_BAR, _ZERO_BAR])
-        _key, s3 = self._store(stored, _contract())
+        _key, s3 = self._store(stored, _contract_bare())       # a 17-column object, as today
         seen = {}
 
         def _capture(**kw):

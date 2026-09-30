@@ -45,7 +45,11 @@ class TestCompleteness:
         assert catalog["usda_esr"].tables == ("silver_esr", "silver_esr_compact")
         assert "gold_weather_z" in catalog["weather"].tables
         assert "silver_nasa_power" in catalog["weather"].tables
-        assert set(catalog["noaa_climate"].tables) == {"silver_noaa_iod", "silver_noaa_oni"}
+        # DATA REPAIRS 0929 (lane ENSO): silver_noaa_enso_vintages -- NOAA's legacy ONI and its official
+        # Relative ONI, one row per published value -- joins the noaa_climate family by its silver_noaa_
+        # prefix (dag_catalog.py), beside the latest-only sibling it is rebuilt from the captures of.
+        assert set(catalog["noaa_climate"].tables) == {"silver_noaa_iod", "silver_noaa_oni",
+                                                       "silver_noaa_enso_vintages"}
 
 
 class TestBackfillFlag:

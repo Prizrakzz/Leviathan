@@ -762,10 +762,16 @@ class TestRegistryContract:
             "leviathan_slug", "trade_date", "instrument_kind", "settle_kind", "unit", "source"}
 
     def test_inv2_column_order_is_the_ratified_writer_order(self, contract):
-        assert [c["name"] for c in contract["physical_columns"]] == [
+        names = [c["name"] for c in contract["physical_columns"]]
+        assert names[:17] == [
             "trade_date", "contract_month", "instrument_kind", "raw_symbol", "settle", "settle_kind",
             "open", "high", "low", "close", "volume", "open_interest", "unit", "currency",
             "expiry_date", "source", "dataset"]
+        # DATA REPAIRS 0929 (FUT-1): the write seam's price_null_reason is the declared 18th column,
+        # LAST, hidden from Glue (glue_type None) and nullable, until the owner's gated ADD COLUMNS.
+        assert names[17:] == list(FC.WRITE_SEAM_COLUMNS) == ["price_null_reason"]
+        by = {c["name"]: c for c in contract["physical_columns"]}
+        assert by["price_null_reason"]["glue_type"] is None and by["price_null_reason"]["nullable"] is True
         # partition keys live ONLY in partition_keys -- declaring them physically too is the
         # silver_esr_compact clash that forced load_pg_numbers to grow a per-load footer probe.
         assert "leviathan_slug" not in [c["name"] for c in contract["physical_columns"]]
@@ -800,7 +806,9 @@ class TestRegistryContract:
         import pyarrow as pa
         from leviathan.silver.flat_producer import pa_schema_from_contract
         sch = pa_schema_from_contract(contract)
-        assert sch.names[0] == "trade_date" and sch.names[-1] == "dataset"
+        # the last PRODUCER column is dataset; the write seam's reason column rides after it (FUT-1)
+        assert sch.names[0] == "trade_date" and sch.names[16] == "dataset"
+        assert sch.names[-1] == "price_null_reason" and sch.field("price_null_reason").type == pa.string()
         assert sch.field("trade_date").type == pa.timestamp("us")
         assert sch.field("settle").type == pa.float64()
         assert sch.field("volume").type == pa.int64()

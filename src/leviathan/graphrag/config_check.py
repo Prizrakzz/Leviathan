@@ -3329,13 +3329,20 @@ def check_futures_eod() -> list[str]:
             errs.append(f"futures_eod: registry vintage_retention is {contract.get('vintage_retention')!r}, "
                         f"expected 'latest-only' (prices do not revise -> latest IS only)")
         cols = {c.get("name"): c for c in (contract.get("physical_columns") or [])}
-        # declaration order IS writer order (INV-2) -- pa_schema_from_contract emits it verbatim.
-        want_order = ["trade_date", "contract_month", "instrument_kind", "raw_symbol", "settle",
-                      "settle_kind", "open", "high", "low", "close", "volume", "open_interest",
-                      "unit", "currency", "expiry_date", "source", "dataset"]
+        # declaration order IS writer order (INV-2) -- pa_schema_from_contract emits it verbatim. The
+        # ratified order is the contract module's own PHYSICAL_COLUMNS, then each WRITE-SEAM column
+        # the declaration carries, in the module's order (DATA REPAIRS 0929 / FUT-1: price_null_reason,
+        # a hidden additive column the write seam stages only where declared -- never a typed list
+        # here that the declaration has to be re-typed into).
+        seam_declared = [c for c in FC.WRITE_SEAM_COLUMNS if c in cols]
+        want_order = list(FC.PHYSICAL_COLUMNS) + seam_declared
         if list(cols) != want_order:
             errs.append(f"futures_eod: registry physical_columns order {list(cols)} != the ratified INV-2 "
                         f"writer order {want_order}")
+        for cn in seam_declared:
+            if cols[cn].get("glue_type") is not None or cols[cn].get("nullable") is not True:
+                errs.append(f"futures_eod: write-seam column {cn!r} must be hidden (glue_type null) and "
+                            f"nullable until the owner's gated ADD COLUMNS")
         # the four contract-non-null labels + trade_date; contract_month is NULLABLE despite being a
         # natural-key member (the CEPEA cash rows) -- the exact pair of facts the generator's
         # nullable_overrides curation exists to express.

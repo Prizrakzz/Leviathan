@@ -67,6 +67,9 @@ def _rows(n: int = 2, slug: str = "corn_cbot", year: int = 2026) -> pd.DataFrame
         "expiry_date": pd.to_datetime(["2026-12-14"] * n),
         "source": ["databento_glbx_mdp3"] * n,
         "dataset": ["GLBX.MDP3"] * n,
+        # DATA REPAIRS 0929 (FUT-1): the declaration's hidden 18th column, price_null_reason -- NULL
+        # on a row whose five prices are all present; the write seam fills it, this frame is in shape.
+        "price_null_reason": pd.array([None] * n, dtype="string"),
         "leviathan_slug": [slug] * n,
         "trade_year": [year] * n,
     })

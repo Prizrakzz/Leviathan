@@ -11,7 +11,8 @@
   "skip_existing": false,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
-    "silver_icco_cocoa"
+    "silver_icco_cocoa",
+    "silver_icco_cocoa_releases"
   ],
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/icco_cocoa/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
@@ -22,7 +23,7 @@
     "maximum_event_age_in_seconds": 86400
   },
   "queue": "leviathan-dev-queue-ondemand",
-  "chain_shape": "fetch->silver (NO bronze phase and NO bronze producer in the tree: icco_cocoa_task reads bronze/production/source=icco_qbcs/, 48 objects all written by the 2026-06-03 restore backfill, so a newly fetched raw release never reaches silver)",
+  "chain_shape": "fetch->silver (NO bronze phase: icco_cocoa_task reads the banked bulletin PAGES under raw/production/source=icco_qbcs_summary/release_date=*/ (page.html and capture_<digest16>.html, never page_parse_failure.html) and builds silver_icco_cocoa_releases, then silver_icco_cocoa from it; the 48 bronze/production/source=icco_qbcs/ objects of the 2026-06-03 restore backfill are no longer read and are not deleted)",
   "phases": [
     {
       "name": "fetch",
